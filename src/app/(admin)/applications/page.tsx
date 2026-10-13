@@ -1,11 +1,11 @@
 "use client";
 
-import { Check, ClipboardList, Copy, Printer, X } from "lucide-react";
+import { Check, ClipboardList, Copy, Printer, QrCode, X } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useState } from "react";
 import { AddResidentModal } from "@/components/AddResidentModal";
 import { toast } from "@/components/toast";
-import { Avatar, Badge, Button, Card, EmptyState, Modal, PageHeader, Tabs } from "@/components/ui";
+import { Avatar, Badge, BtnLabel, Button, headerBtn, Card, EmptyState, Modal, PageHeader, Tabs } from "@/components/ui";
 import { applicationToStudent, setApplicationStatus, useHostel } from "@/lib/store";
 import type { Application } from "@/lib/types";
 import { formatDateTime } from "@/lib/utils";
@@ -28,14 +28,19 @@ export default function ApplicationsPage() {
           <>
             <Button
               variant="secondary"
+              className={headerBtn}
               onClick={() => {
                 navigator.clipboard?.writeText(link);
                 toast("Registration link copied");
               }}
             >
-              <Copy className="size-4" /> Copy link
+              <Copy className="size-4" />
+              <BtnLabel>Copy link</BtnLabel>
             </Button>
-            <Button onClick={() => setShowQR(true)}>Show QR code</Button>
+            <Button className={headerBtn} onClick={() => setShowQR(true)}>
+              <QrCode className="size-4" />
+              <BtnLabel>Show QR code</BtnLabel>
+            </Button>
           </>
         }
       />

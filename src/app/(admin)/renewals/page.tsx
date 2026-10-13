@@ -6,7 +6,7 @@ import { useMemo, useState } from "react";
 import { ComposeModal } from "@/components/ComposeModal";
 import { PaymentModal } from "@/components/PaymentModal";
 import { toast } from "@/components/toast";
-import { Avatar, Badge, Button, Card, EmptyState, PageHeader, Tabs } from "@/components/ui";
+import { Avatar, Badge, BtnLabel, Button, headerBtn, Card, EmptyState, PageHeader, Tabs } from "@/components/ui";
 import { runAutomatedReminders, useHostel } from "@/lib/store";
 import { openResident } from "@/lib/ui-store";
 import { TEMPLATES } from "@/lib/templates";
@@ -63,12 +63,14 @@ export default function RenewalsPage() {
         description="Know who is due, remind them in one click, and record renewals."
         actions={
           <Button
+            className={headerBtn}
             onClick={() => {
               const n = runAutomatedReminders();
               toast(n ? `Sent ${n} automated reminder${n === 1 ? "" : "s"}` : "Everyone due has already been reminded", n ? "success" : "info");
             }}
           >
-            <BellRing className="size-4" /> Run automatic reminders
+            <BellRing className="size-4" />
+            <BtnLabel>Run automatic reminders</BtnLabel>
           </Button>
         }
       />
@@ -129,7 +131,7 @@ export default function RenewalsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-grey-100 bg-grey-10 text-left text-xs font-medium text-heading-6">
-                  <th className="w-10 px-4 py-3">
+                  <th className="w-10 px-2.5 py-3 sm:px-4">
                     <input
                       type="checkbox"
                       aria-label="Select all"
@@ -138,11 +140,13 @@ export default function RenewalsPage() {
                       onChange={() => setSelected(allChecked ? new Set() : new Set(list.map((r) => r.id)))}
                     />
                   </th>
-                  <th className="px-4 py-3">Resident</th>
-                  <th className="px-4 py-3">Room</th>
-                  <th className="px-4 py-3">Expiry</th>
-                  <th className="hidden px-4 py-3 md:table-cell">Last reminded</th>
-                  <th className="px-4 py-3 text-right">Actions</th>
+                  <th className="px-2.5 py-3 sm:px-4">Resident</th>
+                  <th className="hidden px-2.5 py-3 sm:px-4 sm:table-cell">Room</th>
+                  <th className="hidden px-2.5 py-3 sm:table-cell sm:px-4">Expiry</th>
+                  <th className="hidden px-2.5 py-3 sm:px-4 md:table-cell">Last reminded</th>
+                  <th className="px-2.5 py-3 text-right sm:px-4">
+                    <span className="max-sm:sr-only">Actions</span>
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -151,27 +155,33 @@ export default function RenewalsPage() {
                   const left = daysLeft(r, today);
                   return (
                     <tr key={r.id} className="hover:bg-slate-50">
-                      <td className="px-4 py-3">
+                      <td className="px-2.5 py-3 sm:px-4">
                         <input type="checkbox" aria-label={`Select ${r.fullName}`} className="size-4 accent-brand-600" checked={selected.has(r.id)} onChange={() => toggle(r.id)} />
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-2.5 py-3 sm:px-4">
                         <button onClick={() => openResident(r.id)} className="flex items-center gap-3 text-left">
                           <Avatar name={r.fullName} size="sm" />
                           <div>
                             <p className="font-medium text-slate-900 hover:underline">{r.fullName}</p>
-                            <p className="text-xs text-slate-500">{r.phone}</p>
+                            <p className="text-xs text-slate-500">
+                              <span className="sm:hidden">Room {r.roomId} · </span>
+                              {r.phone}
+                            </p>
+                            <p className={`text-xs sm:hidden ${left < 0 ? "text-rose-600" : "text-amber-700"}`}>
+                              {formatDate(r.leaseEnd)} · {describeDaysLeft(left)}
+                            </p>
                           </div>
                         </button>
                       </td>
-                      <td className="px-4 py-3 font-medium text-slate-700">{r.roomId}</td>
-                      <td className="px-4 py-3">
-                        <p className="text-slate-700">{formatDate(r.leaseEnd)}</p>
-                        <p className={`text-xs ${left < 0 ? "text-rose-600" : "text-amber-700"}`}>{describeDaysLeft(left)}</p>
+                      <td className="hidden px-2.5 py-3 sm:px-4 font-medium text-slate-700 sm:table-cell">{r.roomId}</td>
+                      <td className="hidden px-2.5 py-3 sm:table-cell sm:px-4">
+                        <p className="whitespace-nowrap text-slate-700">{formatDate(r.leaseEnd)}</p>
+                        <p className={`text-xs whitespace-nowrap ${left < 0 ? "text-rose-600" : "text-amber-700"}`}>{describeDaysLeft(left)}</p>
                       </td>
-                      <td className="hidden px-4 py-3 md:table-cell">
+                      <td className="hidden px-2.5 py-3 sm:px-4 md:table-cell">
                         {reminded ? <span className="text-xs text-slate-500">{formatDateTime(reminded)}</span> : <Badge tone="slate">Not yet</Badge>}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-2.5 py-3 sm:px-4">
                         <div className="flex justify-end gap-1.5">
                           <a
                             href={whatsappLink(r.phone, fillTemplate(TEMPLATES[left < 0 ? 1 : 0].body, r, s))}
@@ -182,8 +192,9 @@ export default function RenewalsPage() {
                           >
                             <MessageCircle className="size-4" />
                           </a>
-                          <Button size="sm" variant="secondary" onClick={() => setPaying(r.id)}>
-                            <CreditCard className="size-3.5" /> Renew
+                          <Button size="sm" variant="secondary" className="max-sm:size-8 max-sm:px-0" onClick={() => setPaying(r.id)}>
+                            <CreditCard className="size-3.5" />
+                            <BtnLabel>Renew</BtnLabel>
                           </Button>
                         </div>
                       </td>

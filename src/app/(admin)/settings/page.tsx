@@ -3,7 +3,7 @@
 import { Database, Plus, RotateCcw, Save, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "@/components/toast";
-import { Button, Panel, Field, Input, Modal, PageHeader } from "@/components/ui";
+import { BtnLabel, Button, headerBtn, Panel, Field, Input, Modal, PageHeader } from "@/components/ui";
 import { getState, resetDemoData, startFresh, updateSettings, useHostel } from "@/lib/store";
 import type { Settings } from "@/lib/types";
 import { naira } from "@/lib/utils";
@@ -40,8 +40,9 @@ export default function SettingsPage() {
         title="Settings"
         description="Hostel details, pricing, rooms and reminder schedule."
         actions={
-          <Button onClick={save}>
-            <Save className="size-4" /> Save changes
+          <Button className={headerBtn} onClick={save}>
+            <Save className="size-4" />
+            <BtnLabel>Save changes</BtnLabel>
           </Button>
         }
       />

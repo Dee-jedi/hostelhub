@@ -39,9 +39,9 @@
   --color-grey-400: #aaaaaa;
   --color-grey-950: #101010;
 
-  /* Green-tinted neutrals for card frames, the search pill and tab tracks */
-  --color-frame: #f1f6f5;
-  --color-frame-border: #e1ebe9;
+  /* Neutral surfaces for card frames, the search pill and tab tracks. Green is reserved for accents. */
+  --color-frame: #f5f5f5;
+  --color-frame-border: #e8e8e8;
 
   --color-heading-2: #171717;
   --color-heading-4: #424242;
@@ -95,6 +95,24 @@ body {
   }
   to {
     transform: translateX(100%);
+  }
+}
+
+/* Bottom sheet (modals on phones) */
+@keyframes sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+@keyframes sheet-out {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(100%);
   }
 }
 

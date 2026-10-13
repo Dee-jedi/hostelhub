@@ -1,7 +1,7 @@
 import type { Application, HostelState, Message, Occupant, Payment, Resident, Room, Settings, Sex, Ticket } from "./types";
 import { addDays, addMonths, todayISO } from "./utils";
 
-export const STATE_VERSION = 4;
+export const STATE_VERSION = 5;
 
 export const DEFAULT_SETTINGS: Settings = {
   hostelName: "Grace Court Hostel",
@@ -129,13 +129,21 @@ export function createDemoState(): HostelState {
     {
       // Spread lease ends so the demo has expired, expiring and healthy rents
       const bucket = rand();
-      const offset =
-        bucket < 0.08 ? -Math.floor(rand() * 40 + 1)
-        : bucket < 0.22 ? Math.floor(rand() * 30)
-        : bucket < 0.32 ? Math.floor(rand() * 30 + 31)
-        : Math.floor(rand() * 300 + 61);
-      const leaseEnd = addDays(today, offset);
-      const leaseStart = addMonths(leaseEnd, -settings.leaseMonths);
+      let leaseStart: string;
+      let leaseEnd: string;
+      if (bucket < 0.06) {
+        // Renewed earlier this month, so "collected this month" is never empty
+        leaseStart = addDays(today, -Math.floor(rand() * Number(today.slice(8, 10))));
+        leaseEnd = addMonths(leaseStart, settings.leaseMonths);
+      } else {
+        const offset =
+          bucket < 0.14 ? -Math.floor(rand() * 40 + 1)
+          : bucket < 0.28 ? Math.floor(rand() * 30)
+          : bucket < 0.38 ? Math.floor(rand() * 30 + 31)
+          : Math.floor(rand() * 300 + 61);
+        leaseEnd = addDays(today, offset);
+        leaseStart = addMonths(leaseEnd, -settings.leaseMonths);
+      }
       const id = `res_${residents.length + 1}`;
       residents.push({
         ...makeStudent(gender),

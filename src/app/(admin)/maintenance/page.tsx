@@ -3,7 +3,7 @@
 import { Plus, Wrench } from "lucide-react";
 import { useState } from "react";
 import { toast } from "@/components/toast";
-import { Badge, Button, Card, EmptyState, Field, Input, Modal, PageHeader, Select, Tabs } from "@/components/ui";
+import { Badge, BtnLabel, Button, headerBtn, Card, EmptyState, Field, Input, Modal, PageHeader, Select, Tabs } from "@/components/ui";
 import { addTicket, setTicketStatus, useHostel } from "@/lib/store";
 import type { Ticket, TicketCategory } from "@/lib/types";
 import { formatDateTime } from "@/lib/utils";
@@ -39,8 +39,9 @@ export default function MaintenancePage() {
         title="Maintenance"
         description="Track repairs and complaints from rooms until they are fixed."
         actions={
-          <Button onClick={() => setCreating(true)}>
-            <Plus className="size-4" /> New request
+          <Button className={headerBtn} onClick={() => setCreating(true)}>
+            <Plus className="size-4" />
+            <BtnLabel>New request</BtnLabel>
           </Button>
         }
       />

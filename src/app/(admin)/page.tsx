@@ -1,28 +1,24 @@
 "use client";
 
-import { AlertTriangle, BedDouble, BellRing, CalendarClock, ClipboardList, DoorOpen, Plus, TrendingUp, Users, Wrench } from "lucide-react";
+import { AlertTriangle, BedDouble, BellRing, CalendarClock, ClipboardList, DoorOpen, Plus, Users, Wrench } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { AddResidentModal } from "@/components/AddResidentModal";
-import { BlockOccupancyChart, CollectionsChart, ExpiryForecastChart } from "@/components/charts";
-import { ComposeModal } from "@/components/ComposeModal";
+import { BlockOccupancyChart, ExpiryForecastChart } from "@/components/charts";
 import { toast } from "@/components/toast";
-import { Avatar, Badge, Button, PageHeader, Panel, PanelLink, RentBadge, StatCard } from "@/components/ui";
+import { Avatar, Badge, BtnLabel, Button, headerBtn, PageHeader, Panel, PanelLink, RentBadge, StatCard } from "@/components/ui";
 import { useDashboard } from "@/lib/dashboard";
 import { runAutomatedReminders, useHostel } from "@/lib/store";
 import { openResident } from "@/lib/ui-store";
-import { cn, daysLeft, describeDaysLeft, formatDate, formatDateTime, naira, nairaShort } from "@/lib/utils";
+import { cn, daysLeft, describeDaysLeft, formatDateTime, naira, nairaShort } from "@/lib/utils";
 
 export default function DashboardPage() {
   const s = useHostel();
   const d = useDashboard();
-  const [composeFor, setComposeFor] = useState<typeof d.upcoming | null>(null);
   const [adding, setAdding] = useState(false);
   const pending = s.applications.filter((a) => a.status === "pending").length;
   const openTickets = s.tickets.filter((t) => t.status !== "resolved").length;
   const occPct = d.usableRooms ? Math.round((d.occupiedRooms / d.usableRooms) * 100) : 0;
-  const yearTotal = d.collections.reduce((n, m) => n + m.total, 0);
-  const residentsById = new Map(s.residents.map((r) => [r.id, r]));
   const totalStatus = d.statusCounts.active + d.statusCounts.expiring + d.statusCounts.expired || 1;
   const lastAuto = s.messages.find((m) => m.automated);
 
@@ -30,21 +26,29 @@ export default function DashboardPage() {
     <>
       <PageHeader
         title={`Welcome, ${s.settings.managerName}!`}
-        description={`Here's what's happening at ${s.settings.hostelName} today.`}
+        description={
+          <>
+            <span className="sm:hidden">Today at a glance</span>
+            <span className="max-sm:hidden">Here&apos;s what&apos;s happening at {s.settings.hostelName} today.</span>
+          </>
+        }
         actions={
           <>
             <Button
               variant="secondary"
+              className={headerBtn}
               onClick={() => {
                 const n = runAutomatedReminders();
                 toast(n ? `Sent ${n} automated reminder${n === 1 ? "" : "s"}` : "Everyone due has already been reminded", n ? "success" : "info");
               }}
             >
-              <BellRing className="size-4.5" strokeWidth={1.6} /> Run reminders
+              <BellRing className="size-4.5" strokeWidth={1.6} />
+              <BtnLabel>Run reminders</BtnLabel>
             </Button>
             <div className="hidden h-6 w-px bg-grey-100 sm:block" />
-            <Button onClick={() => setAdding(true)}>
-              <Plus className="size-4.5" /> Add tenant
+            <Button className={headerBtn} onClick={() => setAdding(true)}>
+              <Plus className="size-4.5" />
+              <BtnLabel>Add tenant</BtnLabel>
             </Button>
           </>
         }
@@ -62,14 +66,7 @@ export default function DashboardPage() {
           className="lg:col-span-2"
           title="Rent due & overdue"
           description="Expired first, then by expiry date"
-          action={
-            <>
-              <Button size="sm" variant="secondary" onClick={() => setComposeFor(d.upcoming)} disabled={!d.upcoming.length}>
-                Remind all ({d.upcoming.length})
-              </Button>
-              <PanelLink href="/renewals">View all</PanelLink>
-            </>
-          }
+          action={<PanelLink href="/renewals">View all</PanelLink>}
         >
           <ul className="divide-y divide-grey-100">
             {d.upcoming.slice(0, 7).map((r) => (
@@ -138,25 +135,6 @@ export default function DashboardPage() {
       </div>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
-        <Panel
-          title="Rent collected"
-          description="Last 12 months"
-          action={
-            <div className="text-right">
-              <p className="text-[11px] text-heading-6">This month</p>
-              <p className="text-sm font-medium text-heading-2 tabular-nums">{naira(d.collectedThisMonth)}</p>
-            </div>
-          }
-        >
-          <div className="px-2 pt-4 pb-1">
-            <CollectionsChart data={d.collections} />
-          </div>
-          <div className="flex items-center gap-2 border-t border-grey-100 px-4 py-3 text-xs text-heading-6">
-            <TrendingUp className="size-3.5" />
-            12-month total: <span className="font-medium text-heading-4">{naira(yearTotal)}</span>
-          </div>
-        </Panel>
-
         <Panel title="Rent expiry forecast" description="Rooms whose rent runs out each month" action={<PanelLink href="/renewals">Renewals</PanelLink>}>
           <div className="px-2 pt-4 pb-1">
             <ExpiryForecastChart data={d.forecast} />
@@ -166,9 +144,7 @@ export default function DashboardPage() {
             Expected from renewals in the next 30 days: <span className="font-medium text-heading-4">{nairaShort(d.due30.length * s.settings.rentAmount)}</span>
           </div>
         </Panel>
-      </div>
 
-      <div className="mt-4 grid gap-4 lg:grid-cols-2">
         <Panel title="Occupancy by block" description="Occupied and vacant rooms" action={<PanelLink href="/rooms">Room map</PanelLink>}>
           <div className="px-2 pt-4 pb-2">
             <BlockOccupancyChart data={d.blocks} />
@@ -178,31 +154,8 @@ export default function DashboardPage() {
             {d.sharedRooms} of {d.occupiedRooms} rooms are shared · {naira(s.settings.rentAmount)} per room
           </div>
         </Panel>
-
-        <Panel title="Recent payments" description="Latest rent received" action={<PanelLink href="/payments">View all</PanelLink>}>
-          <ul className="divide-y divide-grey-100">
-            {s.payments.slice(0, 7).map((p) => {
-              const r = residentsById.get(p.residentId);
-              return (
-                <li key={p.id}>
-                  <button onClick={() => r && openResident(r.id)} className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-grey-10">
-                    <Avatar name={r?.fullName ?? "?"} size="sm" />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-heading-2">{r?.fullName ?? "Deleted tenant"}</p>
-                      <p className="text-xs text-heading-6">
-                        Room {r?.roomId ?? "—"} · {p.method} · {formatDate(p.date)}
-                      </p>
-                    </div>
-                    <span className="text-sm font-medium text-heading-2 tabular-nums">{naira(p.amount)}</span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </Panel>
       </div>
 
-      {composeFor && <ComposeModal recipients={composeFor} onClose={() => setComposeFor(null)} />}
       {adding && <AddResidentModal onClose={() => setAdding(false)} />}
     </>
   );

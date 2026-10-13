@@ -5,7 +5,6 @@ import { useSyncExternalStore } from "react";
 /** Shell-level UI state shared between the top bar, sidebar and pages. */
 interface UIState {
   sidebarCollapsed: boolean;
-  mobileNavOpen: boolean;
   /** Resident profile drawer, openable from anywhere (e.g. global search) */
   residentId: string | null;
   /** Room detail modal on the Rooms page */
@@ -24,7 +23,7 @@ function readCollapsed() {
 
 let ui: UIState | null = null;
 const listeners = new Set<() => void>();
-const serverUI: UIState = { sidebarCollapsed: false, mobileNavOpen: false, residentId: null, roomId: null };
+const serverUI: UIState = { sidebarCollapsed: false, residentId: null, roomId: null };
 
 function get() {
   if (!ui) ui = { ...serverUI, sidebarCollapsed: readCollapsed() };
@@ -57,6 +56,5 @@ export function toggleSidebar() {
   set({ sidebarCollapsed: next });
 }
 
-export const setMobileNav = (open: boolean) => set({ mobileNavOpen: open });
 export const openResident = (id: string | null) => set({ residentId: id });
 export const openRoom = (id: string | null) => set({ roomId: id });

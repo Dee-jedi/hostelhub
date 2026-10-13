@@ -12,46 +12,67 @@ import { cn, describeDaysLeft, daysLeft, peopleInRoom, rentStatus, tenantsByRoom
 
 type Filter = "all" | "occupied" | "vacant" | "expiring" | "expired" | "maintenance";
 
-const statusStyle = {
-  active: { bar: "bg-emerald-500", label: "Paid" },
-  expiring: { bar: "bg-amber-400", label: "Expiring" },
-  expired: { bar: "bg-rose-500", label: "Expired" },
-} as const;
+type TileState = "active" | "expiring" | "expired" | "vacant" | "maintenance";
+
+const pill: Record<TileState, string> = {
+  active: "bg-emerald-50 text-emerald-700",
+  expiring: "bg-amber-50 text-amber-700",
+  expired: "bg-rose-50 text-rose-700",
+  vacant: "bg-sky-50 text-sky-700",
+  maintenance: "bg-grey-100 text-heading-5",
+};
+const dot: Record<TileState, string> = {
+  active: "bg-emerald-500",
+  expiring: "bg-amber-400",
+  expired: "bg-rose-500",
+  vacant: "bg-sky-400",
+  maintenance: "bg-grey-400",
+};
+
+function StatusPill({ state, children }: { state: TileState; children: React.ReactNode }) {
+  return (
+    <span className={cn("inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] leading-none font-medium whitespace-nowrap", pill[state])}>
+      <span className={cn("size-1.5 rounded-full", dot[state])} />
+      {children}
+    </span>
+  );
+}
 
 function RoomTile({ room, tenant, onClick }: { room: Room; tenant?: Resident; onClick: () => void }) {
-  const status = tenant ? rentStatus(tenant) : null;
+  const state: TileState = room.underMaintenance ? "maintenance" : tenant ? rentStatus(tenant) : "vacant";
+  const left = tenant ? daysLeft(tenant) : 0;
+  const label =
+    state === "active" ? "Paid" : state === "expiring" ? `${left}d left` : state === "expired" ? "Expired" : state === "vacant" ? "Available" : "Repair";
+  const people = peopleInRoom(tenant);
   return (
     <button
       onClick={onClick}
+      title={tenant ? `${tenant.fullName} · ${describeDaysLeft(left)}` : undefined}
       className={cn(
-        "group relative flex min-h-[92px] flex-col overflow-hidden rounded-xl border p-3 text-left transition-all hover:-translate-y-0.5 hover:shadow-md",
-        room.underMaintenance ? "border-dashed border-grey-150 bg-grey-50" : tenant ? "border-grey-100 bg-white" : "border-dashed border-sky-200 bg-sky-50/50",
+        "flex min-h-24 flex-col rounded-xl border p-3 text-left transition-all hover:-translate-y-0.5 hover:border-grey-150 hover:shadow-soft",
+        state === "vacant" ? "border-dashed border-grey-150 bg-white" : state === "maintenance" ? "border-grey-100 bg-grey-10" : "border-grey-100 bg-white",
       )}
     >
-      {status && <span className={cn("absolute inset-y-2.5 left-0 w-[3px] rounded-r-full", statusStyle[status].bar)} />}
-      <div className="flex items-center justify-between gap-1">
+      <div className="flex items-center justify-between gap-1.5">
         <span className="text-sm font-medium text-heading-2">{room.id}</span>
-        {room.underMaintenance ? (
-          <Hammer className="size-3.5 text-heading-6" />
-        ) : tenant ? (
-          <span className="flex items-center gap-0.5 text-[11px] text-heading-6" title={`${peopleInRoom(tenant)} people in this room`}>
-            <Users className="size-3" />
-            {peopleInRoom(tenant)}
-          </span>
-        ) : null}
+        <StatusPill state={state}>{label}</StatusPill>
       </div>
-      <div className="mt-auto pt-2">
-        {room.underMaintenance ? (
-          <span className="text-[11px] text-heading-6">Maintenance</span>
-        ) : tenant ? (
+      <div className="mt-auto min-w-0 pt-3">
+        {tenant ? (
           <>
-            <p className="truncate text-xs text-heading-4">{tenant.fullName}</p>
-            <p className={cn("text-[11px]", status === "expired" ? "text-rose-600" : status === "expiring" ? "text-amber-700" : "text-heading-6")}>
-              {status === "active" ? "Paid" : describeDaysLeft(daysLeft(tenant))}
+            <p className="truncate text-xs font-medium text-heading-4">{tenant.fullName}</p>
+            <p className="mt-0.5 flex items-center gap-1 text-[11px] text-heading-6">
+              <Users className="size-3" />
+              {people} {people === 1 ? "person" : "people"}
             </p>
           </>
+        ) : state === "maintenance" ? (
+          <p className="flex items-center gap-1 text-xs text-heading-6">
+            <Hammer className="size-3 shrink-0" />
+            <span className="truncate">{room.note ?? "Under repair"}</span>
+          </p>
         ) : (
-          <span className="text-[11px] font-medium text-sky-700">Vacant</span>
+          <p className="text-xs text-heading-6">Vacant</p>
         )}
       </div>
     </button>
@@ -112,12 +133,12 @@ export default function RoomsPage() {
         </Select>
       </div>
 
-      <div className="mb-5 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-heading-5">
-        <span className="flex items-center gap-1.5"><span className="h-3 w-[3px] rounded-full bg-emerald-500" /> Rent paid</span>
-        <span className="flex items-center gap-1.5"><span className="h-3 w-[3px] rounded-full bg-amber-400" /> Expiring ≤30 days</span>
-        <span className="flex items-center gap-1.5"><span className="h-3 w-[3px] rounded-full bg-rose-500" /> Expired</span>
-        <span className="flex items-center gap-1.5"><span className="size-3 rounded border border-dashed border-sky-300 bg-sky-50" /> Vacant</span>
-        <span className="flex items-center gap-1.5"><Users className="size-3" /> People in room</span>
+      <div className="mb-5 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-heading-5">
+        <StatusPill state="active">Paid</StatusPill>
+        <StatusPill state="expiring">Expiring ≤30 days</StatusPill>
+        <StatusPill state="expired">Expired</StatusPill>
+        <StatusPill state="vacant">Available</StatusPill>
+        <StatusPill state="maintenance">Repair</StatusPill>
       </div>
 
       <div className="space-y-4">
@@ -132,7 +153,7 @@ export default function RoomsPage() {
               action={<span className="text-xs text-heading-6">{vacant} vacant</span>}
               bodyClassName="p-3"
             >
-              <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8">
+              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8">
                 {rooms.map((r) => (
                   <RoomTile key={r.id} room={r} tenant={tenants.get(r.id)} onClick={() => openRoom(r.id)} />
                 ))}

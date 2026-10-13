@@ -1,21 +1,19 @@
 "use client";
 
 import {
-  AlertTriangle,
   BedDouble,
   Bell,
   CalendarClock,
+  ChevronLeft,
   ChevronRight,
   ClipboardList,
   DoorOpen,
   ExternalLink,
   House,
-  Menu,
   MessageSquareText,
   PanelLeftClose,
   PanelLeftOpen,
   Search,
-  Settings,
   Users,
   Wallet,
   Wrench,
@@ -25,8 +23,10 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useHostel, useIsClient } from "@/lib/store";
-import { openResident, openRoom, setMobileNav, toggleSidebar, useUI } from "@/lib/ui-store";
-import { activeResidents, cn, daysLeft, formatDateTime, initials, rentStatus, tenantsByRoom } from "@/lib/utils";
+import { openResident, openRoom, toggleSidebar, useUI } from "@/lib/ui-store";
+import { activeResidents, cn, initials, managerInitials, rentStatus, tenantsByRoom } from "@/lib/utils";
+import { SUB_PAGES, subPageOf } from "@/lib/nav";
+import { NotificationList, useNotifications } from "./notifications";
 import { ResidentDrawer } from "./ResidentDrawer";
 
 // ─── Nav config ──────────────────────────────────────────────────────────────
@@ -68,6 +68,8 @@ const ALL_PAGES: Record<string, string> = {
   "/applications": "Applications",
   "/maintenance": "Maintenance",
   "/settings": "Settings",
+  "/profile": "Profile",
+  "/notifications": "Notifications",
 };
 
 function isActive(pathname: string, href: string) {
@@ -107,14 +109,14 @@ function CountPill({ item }: { item: NavItem }) {
   );
 }
 
-function NavBody({ onNavigate }: { onNavigate?: () => void }) {
+function NavBody() {
   const pathname = usePathname();
   const { main, manage } = useNavGroups();
   const renderItem = (item: NavItem) => {
     const Icon = item.icon;
     return (
       <div key={item.href} className="px-4">
-        <Link href={item.href} onClick={onNavigate} className={navRow(isActive(pathname, item.href))}>
+        <Link href={item.href} className={navRow(isActive(pathname, item.href))}>
           <Icon className={cn("size-5 shrink-0", isActive(pathname, item.href) && "text-brand-600")} strokeWidth={1.6} />
           <span className="min-w-0 flex-1 truncate">{item.label}</span>
           <CountPill item={item} />
@@ -123,7 +125,7 @@ function NavBody({ onNavigate }: { onNavigate?: () => void }) {
     );
   };
   return (
-    <div className="flex w-full flex-col gap-6 py-5">
+    <div className="flex w-full flex-col gap-5 py-4">
       <div className="flex flex-col gap-1">{main.map(renderItem)}</div>
       <div className="flex flex-col gap-3 border-t border-grey-100 pt-4">
         <span className="px-6 text-[10px] font-medium tracking-wide text-heading-6">MANAGE</span>
@@ -133,35 +135,33 @@ function NavBody({ onNavigate }: { onNavigate?: () => void }) {
   );
 }
 
-function SidebarBottom({ onNavigate }: { onNavigate?: () => void }) {
+function SidebarBottom() {
   const s = useHostel();
   const pathname = usePathname();
   return (
-    <div className="mt-auto flex w-full flex-col py-4">
-      <div className="w-full border-t border-grey-100 px-4 py-5">
+    <div className="mt-auto flex w-full flex-col pb-3">
+      <div className="w-full border-t border-grey-100 px-4 py-4">
         <Link
           href="/settings"
-          onClick={onNavigate}
-          className="flex w-full items-center gap-2.5 rounded-xl border border-grey-100 bg-white p-3 transition-colors hover:bg-grey-50"
+         
+          title="Profile & settings"
+          className={cn(
+            "flex w-full items-center gap-2.5 rounded-xl border p-3 transition-colors",
+            pathname === "/settings" ? "border-brand-200 bg-brand-50" : "border-grey-100 bg-white hover:bg-grey-50",
+          )}
         >
           <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-grey-950 text-xs font-semibold text-white">
-            {initials(s.settings.managerName.replace(/^(Mr|Mrs|Ms|Miss|Dr)\.?\s+/i, ""))}
+            {managerInitials(s.settings.managerName)}
           </span>
           <span className="flex min-w-0 flex-1 flex-col">
             <span className="truncate text-sm font-medium text-grey-950">{s.settings.managerName}</span>
-            <span className="truncate text-xs text-heading-6">{s.settings.hostelName}</span>
+            <span className="truncate text-xs text-heading-6">Profile & settings</span>
           </span>
           <ChevronRight className="size-5 shrink-0 text-heading-6" strokeWidth={1.6} />
         </Link>
       </div>
       <div className="w-full border-t border-grey-100 px-4 py-2">
-        <Link href="/settings" onClick={onNavigate} className={navRow(pathname === "/settings")}>
-          <Settings className="size-5 shrink-0" strokeWidth={1.6} />
-          Settings
-        </Link>
-      </div>
-      <div className="w-full border-t border-grey-100 px-4 py-2">
-        <Link href="/register" target="_blank" onClick={onNavigate} className={navRow(false)}>
+        <Link href="/register" target="_blank" className={navRow(false)}>
           <DoorOpen className="size-5 shrink-0" strokeWidth={1.6} />
           <span className="flex-1">Registration form</span>
           <ExternalLink className="size-3.5" />
@@ -202,12 +202,16 @@ function CollapsedStrip() {
       </div>
       <div className="flex flex-col items-center">
         <div className="flex w-full justify-center border-t border-grey-100 py-5">
-          <Link href="/settings" title={s.settings.managerName} className="flex size-9 items-center justify-center rounded-full bg-grey-950 text-xs font-semibold text-white">
-            {initials(s.settings.managerName.replace(/^(Mr|Mrs|Ms|Miss|Dr)\.?\s+/i, ""))}
+          <Link
+            href="/settings"
+            title="Profile & settings"
+            className={cn(
+              "flex size-9 items-center justify-center rounded-full bg-grey-950 text-xs font-semibold text-white",
+              pathname === "/settings" && "ring-2 ring-brand-300 ring-offset-2",
+            )}
+          >
+            {managerInitials(s.settings.managerName)}
           </Link>
-        </div>
-        <div className="flex w-full justify-center border-t border-grey-100 py-2 pb-4">
-          {icon({ href: "/settings", label: "Settings", icon: Settings })}
         </div>
       </div>
     </div>
@@ -215,78 +219,46 @@ function CollapsedStrip() {
 }
 
 function Sidebar() {
-  const { sidebarCollapsed: collapsed, mobileNavOpen } = useUI();
+  const { sidebarCollapsed: collapsed } = useUI();
   return (
-    <>
-      <aside
-        className={cn(
-          "hidden h-full shrink-0 flex-col overflow-hidden border-r border-grey-100 transition-[width] duration-200 lg:flex print:hidden",
-          collapsed ? "w-15 bg-grey-10" : "w-64 bg-white",
+    <aside
+      className={cn(
+        "hidden h-full shrink-0 flex-col overflow-hidden border-r border-grey-100 transition-[width] duration-200 lg:flex print:hidden",
+        collapsed ? "w-15 bg-grey-10" : "w-64 bg-white",
+      )}
+    >
+      <div className={cn("group flex h-15.25 shrink-0 items-center border-b border-grey-100 bg-white", collapsed ? "justify-center" : "justify-between pr-3 pl-6")}>
+        {!collapsed && (
+          <Link href="/" aria-label="HostelHub home">
+            <Wordmark />
+          </Link>
         )}
-      >
-        <div className={cn("group flex h-15.25 shrink-0 items-center border-b border-grey-100 bg-white", collapsed ? "justify-center" : "justify-between pr-3 pl-6")}>
-          {!collapsed && (
-            <Link href="/" aria-label="HostelHub home">
-              <Wordmark />
-            </Link>
-          )}
-          <button
-            onClick={toggleSidebar}
-            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            className={cn("rounded-lg p-1.5 text-heading-4 transition-all hover:bg-grey-50", !collapsed && "opacity-0 group-hover:opacity-100 focus:opacity-100")}
-          >
-            {collapsed ? <PanelLeftOpen className="size-4.5" strokeWidth={1.6} /> : <PanelLeftClose className="size-4.5" strokeWidth={1.6} />}
-          </button>
-        </div>
-        {collapsed ? (
-          <CollapsedStrip />
-        ) : (
-          <div className="flex flex-1 flex-col overflow-x-hidden overflow-y-auto">
-            <NavBody />
-            <SidebarBottom />
-          </div>
-        )}
-      </aside>
-
-      {/* Mobile drawer */}
-      <div className="lg:hidden">
-        {mobileNavOpen && <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-xs" onClick={() => setMobileNav(false)} />}
-        <div
-          className={cn(
-            "fixed inset-y-0 left-0 z-50 flex w-72 flex-col overflow-hidden border-r border-grey-100 bg-white shadow-2xl transition-transform duration-300 ease-out",
-            mobileNavOpen ? "translate-x-0" : "pointer-events-none -translate-x-full",
-          )}
+        <button
+          onClick={toggleSidebar}
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          className={cn("rounded-lg p-1.5 text-heading-4 transition-all hover:bg-grey-50", !collapsed && "opacity-0 group-hover:opacity-100 focus:opacity-100")}
         >
-          <div className="flex h-14 shrink-0 items-center border-b border-grey-100 px-6">
-            <Link href="/" onClick={() => setMobileNav(false)}>
-              <Wordmark />
-            </Link>
-          </div>
-          <div className="flex flex-1 flex-col overflow-y-auto">
-            <NavBody onNavigate={() => setMobileNav(false)} />
-            <SidebarBottom onNavigate={() => setMobileNav(false)} />
-          </div>
-        </div>
+          {collapsed ? <PanelLeftOpen className="size-4.5" strokeWidth={1.6} /> : <PanelLeftClose className="size-4.5" strokeWidth={1.6} />}
+        </button>
       </div>
-    </>
+      {collapsed ? (
+        <CollapsedStrip />
+      ) : (
+        <div className="flex flex-1 flex-col overflow-x-hidden overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <NavBody />
+          <SidebarBottom />
+        </div>
+      )}
+    </aside>
   );
 }
 
 // ─── Top bar ─────────────────────────────────────────────────────────────────
 
-function Breadcrumbs() {
+function ScreenTitle() {
   const pathname = usePathname();
-  if (pathname === "/") return <span className="text-base font-medium whitespace-nowrap text-heading-6">Home</span>;
-  const label = ALL_PAGES[Object.keys(ALL_PAGES).find((k) => pathname.startsWith(k)) ?? ""] ?? "Page";
-  return (
-    <div className="flex items-center gap-0.5">
-      <Link href="/" className="text-sm whitespace-nowrap text-heading-6 transition-colors hover:text-heading-4">
-        Home
-      </Link>
-      <ChevronRight className="size-3 text-heading-6" />
-      <span className="text-sm whitespace-nowrap text-heading-2">{label}</span>
-    </div>
-  );
+  const label = pathname === "/" ? "Home" : (ALL_PAGES[Object.keys(ALL_PAGES).find((k) => pathname.startsWith(k)) ?? ""] ?? "");
+  return <span className="text-base font-medium whitespace-nowrap text-heading-6">{label}</span>;
 }
 
 function useClickOutside(ref: React.RefObject<HTMLElement | null>, open: boolean, close: () => void) {
@@ -300,7 +272,7 @@ function useClickOutside(ref: React.RefObject<HTMLElement | null>, open: boolean
   }, [ref, open, close]);
 }
 
-function GlobalSearch() {
+function GlobalSearch({ autoFocus, onDone }: { autoFocus?: boolean; onDone?: () => void }) {
   const s = useHostel();
   const router = useRouter();
   const [q, setQ] = useState("");
@@ -340,6 +312,7 @@ function GlobalSearch() {
     setOpen(false);
     setQ("");
     inputRef.current?.blur();
+    onDone?.();
   };
   const hasResults = results.residents.length + results.rooms.length > 0;
 
@@ -355,6 +328,7 @@ function GlobalSearch() {
             setOpen(true);
           }}
           onFocus={() => setOpen(true)}
+          autoFocus={autoFocus}
           onKeyDown={(e) => e.key === "Escape" && close()}
           placeholder="Search residents, rooms, phone numbers…"
           className="min-w-0 flex-1 bg-transparent text-xs text-heading-2 outline-none placeholder:text-heading-6"
@@ -414,135 +388,161 @@ function GlobalSearch() {
   );
 }
 
-interface Notice {
-  id: string;
-  icon: ReactNode;
-  tone: string;
-  title: string;
-  detail: string;
-  href: string;
-}
-
-function useNotifications(): Notice[] {
-  const s = useHostel();
-  return useMemo(() => {
-    const list: Notice[] = [];
-    const residents = activeResidents(s);
-    const expired = residents.filter((r) => rentStatus(r) === "expired");
-    const week = residents.filter((r) => {
-      const d = daysLeft(r);
-      return d >= 0 && d <= 7;
-    });
-    const pending = s.applications.filter((a) => a.status === "pending");
-    const tickets = s.tickets.filter((t) => t.status === "open");
-
-    for (const a of pending.slice(0, 3))
-      list.push({
-        id: a.id,
-        icon: <ClipboardList className="size-4" />,
-        tone: "bg-brand-50 text-brand-600",
-        title: `${a.fullName} applied for a room`,
-        detail: `${a.department} · ${formatDateTime(a.submittedAt)}`,
-        href: "/applications",
-      });
-    if (week.length)
-      list.push({
-        id: "week",
-        icon: <CalendarClock className="size-4" />,
-        tone: "bg-amber-50 text-amber-600",
-        title: `${week.length} rent${week.length === 1 ? "" : "s"} expire within 7 days`,
-        detail: "Send a reminder before they lapse",
-        href: "/renewals",
-      });
-    if (expired.length)
-      list.push({
-        id: "expired",
-        icon: <AlertTriangle className="size-4" />,
-        tone: "bg-rose-50 text-rose-600",
-        title: `${expired.length} resident${expired.length === 1 ? " has" : "s have"} expired rent`,
-        detail: "Renew or issue move-out notices",
-        href: "/renewals",
-      });
-    if (tickets.length)
-      list.push({
-        id: "tickets",
-        icon: <Wrench className="size-4" />,
-        tone: "bg-grey-50 text-heading-4",
-        title: `${tickets.length} open maintenance request${tickets.length === 1 ? "" : "s"}`,
-        detail: tickets[0].title,
-        href: "/maintenance",
-      });
-    return list;
-  }, [s]);
-}
-
 function NotificationBell() {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const pathname = usePathname();
   const notices = useNotifications();
   useClickOutside(ref, open, () => setOpen(false));
+  const dot = notices.length > 0 && <span className="pointer-events-none absolute -top-0.5 right-0 size-2 rounded-full border-[1.5px] border-white bg-red-500" />;
   return (
-    <div ref={ref} className="relative">
-      <button onClick={() => setOpen((v) => !v)} aria-label="Notifications" className="relative flex items-center text-heading-6 transition-colors hover:text-heading-4">
+    <>
+      {/* Phones and tablets: notifications get their own screen */}
+      <Link
+        href="/notifications"
+        aria-label="Notifications"
+        className={cn("relative flex items-center transition-colors hover:text-heading-4 lg:hidden", pathname === "/notifications" ? "text-brand-600" : "text-heading-6")}
+      >
         <Bell className="size-5" strokeWidth={1.6} />
-        {notices.length > 0 && <span className="pointer-events-none absolute -top-0.5 right-0 size-2 rounded-full border-[1.5px] border-white bg-red-500" />}
-      </button>
-      {open && (
-        <div className="absolute top-[calc(100%+14px)] right-0 z-50 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-grey-100 bg-white shadow-[0_10px_40px_rgba(0,0,0,0.08)] animate-[pop-in_.12s_ease-out]">
-          <div className="flex items-center justify-between border-b border-grey-100 px-4 py-3">
-            <span className="text-sm font-medium text-heading-2">Notifications</span>
-            <span className="rounded-md bg-grey-50 px-1.5 text-[11px] font-medium text-heading-6">{notices.length}</span>
+        {dot}
+      </Link>
+
+      {/* Desktop: dropdown panel */}
+      <div ref={ref} className="relative max-lg:hidden">
+        <button onClick={() => setOpen((v) => !v)} aria-label="Notifications" className="relative flex items-center text-heading-6 transition-colors hover:text-heading-4">
+          <Bell className="size-5" strokeWidth={1.6} />
+          {dot}
+        </button>
+        {open && (
+          <div className="absolute top-[calc(100%+14px)] right-0 z-50 w-[22rem] overflow-hidden rounded-2xl border border-grey-100 bg-white shadow-[0_10px_40px_rgba(0,0,0,0.08)] animate-[pop-in_.12s_ease-out]">
+            <div className="flex items-center justify-between border-b border-grey-100 px-4 py-3">
+              <span className="text-sm font-medium text-heading-2">Notifications</span>
+              <span className="rounded-md bg-grey-50 px-1.5 text-[11px] font-medium text-heading-6">{notices.length}</span>
+            </div>
+            <NotificationList notices={notices} onNavigate={() => setOpen(false)} className="max-h-96 overflow-y-auto" />
           </div>
-          {notices.length === 0 ? (
-            <p className="px-4 py-10 text-center text-xs text-heading-6">You&apos;re all caught up.</p>
-          ) : (
-            <ul className="max-h-96 divide-y divide-grey-100 overflow-y-auto">
-              {notices.map((n) => (
-                <li key={n.id}>
-                  <Link href={n.href} onClick={() => setOpen(false)} className="flex gap-3 px-4 py-3 hover:bg-grey-10">
-                    <span className={cn("flex size-8 shrink-0 items-center justify-center rounded-lg", n.tone)}>{n.icon}</span>
-                    <span className="min-w-0">
-                      <span className="block text-sm font-medium text-heading-2">{n.title}</span>
-                      <span className="block truncate text-xs text-heading-6">{n.detail}</span>
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
+        )}
+      </div>
+    </>
+  );
+}
+
+function MobileTitle() {
+  const pathname = usePathname();
+  const router = useRouter();
+  const sub = subPageOf(pathname);
+  if (!sub) {
+    return (
+      <Link href="/">
+        <Wordmark className="text-[17px]" />
+      </Link>
+    );
+  }
+  const back = () => (window.history.length > 1 ? router.back() : router.push(SUB_PAGES[sub]));
+  return (
+    <div className="flex min-w-0 items-center gap-1">
+      <button onClick={back} className="-ml-1.5 rounded-lg p-1.5 text-heading-2 hover:bg-grey-50" aria-label="Back">
+        <ChevronLeft className="size-5" />
+      </button>
+      <span className="truncate text-base font-medium text-heading-2">{ALL_PAGES[sub]}</span>
     </div>
   );
 }
 
 function TopBar() {
+  const [searchOpen, setSearchOpen] = useState(false);
   return (
-    <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center justify-between gap-4 border-b border-grey-100 bg-white px-4 lg:h-15.25 lg:px-5 print:hidden">
-      <div className="flex min-w-0 flex-1 items-center gap-4">
-        <div className="flex items-center gap-4 lg:hidden">
-          <button onClick={() => setMobileNav(true)} className="text-grey-950 hover:text-heading-4" aria-label="Open navigation menu">
-            <Menu className="size-5" />
+    <header className="sticky top-0 z-30 shrink-0 border-b border-grey-100 bg-white print:hidden">
+      <div className="flex h-14 items-center justify-between gap-3 px-4 sm:gap-4 lg:h-15.25 lg:px-5">
+        <div className="flex min-w-0 flex-1 items-center gap-4">
+          <div className="flex min-w-0 items-center lg:hidden">
+            <MobileTitle />
+          </div>
+          <div className="hidden min-w-0 flex-1 items-center lg:flex">
+            <ScreenTitle />
+          </div>
+        </div>
+        <div className="hidden max-w-90 flex-1 items-center md:flex">
+          <GlobalSearch />
+        </div>
+        <div className="flex items-center justify-end gap-3.5 sm:gap-4 md:flex-1 md:px-2">
+          <button
+            onClick={() => setSearchOpen((v) => !v)}
+            aria-label="Search"
+            aria-expanded={searchOpen}
+            className={cn("transition-colors hover:text-heading-4 md:hidden", searchOpen ? "text-brand-600" : "text-heading-6")}
+          >
+            <Search className="size-5" strokeWidth={1.6} />
           </button>
-          <Link href="/">
-            <Wordmark className="text-[17px]" />
+          <NotificationBell />
+          <div className="h-6 w-px shrink-0 bg-grey-100" />
+          <Link href="/messages" aria-label="Messages" className="text-heading-6 transition-colors hover:text-heading-4">
+            <MessageSquareText className="size-5" strokeWidth={1.6} />
           </Link>
         </div>
-        <div className="hidden min-w-0 flex-1 items-center lg:flex">
-          <Breadcrumbs />
+      </div>
+      {searchOpen && (
+        <div className="px-4 pt-0.5 pb-3 md:hidden animate-[pop-in_.15s_ease-out]">
+          <GlobalSearch autoFocus onDone={() => setSearchOpen(false)} />
         </div>
-      </div>
-      <div className="hidden max-w-90 flex-1 items-center md:flex">
-        <GlobalSearch />
-      </div>
-      <div className="flex flex-1 items-center justify-end gap-4 px-2">
-        <NotificationBell />
-        <div className="h-6 w-px shrink-0 bg-grey-100" />
-        <Link href="/messages" aria-label="Messages" className="text-heading-6 transition-colors hover:text-heading-4">
-          <MessageSquareText className="size-5" strokeWidth={1.6} />
+      )}
+    </header>
+  );
+}
+
+// ─── Bottom tabs (phones and tablets) ────────────────────────────────────────
+
+const PROFILE_PAGES = ["/profile", "/settings", "/payments", "/messages", "/applications", "/maintenance"];
+
+function BottomNav() {
+  const pathname = usePathname();
+  const { main } = useNavGroups();
+  const s = useHostel();
+  const tabs = [main[0], main[1], main[2], { ...main[3], label: "Rent" }];
+  // Pages listed on the Profile screen keep the Profile tab lit
+  const profileActive = PROFILE_PAGES.some((href) => pathname.startsWith(href));
+  return (
+    <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-grey-100 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden print:hidden" aria-label="Primary">
+      <div className="mx-auto grid h-16 max-w-lg grid-cols-5">
+        {tabs.map((t) => {
+          const Icon = t.icon;
+          const active = isActive(pathname, t.href);
+          return (
+            <Link
+              key={t.href}
+              href={t.href}
+              className={cn("relative flex flex-col items-center justify-center gap-1 text-[11px] font-medium transition-colors", active ? "text-brand-700" : "text-heading-6")}
+            >
+              <span className={cn("relative flex h-7 w-12 items-center justify-center rounded-full transition-colors", active && "bg-brand-50")}>
+                <Icon className="size-5" strokeWidth={active ? 2 : 1.6} />
+                {!!t.count && (
+                  <span className="absolute -top-1 right-0.5 min-w-4 rounded-full bg-amber-400 px-1 text-center text-[10px] leading-4 font-semibold text-amber-950">
+                    {t.count}
+                  </span>
+                )}
+              </span>
+              {t.label}
+            </Link>
+          );
+        })}
+        <Link
+          href="/profile"
+          className={cn("flex flex-col items-center justify-center gap-1 text-[11px] font-medium transition-colors", profileActive ? "text-brand-700" : "text-heading-6")}
+        >
+          <span className={cn("flex h-7 w-12 items-center justify-center rounded-full", profileActive && "bg-brand-50")}>
+            <span
+              className={cn(
+                "flex size-5.5 items-center justify-center rounded-full text-[9px] font-semibold text-white",
+                profileActive ? "bg-brand-700" : "bg-grey-950",
+              )}
+            >
+              {managerInitials(s.settings.managerName)}
+            </span>
+          </span>
+          Profile
         </Link>
       </div>
-    </header>
+    </nav>
   );
 }
 
@@ -571,7 +571,8 @@ export function AppShell({ children }: { children: ReactNode }) {
       <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col">
         <TopBar />
-        <main className="flex-1 overflow-y-auto p-4 lg:p-5">{children}</main>
+        <main className="flex-1 overflow-y-auto p-4 pb-24 lg:p-5">{children}</main>
+        <BottomNav />
       </div>
       {residentId && <ResidentDrawer residentId={residentId} onClose={() => openResident(null)} />}
     </div>

@@ -3,13 +3,16 @@
 import { Download, Plus, Receipt, Wallet } from "lucide-react";
 import { useMemo, useState } from "react";
 import { PaymentModal, ReceiptModal } from "@/components/PaymentModal";
-import { Avatar, Badge, Button, Card, EmptyState, Modal, PageHeader, SearchInput, Select, StatCard } from "@/components/ui";
+import { CollectionsChart } from "@/components/charts";
+import { Avatar, Badge, BtnLabel, Button, headerBtn, Card, EmptyState, Modal, PageHeader, Panel, SearchInput, Select, StatCard } from "@/components/ui";
+import { useDashboard } from "@/lib/dashboard";
 import { useHostel } from "@/lib/store";
 import type { Payment } from "@/lib/types";
 import { downloadCSV, formatDate, isSameMonth, naira, todayISO } from "@/lib/utils";
 
 export default function PaymentsPage() {
   const s = useHostel();
+  const { collections } = useDashboard();
   const [q, setQ] = useState("");
   const [month, setMonth] = useState("");
   const [method, setMethod] = useState("");
@@ -54,6 +57,7 @@ export default function PaymentsPage() {
           <>
             <Button
               variant="secondary"
+              className={headerBtn}
               disabled={!filtered.length}
               onClick={() =>
                 downloadCSV(
@@ -75,19 +79,22 @@ export default function PaymentsPage() {
                 )
               }
             >
-              <Download className="size-4" /> Export
+              <Download className="size-4" />
+              <BtnLabel>Export</BtnLabel>
             </Button>
-            <Button onClick={() => setPicking(true)}>
-              <Plus className="size-4" /> Record payment
+            <Button className={headerBtn} onClick={() => setPicking(true)}>
+              <Plus className="size-4" />
+              <BtnLabel>Record payment</BtnLabel>
             </Button>
           </>
         }
       />
 
-      <div className="mb-6 grid gap-4 sm:grid-cols-3">
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
         <StatCard label="Collected this month" value={naira(sum(thisMonth))} sub={`${thisMonth.length} payments`} icon={<Wallet className="size-5" />} />
         <StatCard label={`Collected in ${year}`} value={naira(sum(thisYear))} sub={`${thisYear.length} payments`} icon={<Wallet className="size-5" />} tone="green" />
         <StatCard
+          className="col-span-2 sm:col-span-1"
           label="Showing"
           value={naira(sum(filtered))}
           sub={`${filtered.length} payments match your filters`}
@@ -95,6 +102,22 @@ export default function PaymentsPage() {
           tone="blue"
         />
       </div>
+
+      <Panel
+        className="mb-6"
+        title="Rent collected"
+        description="Last 12 months · hover a bar for details"
+        action={
+          <div className="text-right">
+            <p className="text-[11px] text-heading-6">12-month total</p>
+            <p className="text-sm font-medium text-heading-2 tabular-nums">{naira(collections.reduce((n, m) => n + m.total, 0))}</p>
+          </div>
+        }
+      >
+        <div className="px-2 pt-4 pb-2">
+          <CollectionsChart data={collections} />
+        </div>
+      </Panel>
 
       <Card>
         <div className="grid gap-3 border-b border-slate-100 p-4 sm:grid-cols-4">
@@ -123,12 +146,14 @@ export default function PaymentsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-grey-100 bg-grey-10 text-left text-xs font-medium text-heading-6">
-                  <th className="px-4 py-3">Receipt</th>
-                  <th className="px-4 py-3">Resident</th>
-                  <th className="px-4 py-3">Amount</th>
+                  <th className="hidden px-4 py-3 sm:table-cell">Receipt</th>
+                  <th className="px-3 py-3 sm:px-4">Resident</th>
+                  <th className="px-3 py-3 sm:px-4">Amount</th>
                   <th className="hidden px-4 py-3 md:table-cell">Method</th>
                   <th className="hidden px-4 py-3 lg:table-cell">Rent period</th>
-                  <th className="px-4 py-3" />
+                  <th className="px-4 py-3">
+                    <span className="sr-only">Actions</span>
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -136,24 +161,28 @@ export default function PaymentsPage() {
                   const r = residentsById.get(p.residentId);
                   return (
                     <tr key={p.id} className="hover:bg-slate-50">
-                      <td className="px-4 py-3">
-                        <p className="font-mono text-xs font-medium text-slate-900">{p.receiptNo}</p>
-                        <p className="text-xs text-slate-500">{formatDate(p.date)}</p>
+                      <td className="hidden px-4 py-3 sm:table-cell">
+                        <p className="font-mono text-xs font-medium whitespace-nowrap text-slate-900">{p.receiptNo}</p>
+                        <p className="text-xs whitespace-nowrap text-slate-500">{formatDate(p.date)}</p>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-3 sm:px-4">
                         <p className="font-medium text-slate-900">{r?.fullName ?? "Deleted resident"}</p>
                         <p className="text-xs text-slate-500">Room {r?.roomId ?? "—"}</p>
+                        <p className="text-xs text-slate-500 sm:hidden">
+                          {p.receiptNo} · {formatDate(p.date)}
+                        </p>
                       </td>
-                      <td className="px-4 py-3 font-medium text-slate-900 tabular-nums">{naira(p.amount)}</td>
+                      <td className="px-3 py-3 font-medium whitespace-nowrap text-slate-900 tabular-nums sm:px-4">{naira(p.amount)}</td>
                       <td className="hidden px-4 py-3 md:table-cell">
                         <Badge tone={p.method === "Cash" ? "amber" : p.method === "Transfer" ? "blue" : "violet"}>{p.method}</Badge>
                       </td>
                       <td className="hidden px-4 py-3 text-xs text-slate-600 lg:table-cell">
                         {formatDate(p.periodStart)} – {formatDate(p.periodEnd)}
                       </td>
-                      <td className="px-4 py-3 text-right">
-                        <Button size="sm" variant="ghost" onClick={() => setReceipt(p)}>
-                          <Receipt className="size-3.5" /> Receipt
+                      <td className="px-3 py-3 text-right sm:px-4">
+                        <Button size="sm" variant="ghost" className="max-sm:size-8 max-sm:px-0" onClick={() => setReceipt(p)}>
+                          <Receipt className="size-3.5" />
+                          <BtnLabel>Receipt</BtnLabel>
                         </Button>
                       </td>
                     </tr>

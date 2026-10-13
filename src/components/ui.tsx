@@ -1,8 +1,10 @@
 "use client";
 
-import { ChevronDown, X } from "lucide-react";
+import { ChevronLeft, X } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from "react";
+import { usePathname } from "next/navigation";
+import { useCallback, useEffect, useRef, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type TextareaHTMLAttributes } from "react";
+import { subPageOf } from "@/lib/nav";
 import type { Resident } from "@/lib/types";
 import { cn, daysLeft, describeDaysLeft, initials, rentStatus } from "@/lib/utils";
 
@@ -131,17 +133,7 @@ export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElem
   return <input className={cn(inputBase, className)} {...props} />;
 }
 
-/** Native select with the browser arrow replaced by an inset chevron. `wrapperClassName` sizes the control. */
-export function Select({ className, wrapperClassName, children, ...props }: SelectHTMLAttributes<HTMLSelectElement> & { wrapperClassName?: string }) {
-  return (
-    <div className={cn("relative grid", wrapperClassName)}>
-      <select className={cn(inputBase, "appearance-none pr-9", className)} {...props}>
-        {children}
-      </select>
-      <ChevronDown className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-heading-6" />
-    </div>
-  );
-}
+export { Select } from "./Select";
 
 export function Textarea({ className, ...props }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return <textarea className={cn(inputBase, className)} {...props} />;
@@ -209,7 +201,7 @@ export function Modal({
   footer?: ReactNode;
   size?: "md" | "lg" | "xl";
 }) {
-  const { leaving, close } = useAnimatedClose(onClose, 160);
+  const { leaving, close } = useAnimatedClose(onClose, 220);
   useEscape(open, close);
   if (!open) return null;
   return (
@@ -227,7 +219,9 @@ export function Modal({
         className={cn(
           "relative flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-2xl border border-grey-100 bg-white shadow-[0_10px_40px_rgba(0,0,0,0.08)] sm:rounded-2xl",
           size === "md" ? "sm:max-w-lg" : size === "lg" ? "sm:max-w-2xl" : "sm:max-w-4xl",
-          leaving ? "animate-[modal-out_160ms_ease-in_forwards]" : "animate-[modal-in_220ms_cubic-bezier(0.16,1,0.3,1)]",
+          leaving
+            ? "max-sm:animate-[sheet-out_220ms_cubic-bezier(0.4,0,1,1)_forwards] sm:animate-[modal-out_160ms_ease-in_forwards]"
+            : "max-sm:animate-[sheet-in_340ms_cubic-bezier(0.32,0.72,0,1)] sm:animate-[modal-in_220ms_cubic-bezier(0.16,1,0.3,1)]",
         )}
       >
         <div className="flex items-start justify-between gap-4 border-b border-grey-100 px-5 py-4">
@@ -265,9 +259,12 @@ export function Drawer({ open, onClose, title, children }: { open: boolean; onCl
           leaving ? "animate-[drawer-out_220ms_cubic-bezier(0.4,0,1,1)_forwards]" : "animate-[drawer-in_320ms_cubic-bezier(0.32,0.72,0,1)]",
         )}
       >
-        <div className="flex h-15.25 shrink-0 items-center justify-between border-b border-grey-100 px-5">
+        <div className="flex h-14 shrink-0 items-center gap-2 border-b border-grey-100 px-3 sm:h-15.25 sm:justify-between sm:px-5">
+          <button onClick={close} className="rounded-lg p-1.5 text-heading-4 hover:bg-grey-50 sm:hidden" aria-label="Back">
+            <ChevronLeft className="size-5" />
+          </button>
           <div className="text-base font-medium text-grey-950">{title}</div>
-          <button onClick={close} className="rounded-lg p-1 text-heading-6 hover:bg-grey-50 hover:text-heading-2" aria-label="Close">
+          <button onClick={close} className="rounded-lg p-1 text-heading-6 hover:bg-grey-50 hover:text-heading-2 max-sm:hidden" aria-label="Close">
             <X className="size-5" />
           </button>
         </div>
@@ -279,17 +276,27 @@ export function Drawer({ open, onClose, title, children }: { open: boolean; onCl
 
 // ---------------------------------------------------------------- Page chrome
 
-/** White heading band that spans the full width under the top bar. */
+/** White heading band that spans the full width under the top bar. Stays on one row at every size. */
 export function PageHeader({ title, description, actions }: { title: ReactNode; description?: ReactNode; actions?: ReactNode }) {
+  // On phones these screens show "← Title" in the top bar, so the heading would repeat it
+  const titleInTopBar = !!subPageOf(usePathname());
   return (
-    <div className="-mx-4 -mt-4 mb-5 flex flex-col gap-3 border-b border-grey-100 bg-white px-4 py-4 sm:flex-row sm:items-center lg:-mx-5 lg:-mt-5 lg:px-5 lg:py-5">
+    <div className="-mx-4 -mt-4 mb-5 flex items-center gap-3 border-b border-grey-100 bg-white px-4 py-3.5 sm:py-4 lg:-mx-5 lg:-mt-5 lg:px-5 lg:py-5">
       <div className="min-w-0 flex-1">
-        <h1 className="truncate text-lg font-medium text-grey-950">{title}</h1>
-        {description && <p className="truncate text-sm text-heading-6">{description}</p>}
+        <h1 className={cn("truncate text-base font-medium text-grey-950 sm:text-lg", titleInTopBar && "max-lg:sr-only")}>{title}</h1>
+        {description && <p className={cn("text-xs text-heading-6 sm:truncate sm:text-sm", titleInTopBar && "max-lg:text-sm")}>{description}</p>}
       </div>
-      {actions && <div className="flex flex-wrap items-center gap-2 sm:gap-3">{actions}</div>}
+      {actions && <div className="flex shrink-0 items-center gap-2 sm:gap-3">{actions}</div>}
     </div>
   );
+}
+
+/** Header buttons collapse to a square icon on phones. Pair with <BtnLabel>. */
+export const headerBtn = "max-sm:size-10 max-sm:min-h-0 max-sm:px-0";
+
+/** Button text that is visually hidden on phones but still read by screen readers. */
+export function BtnLabel({ children }: { children: ReactNode }) {
+  return <span className="max-sm:sr-only">{children}</span>;
 }
 
 const iconChip = {
@@ -307,23 +314,25 @@ export function StatCard({
   sub,
   icon,
   tone = "brand",
+  className,
 }: {
   label: string;
   value: ReactNode;
   sub?: ReactNode;
   icon: ReactNode;
   tone?: keyof typeof iconChip;
+  className?: string;
 }) {
   return (
-    <div className="flex flex-col overflow-hidden rounded-xl border-[0.8px] border-frame-border bg-frame">
+    <div className={cn("flex flex-col overflow-hidden rounded-xl border-[0.8px] border-frame-border bg-frame", className)}>
       <div className="flex items-center gap-1.5 px-3 py-2.5">
-        <p className="min-w-0 flex-1 truncate text-sm font-medium text-heading-2">{label}</p>
+        <p className="min-w-0 flex-1 truncate text-xs font-medium text-heading-2 sm:text-sm">{label}</p>
         <span className={cn("flex size-5 items-center justify-center rounded-md [&_svg]:size-3", iconChip[tone])}>{icon}</span>
       </div>
       <div className="px-1 pb-1">
         <div className="flex h-27.5 flex-col justify-end gap-2.5 rounded-t-xl rounded-b-md border-[0.5px] border-grey-100 bg-white px-2.5 py-4 shadow-panel">
-          <p className="text-[29px] leading-tight font-medium text-heading-2 tabular-nums">{value}</p>
-          {sub && <p className="truncate text-xs font-medium text-heading-5">{sub}</p>}
+          <p className="text-[22px] leading-tight font-medium text-heading-2 tabular-nums sm:text-[29px]">{value}</p>
+          {sub && <p className="line-clamp-2 text-[11px] font-medium text-heading-5 sm:truncate sm:text-xs">{sub}</p>}
         </div>
       </div>
     </div>

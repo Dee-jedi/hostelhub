@@ -1,13 +1,13 @@
 "use client";
 
-import { Download, UserPlus, Users } from "lucide-react";
+import { Download, SlidersHorizontal, UserPlus, Users } from "lucide-react";
 import { useMemo, useState } from "react";
 import { AddResidentModal } from "@/components/AddResidentModal";
-import { Avatar, Button, Card, EmptyState, PageHeader, RentBadge, SearchInput, Select } from "@/components/ui";
+import { Avatar, BtnLabel, Button, headerBtn, Card, EmptyState, PageHeader, RentBadge, SearchInput, Select } from "@/components/ui";
 import { useHostel } from "@/lib/store";
 import { openResident } from "@/lib/ui-store";
 import { LEVELS } from "@/lib/seed";
-import { daysLeft, describeDaysLeft, downloadCSV, formatDate, rentStatus } from "@/lib/utils";
+import { cn, daysLeft, describeDaysLeft, downloadCSV, formatDate, rentStatus } from "@/lib/utils";
 
 const PAGE_SIZE = 25;
 
@@ -20,6 +20,7 @@ export default function ResidentsPage() {
   const [level, setLevel] = useState("");
   const [sex, setSex] = useState("");
   const [page, setPage] = useState(0);
+  const [showFilters, setShowFilters] = useState(false);
   const [adding, setAdding] = useState(false);
 
   const filtered = useMemo(() => {
@@ -37,6 +38,7 @@ export default function ResidentsPage() {
       .sort((a, b) => (a.roomId ?? "zz").localeCompare(b.roomId ?? "zz", undefined, { numeric: true }) || a.fullName.localeCompare(b.fullName));
   }, [s.residents, q, status, rent, block, level, sex]);
 
+  const activeFilters = [status !== "active", rent, block, level, sex].filter(Boolean).length;
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const current = Math.min(page, pages - 1);
   const rows = filtered.slice(current * PAGE_SIZE, (current + 1) * PAGE_SIZE);
@@ -73,56 +75,78 @@ export default function ResidentsPage() {
     <>
       <PageHeader
         title="Residents"
-        description={`${s.residents.filter((r) => r.status === "active").length} current tenants · rent is per room`}
+        description={`${s.residents.filter((r) => r.status === "active").length} current tenants`}
         actions={
           <>
-            <Button variant="secondary" onClick={exportCSV} disabled={!filtered.length}>
-              <Download className="size-4" /> Export CSV
+            <Button variant="secondary" className={headerBtn} onClick={exportCSV} disabled={!filtered.length}>
+              <Download className="size-4" />
+              <BtnLabel>Export CSV</BtnLabel>
             </Button>
-            <Button onClick={() => setAdding(true)}>
-              <UserPlus className="size-4" /> Add tenant
+            <Button className={headerBtn} onClick={() => setAdding(true)}>
+              <UserPlus className="size-4" />
+              <BtnLabel>Add tenant</BtnLabel>
             </Button>
           </>
         }
       />
 
       <Card>
-        <div className="grid grid-cols-2 gap-3 border-b border-grey-100 p-3 md:grid-cols-3 xl:grid-cols-7">
-          <div className="col-span-2 md:col-span-3 xl:col-span-2">
-            <SearchInput value={q} onChange={resetPage(setQ)} placeholder="Search name, phone, room, matric no…" />
+        <div className="flex flex-col gap-3 border-b border-grey-100 p-3 md:flex-row md:flex-wrap md:items-center">
+          <div className="flex min-w-0 gap-2 md:min-w-52 md:flex-1">
+            <div className="min-w-0 flex-1">
+              <SearchInput value={q} onChange={resetPage(setQ)} placeholder="Search name, phone, room…" />
+            </div>
+            <button
+              onClick={() => setShowFilters((v) => !v)}
+              aria-expanded={showFilters}
+              aria-label="Filters"
+              className={cn(
+                "relative flex size-10 shrink-0 items-center justify-center rounded-lg border md:hidden",
+                showFilters ? "border-brand-200 bg-brand-50 text-brand-700" : "border-grey-150 bg-white text-heading-5",
+              )}
+            >
+              <SlidersHorizontal className="size-4" />
+              {activeFilters > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 flex size-4.5 items-center justify-center rounded-full bg-brand-600 text-[10px] font-semibold text-white">
+                  {activeFilters}
+                </span>
+              )}
+            </button>
           </div>
-          <Select value={status} onChange={(e) => resetPage(setStatus)(e.target.value)}>
-            <option value="active">Current</option>
-            <option value="moved_out">Moved out</option>
-            <option value="">Everyone</option>
-          </Select>
-          <Select value={rent} onChange={(e) => resetPage(setRent)(e.target.value)}>
-            <option value="">Any rent status</option>
-            <option value="active">Paid</option>
-            <option value="expiring">Expiring ≤30 days</option>
-            <option value="expired">Expired</option>
-          </Select>
-          <Select value={block} onChange={(e) => resetPage(setBlock)(e.target.value)}>
-            <option value="">All blocks</option>
-            {s.settings.blocks.map((b) => (
-              <option key={b.name} value={b.name}>
-                Block {b.name}
-              </option>
-            ))}
-          </Select>
-          <Select value={level} onChange={(e) => resetPage(setLevel)(e.target.value)}>
-            <option value="">All levels</option>
-            {LEVELS.map((l) => (
-              <option key={l} value={l}>
-                {l} Level
-              </option>
-            ))}
-          </Select>
-          <Select value={sex} onChange={(e) => resetPage(setSex)(e.target.value)}>
-            <option value="">Male & female</option>
-            <option>Male</option>
-            <option>Female</option>
-          </Select>
+          <div className={cn("grid grid-cols-2 gap-3 md:flex md:flex-wrap md:items-center md:gap-2", !showFilters && "max-md:hidden")}>
+            <Select value={status} onChange={(e) => resetPage(setStatus)(e.target.value)}>
+              <option value="active">Current</option>
+              <option value="moved_out">Moved out</option>
+              <option value="">Everyone</option>
+            </Select>
+            <Select value={rent} onChange={(e) => resetPage(setRent)(e.target.value)}>
+              <option value="">Any rent status</option>
+              <option value="active">Paid</option>
+              <option value="expiring">Expiring ≤30 days</option>
+              <option value="expired">Expired</option>
+            </Select>
+            <Select value={block} onChange={(e) => resetPage(setBlock)(e.target.value)}>
+              <option value="">All blocks</option>
+              {s.settings.blocks.map((b) => (
+                <option key={b.name} value={b.name}>
+                  Block {b.name}
+                </option>
+              ))}
+            </Select>
+            <Select value={level} onChange={(e) => resetPage(setLevel)(e.target.value)}>
+              <option value="">All levels</option>
+              {LEVELS.map((l) => (
+                <option key={l} value={l}>
+                  {l} Level
+                </option>
+              ))}
+            </Select>
+            <Select value={sex} onChange={(e) => resetPage(setSex)(e.target.value)}>
+              <option value="">Any sex</option>
+              <option>Male</option>
+              <option>Female</option>
+            </Select>
+          </div>
         </div>
 
         {rows.length === 0 ? (
@@ -133,7 +157,7 @@ export default function ResidentsPage() {
               <thead>
                 <tr className="border-b border-grey-100 bg-grey-10 text-left text-xs font-medium text-heading-6">
                   <th className="px-4 py-3">Tenant</th>
-                  <th className="px-4 py-3">Room</th>
+                  <th className="hidden px-4 py-3 sm:table-cell">Room</th>
                   <th className="hidden px-4 py-3 xl:table-cell">Sharing with</th>
                   <th className="hidden px-4 py-3 md:table-cell">Department</th>
                   <th className="hidden px-4 py-3 lg:table-cell">Next of kin</th>
@@ -149,11 +173,14 @@ export default function ResidentsPage() {
                         <Avatar name={r.fullName} size="sm" />
                         <div className="min-w-0">
                           <p className="truncate font-medium text-slate-900">{r.fullName}</p>
-                          <p className="text-xs text-slate-500">{r.phone}</p>
+                          <p className="text-xs text-slate-500">
+                            {r.roomId && <span className="sm:hidden">Room {r.roomId} · </span>}
+                            {r.phone}
+                          </p>
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-3 font-medium text-slate-700">{r.roomId ?? "—"}</td>
+                    <td className="hidden px-4 py-3 font-medium text-slate-700 sm:table-cell">{r.roomId ?? "—"}</td>
                     <td className="hidden px-4 py-3 xl:table-cell">
                       {r.occupants.length ? (
                         <span className="text-slate-700">{r.occupants.map((o) => o.fullName).join(", ")}</span>

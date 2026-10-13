@@ -39,7 +39,7 @@ export function Toaster() {
     () => empty,
   );
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-4 z-[60] flex flex-col items-center gap-2 px-4 sm:items-end sm:pr-6">
+    <div className="pointer-events-none fixed inset-x-0 bottom-20 z-[60] flex flex-col items-center gap-2 px-4 sm:items-end sm:pr-6 lg:bottom-4">
       {items.map((t) => (
         <div key={t.id} className="pointer-events-auto flex max-w-sm items-center gap-2.5 rounded-xl bg-slate-900 px-4 py-3 text-sm text-white shadow-lg animate-[toast-in_.2s_ease-out]">
           {t.tone === "success" ? <CheckCircle2 className="size-4 shrink-0 text-emerald-400" /> : <Info className="size-4 shrink-0 text-sky-400" />}

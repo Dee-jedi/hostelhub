@@ -170,6 +170,11 @@ export function downloadCSV(filename: string, rows: Record<string, string | numb
   URL.revokeObjectURL(url);
 }
 
+/** Initials without a title prefix, e.g. "Mrs. Adeyemi" -> "A". */
+export function managerInitials(name: string) {
+  return initials(name.replace(/^(Mr|Mrs|Ms|Miss|Dr)\.?\s+/i, ""));
+}
+
 export function initials(name: string) {
   return name
     .split(" ")
