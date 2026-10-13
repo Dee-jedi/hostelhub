@@ -1,0 +1,209 @@
+"use client";
+
+import { AlertTriangle, BedDouble, BellRing, CalendarClock, ClipboardList, DoorOpen, Plus, TrendingUp, Users, Wrench } from "lucide-react";
+import Link from "next/link";
+import { useState } from "react";
+import { AddResidentModal } from "@/components/AddResidentModal";
+import { BlockOccupancyChart, CollectionsChart, ExpiryForecastChart } from "@/components/charts";
+import { ComposeModal } from "@/components/ComposeModal";
+import { toast } from "@/components/toast";
+import { Avatar, Badge, Button, PageHeader, Panel, PanelLink, RentBadge, StatCard } from "@/components/ui";
+import { useDashboard } from "@/lib/dashboard";
+import { runAutomatedReminders, useHostel } from "@/lib/store";
+import { openResident } from "@/lib/ui-store";
+import { cn, daysLeft, describeDaysLeft, formatDate, formatDateTime, naira, nairaShort } from "@/lib/utils";
+
+export default function DashboardPage() {
+  const s = useHostel();
+  const d = useDashboard();
+  const [composeFor, setComposeFor] = useState<typeof d.upcoming | null>(null);
+  const [adding, setAdding] = useState(false);
+  const pending = s.applications.filter((a) => a.status === "pending").length;
+  const openTickets = s.tickets.filter((t) => t.status !== "resolved").length;
+  const occPct = d.usableRooms ? Math.round((d.occupiedRooms / d.usableRooms) * 100) : 0;
+  const yearTotal = d.collections.reduce((n, m) => n + m.total, 0);
+  const residentsById = new Map(s.residents.map((r) => [r.id, r]));
+  const totalStatus = d.statusCounts.active + d.statusCounts.expiring + d.statusCounts.expired || 1;
+  const lastAuto = s.messages.find((m) => m.automated);
+
+  return (
+    <>
+      <PageHeader
+        title={`Welcome, ${s.settings.managerName}!`}
+        description={`Here's what's happening at ${s.settings.hostelName} today.`}
+        actions={
+          <>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                const n = runAutomatedReminders();
+                toast(n ? `Sent ${n} automated reminder${n === 1 ? "" : "s"}` : "Everyone due has already been reminded", n ? "success" : "info");
+              }}
+            >
+              <BellRing className="size-4.5" strokeWidth={1.6} /> Run reminders
+            </Button>
+            <div className="hidden h-6 w-px bg-grey-100 sm:block" />
+            <Button onClick={() => setAdding(true)}>
+              <Plus className="size-4.5" /> Add tenant
+            </Button>
+          </>
+        }
+      />
+
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+        <StatCard label="Room occupancy" value={`${occPct}%`} sub={`${d.occupiedRooms} of ${d.usableRooms} rooms let · ${d.people} people`} icon={<BedDouble />} />
+        <StatCard label="Vacant rooms" value={d.vacantRooms} sub={`${d.maintenanceRooms} under maintenance`} icon={<DoorOpen />} tone="blue" />
+        <StatCard label="Expiring this month" value={d.expiringThisMonth.length} sub={`${d.due30.length} due in the next 30 days`} icon={<CalendarClock />} tone="amber" />
+        <StatCard label="Expired rent" value={d.expired.length} sub={`${naira(d.outstanding)} outstanding`} icon={<AlertTriangle />} tone="red" />
+      </div>
+
+      <div className="mt-4 grid gap-4 lg:grid-cols-3">
+        <Panel
+          className="lg:col-span-2"
+          title="Rent due & overdue"
+          description="Expired first, then by expiry date"
+          action={
+            <>
+              <Button size="sm" variant="secondary" onClick={() => setComposeFor(d.upcoming)} disabled={!d.upcoming.length}>
+                Remind all ({d.upcoming.length})
+              </Button>
+              <PanelLink href="/renewals">View all</PanelLink>
+            </>
+          }
+        >
+          <ul className="divide-y divide-grey-100">
+            {d.upcoming.slice(0, 7).map((r) => (
+              <li key={r.id}>
+                <button onClick={() => openResident(r.id)} className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-grey-10">
+                  <Avatar name={r.fullName} size="sm" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-heading-2">{r.fullName}</p>
+                    <p className="text-xs text-heading-6">
+                      Room {r.roomId} · {r.phone}
+                    </p>
+                  </div>
+                  <span className="hidden text-xs text-heading-6 sm:block">{describeDaysLeft(daysLeft(r))}</span>
+                  <RentBadge resident={r} />
+                </button>
+              </li>
+            ))}
+            {d.upcoming.length === 0 && <li className="px-5 py-10 text-center text-sm text-heading-6">No rent due in the next 30 days 🎉</li>}
+          </ul>
+        </Panel>
+
+        <div className="flex flex-col gap-4">
+          <Panel title="Rent status" description={`${d.residents.length} rooms let`}>
+            <div className="p-4">
+              <div className="flex h-2.5 gap-0.5 overflow-hidden rounded-full">
+                <div className="bg-emerald-500" style={{ width: `${(d.statusCounts.active / totalStatus) * 100}%` }} />
+                <div className="bg-amber-400" style={{ width: `${(d.statusCounts.expiring / totalStatus) * 100}%` }} />
+                <div className="bg-rose-500" style={{ width: `${(d.statusCounts.expired / totalStatus) * 100}%` }} />
+              </div>
+              <dl className="mt-4 space-y-2.5 text-sm">
+                {[
+                  { label: "Paid up", value: d.statusCounts.active, dot: "bg-emerald-500" },
+                  { label: "Expiring within 30 days", value: d.statusCounts.expiring, dot: "bg-amber-400" },
+                  { label: "Expired", value: d.statusCounts.expired, dot: "bg-rose-500" },
+                ].map((row) => (
+                  <div key={row.label} className="flex items-center gap-2">
+                    <span className={cn("size-2 rounded-full", row.dot)} />
+                    <dt className="flex-1 text-heading-5">{row.label}</dt>
+                    <dd className="font-medium text-heading-2 tabular-nums">{row.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          </Panel>
+
+          <Panel title="Needs attention">
+            <div className="divide-y divide-grey-100">
+              <Link href="/applications" className="flex items-center gap-3 px-4 py-3 hover:bg-grey-10">
+                <ClipboardList className="size-4.5 text-heading-6" strokeWidth={1.6} />
+                <span className="flex-1 text-sm text-heading-4">New applications</span>
+                <Badge tone={pending ? "brand" : "slate"}>{pending}</Badge>
+              </Link>
+              <Link href="/maintenance" className="flex items-center gap-3 px-4 py-3 hover:bg-grey-10">
+                <Wrench className="size-4.5 text-heading-6" strokeWidth={1.6} />
+                <span className="flex-1 text-sm text-heading-4">Open maintenance requests</span>
+                <Badge tone={openTickets ? "amber" : "slate"}>{openTickets}</Badge>
+              </Link>
+              <div className="flex items-center gap-3 px-4 py-3">
+                <BellRing className="size-4.5 text-heading-6" strokeWidth={1.6} />
+                <span className="flex-1 text-sm text-heading-4">Last auto-reminder</span>
+                <span className="text-xs text-heading-6">{lastAuto ? formatDateTime(lastAuto.sentAt) : "Never"}</span>
+              </div>
+            </div>
+          </Panel>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <Panel
+          title="Rent collected"
+          description="Last 12 months"
+          action={
+            <div className="text-right">
+              <p className="text-[11px] text-heading-6">This month</p>
+              <p className="text-sm font-medium text-heading-2 tabular-nums">{naira(d.collectedThisMonth)}</p>
+            </div>
+          }
+        >
+          <div className="px-2 pt-4 pb-1">
+            <CollectionsChart data={d.collections} />
+          </div>
+          <div className="flex items-center gap-2 border-t border-grey-100 px-4 py-3 text-xs text-heading-6">
+            <TrendingUp className="size-3.5" />
+            12-month total: <span className="font-medium text-heading-4">{naira(yearTotal)}</span>
+          </div>
+        </Panel>
+
+        <Panel title="Rent expiry forecast" description="Rooms whose rent runs out each month" action={<PanelLink href="/renewals">Renewals</PanelLink>}>
+          <div className="px-2 pt-4 pb-1">
+            <ExpiryForecastChart data={d.forecast} />
+          </div>
+          <div className="flex items-center gap-2 border-t border-grey-100 px-4 py-3 text-xs text-heading-6">
+            <CalendarClock className="size-3.5" />
+            Expected from renewals in the next 30 days: <span className="font-medium text-heading-4">{nairaShort(d.due30.length * s.settings.rentAmount)}</span>
+          </div>
+        </Panel>
+      </div>
+
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <Panel title="Occupancy by block" description="Occupied and vacant rooms" action={<PanelLink href="/rooms">Room map</PanelLink>}>
+          <div className="px-2 pt-4 pb-2">
+            <BlockOccupancyChart data={d.blocks} />
+          </div>
+          <div className="flex items-center gap-2 border-t border-grey-100 px-4 py-3 text-xs text-heading-6">
+            <Users className="size-3.5" />
+            {d.sharedRooms} of {d.occupiedRooms} rooms are shared · {naira(s.settings.rentAmount)} per room
+          </div>
+        </Panel>
+
+        <Panel title="Recent payments" description="Latest rent received" action={<PanelLink href="/payments">View all</PanelLink>}>
+          <ul className="divide-y divide-grey-100">
+            {s.payments.slice(0, 7).map((p) => {
+              const r = residentsById.get(p.residentId);
+              return (
+                <li key={p.id}>
+                  <button onClick={() => r && openResident(r.id)} className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-grey-10">
+                    <Avatar name={r?.fullName ?? "?"} size="sm" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-heading-2">{r?.fullName ?? "Deleted tenant"}</p>
+                      <p className="text-xs text-heading-6">
+                        Room {r?.roomId ?? "—"} · {p.method} · {formatDate(p.date)}
+                      </p>
+                    </div>
+                    <span className="text-sm font-medium text-heading-2 tabular-nums">{naira(p.amount)}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </Panel>
+      </div>
+
+      {composeFor && <ComposeModal recipients={composeFor} onClose={() => setComposeFor(null)} />}
+      {adding && <AddResidentModal onClose={() => setAdding(false)} />}
+    </>
+  );
+}

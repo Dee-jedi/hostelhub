@@ -1,26 +1,162 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+@theme {
+  /* Brand green — used for active states, primary actions and accents */
+  --color-brand-50: #eef7f6;
+  --color-brand-100: #d5ecea;
+  --color-brand-200: #acd9d5;
+  --color-brand-300: #7bbfba;
+  --color-brand-400: #4c9f9a;
+  --color-brand-500: #31847f;
+  --color-brand-600: #236b67;
+  --color-brand-700: #1e5754;
+  --color-brand-800: #1b4745;
+  --color-brand-900: #193c3b;
+  --color-brand-950: #0b2322;
+
+  /* Neutral greys (light theme). Slate is remapped so every slate-* utility is a pure grey. */
+  --color-slate-50: #f7f7f7;
+  --color-slate-100: #f4f4f4;
+  --color-slate-200: #eaeaea;
+  --color-slate-300: #dfdfdf;
+  --color-slate-400: #aaaaaa;
+  --color-slate-500: #777777;
+  --color-slate-600: #5a5a5a;
+  --color-slate-700: #424242;
+  --color-slate-800: #2a2a2a;
+  --color-slate-900: #171717;
+  --color-slate-950: #101010;
+
+  --color-grey-10: #fcfcfc;
+  --color-grey-50: #f4f4f4;
+  --color-grey-100: #eaeaea;
+  --color-grey-150: #dfdfdf;
+  --color-grey-400: #aaaaaa;
+  --color-grey-950: #101010;
+
+  /* Green-tinted neutrals for card frames, the search pill and tab tracks */
+  --color-frame: #f1f6f5;
+  --color-frame-border: #e1ebe9;
+
+  --color-heading-2: #171717;
+  --color-heading-4: #424242;
+  --color-heading-5: #5a5a5a;
+  --color-heading-6: #777777;
+
+  --shadow-soft: 0px 0px 4px 0px rgba(186, 186, 186, 0.25);
+  --shadow-panel: 0px -1px 5px 0px rgba(182, 182, 182, 0.15);
+  --shadow-btn-primary: 0px 0px 4px 0px rgba(186, 186, 186, 0.25), inset 0px 1.5px 2px 0px rgba(255, 255, 255, 0.18);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-grey-10);
+  color: var(--color-heading-2);
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Side drawer */
+@keyframes drawer-in {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+@keyframes drawer-out {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+/* Modal */
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@keyframes modal-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    transition-duration: 1ms !important;
+  }
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-area,
+  .print-area * {
+    visibility: visible;
+  }
+  .print-area {
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+  }
 }
