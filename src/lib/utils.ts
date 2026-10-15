@@ -1,4 +1,4 @@
-import type { HostelState, RentStatus, Resident, Room } from "./types";
+import type { HostelState, PublicBookingDoc, PublicRoom, PublicRoomStatus, RentStatus, Resident, Room, Settings, StudentInfo } from "./types";
 
 export function cn(...classes: (string | false | null | undefined)[]) {
   return classes.filter(Boolean).join(" ");
@@ -6,6 +6,28 @@ export function cn(...classes: (string | false | null | undefined)[]) {
 
 export function uid(prefix = "") {
   return prefix + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+}
+
+/** Just the form fields of a resident or booking, e.g. to copy one into the other. */
+export function toStudentInfo(x: StudentInfo): StudentInfo {
+  return {
+    isStudent: x.isStudent ?? true,
+    fullName: x.fullName,
+    sex: x.sex,
+    phone: x.phone,
+    email: x.email,
+    matricNo: x.matricNo,
+    department: x.department,
+    faculty: x.faculty,
+    level: x.level,
+    stateOfOrigin: x.stateOfOrigin,
+    homeAddress: x.homeAddress,
+    nextOfKinName: x.nextOfKinName,
+    nextOfKinPhone: x.nextOfKinPhone,
+    nextOfKinRelationship: x.nextOfKinRelationship,
+    occupants: x.occupants ?? [],
+    photoUrl: x.photoUrl,
+  };
 }
 
 // ---------- Dates (stored as YYYY-MM-DD, interpreted in local time) ----------
@@ -175,6 +197,22 @@ export function managerInitials(name: string) {
   return initials(name.replace(/^(Mr|Mrs|Ms|Miss|Dr)\.?\s+/i, ""));
 }
 
+/** "Computer Science · 200 Level", or "Not a student" for working tenants and occupants. */
+export function academicLine(p: { isStudent?: boolean; department: string; level: string }, short = false) {
+  if (p.isStudent === false) return "Not a student";
+  return [p.department, p.level && (short ? `${p.level}L` : `${p.level} Level`)].filter(Boolean).join(" · ") || "—";
+}
+
+/** A ticket is closed once it's resolved or declined. */
+export function isOpenTicket(t: { status: string }) {
+  return t.status !== "resolved" && t.status !== "declined";
+}
+
+export function greeting(date = new Date()) {
+  const h = date.getHours();
+  return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
+}
+
 export function initials(name: string) {
   return name
     .split(" ")
@@ -182,4 +220,43 @@ export function initials(name: string) {
     .slice(0, 2)
     .map((p) => p[0]?.toUpperCase())
     .join("");
+}
+
+// ---------- Public booking document ----------
+
+/** Availability as the public booking form sees it: no tenant details, just a status per room. */
+export function publicRooms(state: Pick<HostelState, "rooms" | "residents">): Record<string, PublicRoom> {
+  const tenants = tenantsByRoom(state as HostelState);
+  const out: Record<string, PublicRoom> = {};
+  for (const room of state.rooms) out[room.id] = publicRoom(room, tenants.has(room.id));
+  return out;
+}
+
+export function publicRoom(room: Room, occupied: boolean): PublicRoom {
+  const status: PublicRoomStatus = room.underMaintenance ? "maintenance" : occupied ? "occupied" : "vacant";
+  return room.note && room.underMaintenance
+    ? { block: room.block, number: room.number, status, note: room.note }
+    : { block: room.block, number: room.number, status };
+}
+
+export function publicInfo(settings: Settings): PublicBookingDoc["info"] {
+  return {
+    hostelName: settings.hostelName,
+    address: settings.address,
+    rentAmount: settings.rentAmount,
+    leaseMonths: settings.leaseMonths,
+    maxOccupants: settings.maxOccupants,
+    blocks: settings.blocks.map((b) => b.name),
+    whatsappGroupLink: settings.whatsappGroupLink,
+    managerName: settings.managerName,
+    managerPhone: settings.managerPhone,
+  };
+}
+
+/** A room can be booked if it's vacant and nobody else is mid-checkout on it. */
+export function isBookable(doc: PublicBookingDoc, roomId: string, now = Date.now(), uid?: string) {
+  const room = doc.rooms[roomId];
+  if (!room || room.status !== "vacant") return false;
+  const hold = doc.holds?.[roomId];
+  return !hold || hold.until <= now || (!!uid && hold.uid === uid);
 }

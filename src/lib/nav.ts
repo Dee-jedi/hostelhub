@@ -6,7 +6,7 @@ export const SUB_PAGES: Record<string, string> = {
   "/settings": "/profile",
   "/payments": "/profile",
   "/messages": "/profile",
-  "/applications": "/profile",
+  "/bookings": "/profile",
   "/maintenance": "/profile",
   "/notifications": "/",
 };

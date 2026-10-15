@@ -1,10 +1,11 @@
-import type { Application, HostelState, Message, Occupant, Payment, Resident, Room, Settings, Sex, Ticket } from "./types";
-import { addDays, addMonths, todayISO } from "./utils";
+import type { Booking, HostelState, Message, Occupant, Payment, Resident, Room, Settings, Sex, Ticket } from "./types";
+import { DEPARTMENTS, LEVELS, OTHER_FACULTY, STATES } from "./academics";
+import { addDays, addMonths, toStudentInfo, todayISO } from "./utils";
 
 export const STATE_VERSION = 5;
 
 export const DEFAULT_SETTINGS: Settings = {
-  hostelName: "Grace Court Hostel",
+  hostelName: "Mowarid Hostel",
   address: "Off University Road, Campus Gate",
   managerName: "Mrs. Adeyemi",
   managerPhone: "08031234567",
@@ -24,27 +25,15 @@ export const DEFAULT_SETTINGS: Settings = {
   ],
   reminderDays: [30, 14, 7, 1],
   bankName: "GTBank",
-  accountName: "Grace Court Hostel Ltd",
+  accountName: "Mowarid Hostel Ltd",
   accountNumber: "0123456789",
   whatsappGroupLink: "https://chat.whatsapp.com/your-group-invite",
 };
 
-export const DEPARTMENTS: { faculty: string; departments: string[] }[] = [
-  { faculty: "Engineering", departments: ["Computer Engineering", "Electrical Engineering", "Mechanical Engineering", "Civil Engineering", "Chemical Engineering"] },
-  { faculty: "Science", departments: ["Computer Science", "Microbiology", "Biochemistry", "Physics", "Mathematics", "Industrial Chemistry"] },
-  { faculty: "Social Sciences", departments: ["Economics", "Political Science", "Sociology", "Psychology", "Mass Communication"] },
-  { faculty: "Management Sciences", departments: ["Accounting", "Business Administration", "Banking & Finance", "Marketing"] },
-  { faculty: "Arts", departments: ["English", "History", "Philosophy", "Theatre Arts"] },
-  { faculty: "Law", departments: ["Law"] },
-  { faculty: "Health Sciences", departments: ["Nursing", "Medical Laboratory Science", "Pharmacy", "Medicine & Surgery"] },
-];
+export { DEPARTMENTS, LEVELS, STATES } from "./academics";
 
-export const LEVELS = ["100", "200", "300", "400", "500", "600"];
-
-export const STATES = [
-  "Lagos", "Ogun", "Oyo", "Osun", "Ondo", "Ekiti", "Kwara", "Edo", "Delta", "Rivers", "Anambra", "Enugu", "Imo",
-  "Abia", "Ebonyi", "Kogi", "Benue", "Plateau", "Kaduna", "Kano", "FCT", "Akwa Ibom", "Cross River", "Bayelsa",
-];
+/** Demo tenants get real courses, never "Other" */
+const DEMO_FACULTIES = DEPARTMENTS.filter((f) => f.faculty !== OTHER_FACULTY);
 
 const MALE_NAMES = ["Chinedu", "Tunde", "Emeka", "Ibrahim", "Segun", "Obinna", "Femi", "Uche", "Kelechi", "Tobi", "Ayo", "Musa", "Daniel", "David", "Samuel", "Victor", "Joshua", "Damilola", "Ikenna", "Kunle", "Yusuf", "Chukwuma", "Babatunde", "Seyi", "Michael", "Godwin", "Nnamdi", "Abdul", "Peter", "Sodiq"];
 const FEMALE_NAMES = ["Chioma", "Aisha", "Funmilayo", "Ngozi", "Blessing", "Temitope", "Amaka", "Zainab", "Adaeze", "Bisola", "Esther", "Grace", "Precious", "Folake", "Halima", "Ifeoma", "Joy", "Kemi", "Mercy", "Nneka", "Oluchi", "Ruth", "Sade", "Tolu", "Uju", "Victoria", "Yetunde", "Favour", "Deborah", "Rukayat"];
@@ -92,15 +81,26 @@ export function createDemoState(): HostelState {
   const payments: Payment[] = [];
   let receipt = 1001;
 
+  // Emails double as login usernames, so they must be unique
+  const usedEmails = new Set<string>();
+  const uniqueEmail = (first: string, last: string) => {
+    let email: string;
+    do email = `${first}.${last}${Math.floor(rand() * 90 + 10)}@example.com`.toLowerCase();
+    while (usedEmails.has(email));
+    usedEmails.add(email);
+    return email;
+  };
+
   const makeStudent = (sex: Sex) => {
     const first = pick(sex === "Male" ? MALE_NAMES : FEMALE_NAMES);
     const last = pick(SURNAMES);
-    const fac = pick(DEPARTMENTS);
+    const fac = pick(DEMO_FACULTIES);
     return {
       fullName: `${first} ${last}`,
       sex,
       phone: phone(),
-      email: `${first}.${last}${Math.floor(rand() * 90 + 10)}@gmail.com`.toLowerCase(),
+      // example.com is reserved, so password-reset mails for demo accounts never reach a real inbox
+      email: uniqueEmail(first, last),
       matricNo: `${pick(["19", "20", "21", "22", "23", "24", "25"])}/${fac.faculty.slice(0, 3).toUpperCase()}/${String(Math.floor(rand() * 900 + 100))}`,
       department: pick(fac.departments),
       faculty: fac.faculty,
@@ -117,7 +117,7 @@ export function createDemoState(): HostelState {
   const makeOccupant = (sex: Sex): Occupant => ({
     fullName: `${pick(sex === "Male" ? MALE_NAMES : FEMALE_NAMES)} ${pick(SURNAMES)}`,
     phone: phone(),
-    department: pick(pick(DEPARTMENTS).departments),
+    department: pick(pick(DEMO_FACULTIES).departments),
     level: pick(LEVELS.slice(0, 5)),
   });
 
@@ -161,6 +161,7 @@ export function createDemoState(): HostelState {
         id: `pay_${payments.length + 1}`,
         receiptNo: `RCP-${receipt++}`,
         residentId: id,
+        roomId: room.id,
         amount: settings.rentAmount,
         method,
         reference: method === "Transfer" ? `TRF${Math.floor(rand() * 9_000_000 + 1_000_000)}` : "",
@@ -214,12 +215,30 @@ export function createDemoState(): HostelState {
     },
   ];
 
-  const applications: Application[] = [
-    { ...makeStudent("Female"), occupants: [makeOccupant("Female")], id: "app_1", preferredBlock: "G", status: "pending", submittedAt: ago(0.2), paymentReference: "TRF8823410" },
-    { ...makeStudent("Male"), id: "app_2", preferredBlock: "B", status: "pending", submittedAt: ago(0.8), paymentReference: "" },
-    { ...makeStudent("Male"), occupants: [makeOccupant("Male")], id: "app_3", preferredBlock: "A", status: "pending", submittedAt: ago(1.5), paymentReference: "TRF7712093" },
-    { ...makeStudent("Female"), id: "app_4", preferredBlock: "H", status: "pending", submittedAt: ago(2.1), paymentReference: "" },
-  ];
+  // The most recent move-ins booked online, so the Bookings page isn't empty
+  const bookings: Booking[] = active
+    .filter((r) => r.leaseStart <= today)
+    .sort((a, b) => b.leaseStart.localeCompare(a.leaseStart))
+    .slice(0, 3)
+    .map((r, i) => {
+      const pay = payments.find((p) => p.residentId === r.id)!;
+      const ref = `HH-DEMO${String(i + 1).padStart(4, "0")}`;
+      pay.method = "Online";
+      pay.reference = ref;
+      return {
+        ...toStudentInfo(r),
+        id: ref,
+        uid: r.id,
+        roomId: r.roomId!,
+        amount: pay.amount,
+        status: "paid" as const,
+        createdAt: new Date(`${r.leaseStart}T10:00:00`).toISOString(),
+        paidAt: new Date(`${r.leaseStart}T10:04:00`).toISOString(),
+        residentId: r.id,
+        receiptNo: pay.receiptNo,
+        agent: i === 1 ? "tunde" : undefined,
+      };
+    });
 
   const at = (i: number) => active[i % active.length];
   const tickets: Ticket[] = [
@@ -237,7 +256,7 @@ export function createDemoState(): HostelState {
     residents,
     payments,
     messages,
-    applications,
+    bookings,
     tickets,
     sentReminderKeys: [],
   };
@@ -251,7 +270,7 @@ export function createEmptyState(): HostelState {
     residents: [],
     payments: [],
     messages: [],
-    applications: [],
+    bookings: [],
     tickets: [],
     sentReminderKeys: [],
   };

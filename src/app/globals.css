@@ -178,3 +178,9 @@ body {
     width: 100%;
   }
 }
+
+/* Edge/IE add their own password eye; ours (PasswordInput) replaces it */
+input::-ms-reveal,
+input::-ms-clear {
+  display: none;
+}

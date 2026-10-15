@@ -4,7 +4,7 @@ import { AlertTriangle, CalendarClock, ChevronRight, ClipboardList, Wrench } fro
 import Link from "next/link";
 import { useMemo, type ReactNode } from "react";
 import { useHostel } from "@/lib/store";
-import { activeResidents, cn, daysLeft, formatDateTime, rentStatus } from "@/lib/utils";
+import { activeResidents, addDays, cn, daysLeft, formatDateTime, isOpenTicket, rentStatus, todayISO } from "@/lib/utils";
 
 export interface Notice {
   id: string;
@@ -26,17 +26,28 @@ export function useNotifications(): Notice[] {
       const d = daysLeft(r);
       return d >= 0 && d <= 7;
     });
-    const pending = s.applications.filter((a) => a.status === "pending");
-    const tickets = s.tickets.filter((t) => t.status === "open");
+    const weekAgo = addDays(todayISO(), -7);
+    const attention = s.bookings.filter((b) => b.status === "needs_attention");
+    const booked = s.bookings.filter((b) => b.status === "paid" && (b.paidAt ?? "") >= weekAgo);
+    const tickets = s.tickets.filter(isOpenTicket);
 
-    for (const a of pending.slice(0, 3))
+    for (const b of attention)
       list.push({
-        id: a.id,
+        id: b.id,
+        icon: <ClipboardList className="size-4" />,
+        tone: "bg-rose-50 text-rose-600",
+        title: `${b.fullName} paid but needs a room`,
+        detail: b.issue ?? "Allocate a room from Bookings",
+        href: "/bookings",
+      });
+    for (const b of booked.slice(0, 3))
+      list.push({
+        id: b.id,
         icon: <ClipboardList className="size-4" />,
         tone: "bg-brand-50 text-brand-600",
-        title: `${a.fullName} applied for a room`,
-        detail: `${a.department} · ${formatDateTime(a.submittedAt)}`,
-        href: "/applications",
+        title: `${b.fullName} booked room ${b.roomId}`,
+        detail: `Paid online · ${formatDateTime(b.paidAt!)}`,
+        href: "/bookings",
       });
     if (week.length)
       list.push({
@@ -56,12 +67,24 @@ export function useNotifications(): Notice[] {
         detail: "Renew or issue move-out notices",
         href: "/renewals",
       });
+    // Requests tenants sent that nobody has opened yet, newest first
+    for (const t of s.tickets.filter((x) => x.residentId && x.status === "open" && !x.seenAt).slice(0, 3)) {
+      const who = s.residents.find((r) => r.id === t.residentId);
+      list.unshift({
+        id: `req-${t.id}`,
+        icon: <Wrench className="size-4" />,
+        tone: "bg-sky-50 text-sky-700",
+        title: `${who?.fullName.split(" ")[0] ?? "A tenant"} sent a ${t.kind === "room_change" ? "room change request" : t.kind === "complaint" ? "complaint" : "repair request"}`,
+        detail: `${t.title} · room ${t.roomId}`,
+        href: "/maintenance",
+      });
+    }
     if (tickets.length)
       list.push({
         id: "tickets",
         icon: <Wrench className="size-4" />,
         tone: "bg-grey-50 text-heading-4",
-        title: `${tickets.length} open maintenance request${tickets.length === 1 ? "" : "s"}`,
+        title: `${tickets.length} open request${tickets.length === 1 ? "" : "s"}`,
         detail: tickets[0].title,
         href: "/maintenance",
       });

@@ -208,7 +208,7 @@ export default function PaymentsPage() {
                 }}
                 className="flex w-full items-center gap-3 px-1 py-2.5 text-left hover:bg-slate-50"
               >
-                <Avatar name={r.fullName} size="sm" />
+                <Avatar name={r.fullName} src={r.photoUrl} size="sm" />
                 <span className="flex-1 text-sm font-medium text-slate-900">{r.fullName}</span>
                 <span className="text-xs text-slate-500">{r.roomId ?? "Moved out"}</span>
               </button>

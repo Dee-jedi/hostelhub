@@ -1,10 +1,11 @@
 "use client";
 
-import { ChevronRight, ClipboardList, DoorOpen, ExternalLink, MessageSquareText, Phone, Settings, Wallet, Wrench, type LucideIcon } from "lucide-react";
+import { ChevronRight, ClipboardList, DoorOpen, ExternalLink, LogOut, MessageSquareText, Phone, Settings, Wallet, Wrench, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { Panel } from "@/components/ui";
+import { signOut } from "@/lib/auth";
 import { useHostel } from "@/lib/store";
-import { managerInitials } from "@/lib/utils";
+import { isOpenTicket, managerInitials } from "@/lib/utils";
 
 function Row({
   href,
@@ -38,8 +39,8 @@ function Row({
 
 export default function ProfilePage() {
   const s = useHostel();
-  const pending = s.applications.filter((a) => a.status === "pending").length;
-  const openTickets = s.tickets.filter((t) => t.status !== "resolved").length;
+  const attention = s.bookings.filter((b) => b.status === "needs_attention").length;
+  const openTickets = s.tickets.filter(isOpenTicket).length;
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
@@ -67,14 +68,21 @@ export default function ProfilePage() {
       <Panel title="Manage" bodyClassName="divide-y divide-grey-100">
         <Row href="/payments" icon={Wallet} label="Payments" hint="Rent received and receipts" />
         <Row href="/messages" icon={MessageSquareText} label="Messages" hint="Broadcasts and reminder history" />
-        <Row href="/applications" icon={ClipboardList} label="Applications" hint="Students who registered online" count={pending} />
-        <Row href="/maintenance" icon={Wrench} label="Maintenance" hint="Repairs and complaints" count={openTickets} />
+        <Row href="/bookings" icon={ClipboardList} label="Bookings" hint="Rooms booked and paid for online" count={attention} />
+        <Row href="/maintenance" icon={Wrench} label="Requests" hint="Repairs, complaints and room changes" count={openTickets} />
       </Panel>
 
       <Panel title="Hostel" bodyClassName="divide-y divide-grey-100">
         <Row href="/settings" icon={Settings} label="Settings" hint="Rent, rooms, reminders and bank details" />
-        <Row href="/register" icon={DoorOpen} label="Registration form" hint="The page students fill to get a room" external />
+        <Row href="/book" icon={DoorOpen} label="Booking form" hint="Where new tenants pick a room and pay" external />
       </Panel>
+
+      <button
+        onClick={() => signOut()}
+        className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-grey-150 bg-white text-sm font-medium text-rose-600 hover:bg-rose-50"
+      >
+        <LogOut className="size-4" /> Sign out
+      </button>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown, Search } from "lucide-react";
 import {
   Children,
   isValidElement,
@@ -69,22 +69,59 @@ export interface SelectProps {
   disabled?: boolean;
   "aria-label"?: string;
   id?: string;
+  /** Adds a search box to the menu, for long lists like states and courses */
+  searchable?: boolean;
+  searchPlaceholder?: string;
 }
 
 const MENU_GAP = 6;
 const MENU_MAX = 280;
 
-export function Select({ value, defaultValue, onChange, children, className, wrapperClassName, disabled, id, ...rest }: SelectProps) {
-  const items = useMemo(() => collect(children), [children]);
-  const [inner, setInner] = useState(defaultValue ?? items[0]?.value ?? "");
+/** Matches every word typed, in the option or its group ("eng mech" finds Mechanical Engineering). */
+function matches(item: Item, query: string) {
+  const hay = `${item.label} ${item.group ?? ""}`.toLowerCase();
+  return query
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean)
+    .every((word) => hay.includes(word));
+}
+
+export function Select({
+  value,
+  defaultValue,
+  onChange,
+  children,
+  className,
+  wrapperClassName,
+  disabled,
+  id,
+  searchable,
+  searchPlaceholder = "Search…",
+  ...rest
+}: SelectProps) {
+  const all = useMemo(() => collect(children), [children]);
+  const [inner, setInner] = useState(defaultValue ?? all[0]?.value ?? "");
   const current = value ?? inner;
-  const selected = items.find((i) => i.value === current) ?? items[0];
+  const selected = all.find((i) => i.value === current) ?? all[0];
+  const [query, setQuery] = useState("");
+  // The options currently listed: everything, or what matches the search (placeholders like "" are hidden while searching)
+  const items = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!searchable) return all;
+    // The empty "Select …" placeholder is only a label on the trigger, never a choice in a search list
+    if (!q) return all.filter((i) => i.value !== "");
+    // Options that start with what was typed come first ("comp" → Computer Science before Education and Computer Science)
+    const starts = (i: Item) => (i.label.toLowerCase().startsWith(q) ? 0 : 1);
+    return all.filter((i) => i.value !== "" && matches(i, q)).sort((a, b) => starts(a) - starts(b));
+  }, [all, searchable, query]);
 
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
   const [pos, setPos] = useState<{ left: number; width: number; top?: number; bottom?: number; maxHeight: number } | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
   const typed = useRef({ text: "", at: 0 });
   const listId = useId();
 
@@ -103,12 +140,19 @@ export function Select({ value, defaultValue, onChange, children, className, wra
     });
   }, []);
 
-  const openMenu = () => {
+  const openMenu = (initialQuery = "") => {
     if (disabled) return;
     place();
-    setActive(Math.max(0, items.findIndex((i) => i.value === selected?.value)));
+    setQuery(initialQuery);
+    const list = searchable ? all.filter((i) => i.value !== "") : all;
+    setActive(initialQuery ? 0 : Math.max(0, list.findIndex((i) => i.value === selected?.value)));
     setOpen(true);
   };
+
+  // Put the cursor in the search box as soon as the menu opens
+  useEffect(() => {
+    if (open && searchable) searchRef.current?.focus({ preventScroll: true });
+  }, [open, searchable]);
 
   const choose = (item: Item) => {
     if (item.disabled) return;
@@ -148,17 +192,25 @@ export function Select({ value, defaultValue, onChange, children, className, wra
     return from;
   };
 
-  const onKeyDown = (e: KeyboardEvent<HTMLButtonElement>) => {
+  const onKeyDown = (e: KeyboardEvent<HTMLElement>) => {
+    const fromSearch = e.currentTarget === searchRef.current;
     if (e.key === "Escape") {
       if (open) {
         e.stopPropagation();
         setOpen(false);
+        triggerRef.current?.focus();
       }
       return;
     }
     if (!open && ["ArrowDown", "ArrowUp", "Enter", " "].includes(e.key)) {
       e.preventDefault();
       openMenu();
+      return;
+    }
+    // Typing on a closed searchable select opens it with that letter already searched
+    if (!open && searchable && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      openMenu(e.key);
       return;
     }
     if (!open) return;
@@ -171,12 +223,12 @@ export function Select({ value, defaultValue, onChange, children, className, wra
     if (moves[e.key]) {
       e.preventDefault();
       setActive(moves[e.key]());
-    } else if (e.key === "Enter" || e.key === " ") {
+    } else if (e.key === "Enter" || (e.key === " " && !fromSearch)) {
       e.preventDefault();
       if (items[active]) choose(items[active]);
     } else if (e.key === "Tab") {
       setOpen(false);
-    } else if (e.key.length === 1) {
+    } else if (e.key.length === 1 && !searchable) {
       // type-ahead: jump to the first option starting with the typed letters
       const now = Date.now();
       typed.current = { text: (now - typed.current.at < 600 ? typed.current.text : "") + e.key.toLowerCase(), at: now };
@@ -196,7 +248,7 @@ export function Select({ value, defaultValue, onChange, children, className, wra
         aria-expanded={open}
         aria-controls={listId}
         aria-label={rest["aria-label"]}
-        aria-activedescendant={open && active >= 0 ? `${listId}-${active}` : undefined}
+        aria-activedescendant={open && active >= 0 && !searchable ? `${listId}-${active}` : undefined}
         disabled={disabled}
         onClick={() => (open ? setOpen(false) : openMenu())}
         onKeyDown={onKeyDown}
@@ -209,7 +261,7 @@ export function Select({ value, defaultValue, onChange, children, className, wra
       >
         {/* Every label sits in the same grid cell so the trigger is as wide as the longest option, like a native select */}
         <span className="grid min-w-0 flex-1">
-          {items.map((item, i) => (
+          {(searchable ? all.filter((i) => i === selected) : all).map((item, i) => (
             <span
               key={`${item.value}:${i}`}
               aria-hidden={item !== selected}
@@ -228,39 +280,60 @@ export function Select({ value, defaultValue, onChange, children, className, wra
         createPortal(
           <div
             ref={menuRef}
-            id={listId}
-            role="listbox"
             style={{ left: pos.left, minWidth: pos.width, top: pos.top, bottom: pos.bottom, maxHeight: pos.maxHeight }}
-            className="fixed z-[70] max-w-[calc(100vw-1rem)] overflow-y-auto rounded-xl border border-grey-100 bg-white p-1 shadow-[0_10px_30px_rgba(0,0,0,0.08)] animate-[pop-in_.12s_ease-out] [scrollbar-width:thin]"
+            className="fixed z-[70] flex max-w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-xl border border-grey-100 bg-white shadow-[0_10px_30px_rgba(0,0,0,0.08)] animate-[pop-in_.12s_ease-out]"
           >
-            {items.map((item, i) => {
-              const header = item.group && item.group !== items[i - 1]?.group;
-              const isSelected = item.value === selected?.value;
-              return (
-                <div key={`${item.group ?? ""}:${item.value}:${i}`}>
-                  {header && <p className="px-2.5 pt-2 pb-1 text-[10px] font-semibold tracking-wide text-heading-6 uppercase">{item.group}</p>}
-                  <div
-                    id={`${listId}-${i}`}
-                    data-index={i}
-                    role="option"
-                    aria-selected={isSelected}
-                    aria-disabled={item.disabled}
-                    onMouseEnter={() => !item.disabled && setActive(i)}
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => choose(item)}
-                    className={cn(
-                      "flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-2 text-sm whitespace-nowrap",
-                      item.disabled ? "cursor-not-allowed text-grey-400" : isSelected ? "font-medium text-brand-800" : "text-heading-4",
-                      !item.disabled && (i === active ? (isSelected ? "bg-brand-50" : "bg-grey-50") : isSelected && "bg-brand-50/60"),
-                      item.group && "pl-4",
-                    )}
-                  >
-                    <span className="min-w-0 flex-1">{item.label}</span>
-                    {isSelected && <Check className="size-4 shrink-0 text-brand-600" />}
+            {searchable && (
+              <div className="relative shrink-0 border-b border-grey-100 p-1.5">
+                <Search className="pointer-events-none absolute top-1/2 left-4 size-4 -translate-y-1/2 text-grey-400" />
+                <input
+                  ref={searchRef}
+                  value={query}
+                  onChange={(e) => {
+                    setQuery(e.target.value);
+                    setActive(0);
+                  }}
+                  onKeyDown={onKeyDown}
+                  placeholder={searchPlaceholder}
+                  aria-label={searchPlaceholder}
+                  aria-controls={listId}
+                  aria-activedescendant={active >= 0 ? `${listId}-${active}` : undefined}
+                  className="h-9 w-full rounded-lg bg-grey-10 pr-2.5 pl-8 text-sm text-heading-2 outline-none placeholder:text-grey-400 focus:bg-grey-50"
+                />
+              </div>
+            )}
+            <div id={listId} role="listbox" className="min-h-0 overflow-y-auto p-1 [scrollbar-width:thin]">
+              {items.length === 0 && <p className="px-2.5 py-6 text-center text-sm text-heading-6">No matches for &ldquo;{query}&rdquo;</p>}
+              {items.map((item, i) => {
+                const header = item.group && item.group !== items[i - 1]?.group;
+                const isSelected = item.value === selected?.value;
+                return (
+                  <div key={`${item.group ?? ""}:${item.value}:${i}`}>
+                    {header && <p className="px-2.5 pt-2 pb-1 text-[10px] font-semibold tracking-wide text-heading-6 uppercase">{item.group}</p>}
+                    <div
+                      id={`${listId}-${i}`}
+                      data-index={i}
+                      role="option"
+                      aria-selected={isSelected}
+                      aria-disabled={item.disabled}
+                      onMouseEnter={() => !item.disabled && setActive(i)}
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => choose(item)}
+                      className={cn(
+                        "flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-2 text-sm",
+                        searchable ? "whitespace-normal" : "whitespace-nowrap",
+                        item.disabled ? "cursor-not-allowed text-grey-400" : isSelected ? "font-medium text-brand-800" : "text-heading-4",
+                        !item.disabled && (i === active ? (isSelected ? "bg-brand-50" : "bg-grey-50") : isSelected && "bg-brand-50/60"),
+                        item.group && "pl-4",
+                      )}
+                    >
+                      <span className="min-w-0 flex-1">{item.label}</span>
+                      {isSelected && <Check className="size-4 shrink-0 text-brand-600" />}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>,
           document.body,
         )}

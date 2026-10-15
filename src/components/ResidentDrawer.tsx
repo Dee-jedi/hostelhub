@@ -4,7 +4,7 @@ import { ArrowRightLeft, CreditCard, LogOut, MessageCircle, Pencil, Phone, Recei
 import { useState } from "react";
 import { moveOut, updateResident, useHostel } from "@/lib/store";
 import type { Payment, StudentInfo } from "@/lib/types";
-import { daysLeft, describeDaysLeft, formatDate, naira, rentStatus, whatsappLink, fillTemplate } from "@/lib/utils";
+import { academicLine, daysLeft, describeDaysLeft, formatDate, naira, rentStatus, whatsappLink, fillTemplate } from "@/lib/utils";
 import { TEMPLATES } from "@/lib/templates";
 import { RoomSelect } from "./AddResidentModal";
 import { ComposeModal } from "./ComposeModal";
@@ -54,7 +54,7 @@ export function ResidentDrawer({ residentId, onClose }: { residentId: string | n
       <Drawer open onClose={onClose} title="Tenant profile">
         {editing ? (
           <div className="p-5">
-            <StudentForm value={editing} onChange={setEditing} />
+            <StudentForm value={editing} onChange={setEditing} maxOccupants={s.settings.maxOccupants} />
             <div className="mt-6 flex justify-end gap-2">
               <Button variant="secondary" onClick={() => setEditing(null)}>
                 Cancel
@@ -66,11 +66,11 @@ export function ResidentDrawer({ residentId, onClose }: { residentId: string | n
           <>
             <div className="border-b border-slate-100 p-5">
               <div className="flex items-start gap-4">
-                <Avatar name={resident.fullName} size="lg" />
+                <Avatar name={resident.fullName} src={resident.photoUrl} size="lg" />
                 <div className="min-w-0 flex-1">
                   <h2 className="text-lg font-medium text-slate-900">{resident.fullName}</h2>
                   <p className="text-sm text-slate-500">
-                    {resident.department} · {resident.level} Level
+                    {academicLine(resident)}
                   </p>
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {resident.roomId && <Badge tone="brand">Room {resident.roomId}</Badge>}
@@ -151,7 +151,7 @@ export function ResidentDrawer({ residentId, onClose }: { residentId: string | n
                 </h3>
                 <ul className="divide-y divide-grey-100 rounded-xl border border-grey-100">
                   <li className="flex items-center gap-3 px-3 py-2.5">
-                    <Avatar name={resident.fullName} size="sm" />
+                    <Avatar name={resident.fullName} src={resident.photoUrl} size="sm" />
                     <span className="flex-1 text-sm font-medium text-heading-2">{resident.fullName}</span>
                     <Badge tone="brand">Tenant</Badge>
                   </li>
@@ -160,7 +160,7 @@ export function ResidentDrawer({ residentId, onClose }: { residentId: string | n
                       <Avatar name={o.fullName} size="sm" />
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium text-heading-2">{o.fullName}</p>
-                        <p className="text-xs text-heading-6">{[o.department, o.level && `${o.level}L`].filter(Boolean).join(" · ")}</p>
+                        <p className="text-xs text-heading-6">{academicLine(o, true)}</p>
                       </div>
                       <a href={`tel:${o.phone}`} className="text-xs text-brand-700 hover:underline">
                         {o.phone}

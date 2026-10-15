@@ -36,13 +36,18 @@ export interface Room {
 
 /** Someone sharing the room with the tenant. Recorded for accountability, not billed. */
 export interface Occupant {
+  /** False for someone who isn't a student; department and level are then blank */
+  isStudent?: boolean;
   fullName: string;
   phone: string;
+  faculty?: string;
   department: string;
   level: string;
 }
 
 export interface StudentInfo {
+  /** False for working-class tenants; academic details are then optional */
+  isStudent?: boolean;
   fullName: string;
   sex: Sex;
   phone: string;
@@ -57,6 +62,8 @@ export interface StudentInfo {
   nextOfKinPhone: string;
   nextOfKinRelationship: string;
   occupants: Occupant[];
+  /** Passport photograph (Firebase Storage download URL) */
+  photoUrl?: string;
 }
 
 /** The tenant: the person who rents (and pays for) the room. */
@@ -69,12 +76,16 @@ export interface Resident extends StudentInfo {
   leaseEnd: string;
   movedOutDate?: string;
   createdAt: string;
+  /** Tenant portal: notifications newer than this are unread */
+  notificationsSeenAt?: string;
 }
 
 export interface Payment {
   id: string;
   receiptNo: string;
   residentId: string;
+  /** The room this payment was for (receipts keep it even if the tenant moves later) */
+  roomId?: string;
   amount: number;
   method: PaymentMethod;
   reference: string;
@@ -94,23 +105,91 @@ export interface Message {
   automated: boolean;
 }
 
-export interface Application extends StudentInfo {
+/**
+ * An online booking from the public form. Its id doubles as the Paystack reference.
+ * pending: checkout started; paid: verified and the tenant was added automatically;
+ * needs_attention: paid, but the room was taken in the meantime, so staff must allocate one.
+ */
+export interface Booking extends StudentInfo {
   id: string;
-  preferredBlock: string;
-  status: "pending" | "approved" | "rejected";
-  submittedAt: string;
-  paymentReference: string;
+  uid: string;
+  roomId: string;
+  amount: number;
+  status: "pending" | "paid" | "needs_attention" | "resolved";
+  createdAt: string;
+  paidAt?: string;
+  residentId?: string;
+  receiptNo?: string;
+  agent?: string;
+  issue?: string;
+}
+
+export type PublicRoomStatus = "vacant" | "occupied" | "maintenance";
+
+export interface PublicRoom {
+  block: string;
+  number: number;
+  status: PublicRoomStatus;
+  note?: string;
+}
+
+export interface RoomHold {
+  /** epoch ms */
+  until: number;
+  bookingId: string;
+  uid: string;
+}
+
+/**
+ * The single document the public booking form reads (one Firestore read per visit).
+ * Holds no personal data: only room availability and the details a visitor needs.
+ */
+export interface PublicBookingDoc {
+  info: {
+    hostelName: string;
+    address: string;
+    rentAmount: number;
+    leaseMonths: number;
+    maxOccupants: number;
+    blocks: string[];
+    whatsappGroupLink: string;
+    managerName: string;
+    managerPhone: string;
+  };
+  rooms: Record<string, PublicRoom>;
+  holds: Record<string, RoomHold>;
 }
 
 export type TicketCategory = "Plumbing" | "Electrical" | "Furniture" | "Cleaning" | "Security" | "Other";
 
+/** What a tenant is asking for. Older tickets have no kind and are repairs. */
+export type RequestKind = "repair" | "complaint" | "room_change";
+
+export interface TicketUpdate {
+  at: string;
+  by: "staff" | "tenant";
+  text?: string;
+  /** Set when this update changed the status */
+  status?: Ticket["status"];
+}
+
+/** A request from a tenant (repair, complaint, room change), or a repair logged by staff. */
 export interface Ticket {
   id: string;
   roomId: string;
   residentId: string | null;
   title: string;
   category: TicketCategory;
-  status: "open" | "in_progress" | "resolved";
+  /** declined is only used for requests staff turn down, e.g. a room change */
+  status: "open" | "in_progress" | "resolved" | "declined";
+  kind?: RequestKind;
+  description?: string;
+  photoUrl?: string;
+  /** Room change: the room the tenant wants */
+  requestedRoomId?: string;
+  /** When staff first opened it; the tenant sees "Seen" */
+  seenAt?: string;
+  updates?: TicketUpdate[];
   createdAt: string;
   resolvedAt?: string;
 }
@@ -122,7 +201,7 @@ export interface HostelState {
   residents: Resident[];
   payments: Payment[];
   messages: Message[];
-  applications: Application[];
+  bookings: Booking[];
   tickets: Ticket[];
   /** Tracks which automated reminders were already sent: `${residentId}:${leaseEnd}:${days}` */
   sentReminderKeys: string[];

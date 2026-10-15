@@ -49,7 +49,7 @@ export function ComposeModal({
         <ul className="divide-y divide-slate-100">
           {recipients.map((r) => (
             <li key={r.id} className="flex items-center gap-3 py-2.5">
-              <Avatar name={r.fullName} size="sm" />
+              <Avatar name={r.fullName} src={r.photoUrl} size="sm" />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-slate-900">{r.fullName}</p>
                 <p className="text-xs text-slate-500">

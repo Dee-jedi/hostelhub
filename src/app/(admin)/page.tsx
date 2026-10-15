@@ -10,14 +10,15 @@ import { Avatar, Badge, BtnLabel, Button, headerBtn, PageHeader, Panel, PanelLin
 import { useDashboard } from "@/lib/dashboard";
 import { runAutomatedReminders, useHostel } from "@/lib/store";
 import { openResident } from "@/lib/ui-store";
-import { cn, daysLeft, describeDaysLeft, formatDateTime, naira, nairaShort } from "@/lib/utils";
+import { addDays, cn, daysLeft, describeDaysLeft, formatDateTime, isOpenTicket, naira, nairaShort, todayISO } from "@/lib/utils";
 
 export default function DashboardPage() {
   const s = useHostel();
   const d = useDashboard();
   const [adding, setAdding] = useState(false);
-  const pending = s.applications.filter((a) => a.status === "pending").length;
-  const openTickets = s.tickets.filter((t) => t.status !== "resolved").length;
+  const weekAgo = addDays(todayISO(), -7);
+  const newBookings = s.bookings.filter((b) => (b.status === "paid" || b.status === "needs_attention") && (b.paidAt ?? "") >= weekAgo).length;
+  const openTickets = s.tickets.filter(isOpenTicket).length;
   const occPct = d.usableRooms ? Math.round((d.occupiedRooms / d.usableRooms) * 100) : 0;
   const totalStatus = d.statusCounts.active + d.statusCounts.expiring + d.statusCounts.expired || 1;
   const lastAuto = s.messages.find((m) => m.automated);
@@ -72,7 +73,7 @@ export default function DashboardPage() {
             {d.upcoming.slice(0, 7).map((r) => (
               <li key={r.id}>
                 <button onClick={() => openResident(r.id)} className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-grey-10">
-                  <Avatar name={r.fullName} size="sm" />
+                  <Avatar name={r.fullName} src={r.photoUrl} size="sm" />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium text-heading-2">{r.fullName}</p>
                     <p className="text-xs text-heading-6">
@@ -114,14 +115,14 @@ export default function DashboardPage() {
 
           <Panel title="Needs attention">
             <div className="divide-y divide-grey-100">
-              <Link href="/applications" className="flex items-center gap-3 px-4 py-3 hover:bg-grey-10">
+              <Link href="/bookings" className="flex items-center gap-3 px-4 py-3 hover:bg-grey-10">
                 <ClipboardList className="size-4.5 text-heading-6" strokeWidth={1.6} />
-                <span className="flex-1 text-sm text-heading-4">New applications</span>
-                <Badge tone={pending ? "brand" : "slate"}>{pending}</Badge>
+                <span className="flex-1 text-sm text-heading-4">New online bookings (7 days)</span>
+                <Badge tone={newBookings ? "brand" : "slate"}>{newBookings}</Badge>
               </Link>
               <Link href="/maintenance" className="flex items-center gap-3 px-4 py-3 hover:bg-grey-10">
                 <Wrench className="size-4.5 text-heading-6" strokeWidth={1.6} />
-                <span className="flex-1 text-sm text-heading-4">Open maintenance requests</span>
+                <span className="flex-1 text-sm text-heading-4">Open tenant requests</span>
                 <Badge tone={openTickets ? "amber" : "slate"}>{openTickets}</Badge>
               </Link>
               <div className="flex items-center gap-3 px-4 py-3">

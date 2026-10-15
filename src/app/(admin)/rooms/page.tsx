@@ -8,7 +8,7 @@ import { Avatar, Button, Field, Input, Modal, PageHeader, Panel, RentBadge, Sele
 import { setRoomMaintenance, useHostel } from "@/lib/store";
 import type { Resident, Room } from "@/lib/types";
 import { openResident, openRoom, useUI } from "@/lib/ui-store";
-import { cn, describeDaysLeft, daysLeft, peopleInRoom, rentStatus, tenantsByRoom } from "@/lib/utils";
+import { academicLine, cn, describeDaysLeft, daysLeft, peopleInRoom, rentStatus, tenantsByRoom } from "@/lib/utils";
 
 type Filter = "all" | "occupied" | "vacant" | "expiring" | "expired" | "maintenance";
 
@@ -207,7 +207,7 @@ export default function RoomsPage() {
                   }}
                   className="flex w-full items-center gap-3 rounded-xl border border-grey-100 p-3 text-left hover:bg-grey-10"
                 >
-                  <Avatar name={tenant.fullName} />
+                  <Avatar name={tenant.fullName} src={tenant.photoUrl} />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium text-heading-2">{tenant.fullName}</p>
                     <p className="text-xs text-heading-6">
@@ -229,7 +229,7 @@ export default function RoomsPage() {
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-medium text-heading-2">{o.fullName}</p>
                           <p className="text-xs text-heading-6">
-                            {[o.department, o.level && `${o.level}L`].filter(Boolean).join(" · ") || "—"}
+                            {academicLine(o, true)}
                           </p>
                         </div>
                         <a href={`tel:${o.phone}`} className="flex items-center gap-1 text-xs text-brand-700 hover:underline">
@@ -245,7 +245,7 @@ export default function RoomsPage() {
             !room.underMaintenance && (
               <div className="rounded-xl border border-dashed border-sky-200 bg-sky-50/50 p-6 text-center">
                 <p className="text-sm font-medium text-heading-2">This room is vacant</p>
-                <p className="mt-1 text-xs text-heading-6">Add a tenant, or approve an application into it.</p>
+                <p className="mt-1 text-xs text-heading-6">Add a tenant, or share the booking link so someone can book and pay for it.</p>
               </div>
             )
           )}

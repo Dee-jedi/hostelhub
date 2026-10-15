@@ -13,6 +13,7 @@ export default function SettingsPage() {
   const [form, setForm] = useState<Settings>(s.settings);
   const [reminders, setReminders] = useState(s.settings.reminderDays.join(", "));
   const [confirm, setConfirm] = useState<"reset" | "fresh" | null>(null);
+  const [resetting, setResetting] = useState(false);
   const set = <K extends keyof Settings>(k: K, v: Settings[K]) => setForm((f) => ({ ...f, [k]: v }));
 
   const save = () => {
@@ -130,7 +131,7 @@ export default function SettingsPage() {
           </div>
         </Panel>
 
-        <Panel className="lg:col-span-2" title="Data" description="This demo stores everything in this browser.">
+        <Panel className="lg:col-span-2" title="Data" description="Stored securely in the cloud. Resetting affects everyone using this hostel's account.">
           <div className="flex flex-wrap gap-2 p-5">
             <Button variant="secondary" onClick={backup}>
               <Database className="size-4" /> Download backup
@@ -149,7 +150,7 @@ export default function SettingsPage() {
         open={!!confirm}
         onClose={() => setConfirm(null)}
         title={confirm === "reset" ? "Reset to demo data?" : "Start with an empty hostel?"}
-        description="All current residents, payments and messages in this browser will be replaced."
+        description="All residents, payments, bookings and messages will be replaced, and tenant logins recreated. Your staff login stays."
         footer={
           <>
             <Button variant="secondary" onClick={() => setConfirm(null)}>
@@ -157,16 +158,23 @@ export default function SettingsPage() {
             </Button>
             <Button
               variant="danger"
-              onClick={() => {
-                if (confirm === "reset") resetDemoData();
-                else startFresh();
-                setForm(getState().settings);
-                setReminders(getState().settings.reminderDays.join(", "));
-                setConfirm(null);
-                toast("Done");
+              disabled={resetting}
+              onClick={async () => {
+                setResetting(true);
+                try {
+                  await (confirm === "reset" ? resetDemoData() : startFresh());
+                  setForm(getState().settings);
+                  setReminders(getState().settings.reminderDays.join(", "));
+                  setConfirm(null);
+                  toast("Done");
+                } catch (err) {
+                  toast(err instanceof Error ? err.message : "Reset failed", "info");
+                } finally {
+                  setResetting(false);
+                }
               }}
             >
-              Yes, continue
+              {resetting ? "Working… (about 20s)" : "Yes, continue"}
             </Button>
           </>
         }

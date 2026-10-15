@@ -12,6 +12,7 @@ import {
   House,
   MessageSquareText,
   PanelLeftClose,
+  LogOut,
   PanelLeftOpen,
   Search,
   Users,
@@ -22,9 +23,10 @@ import {
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { useHostel, useIsClient } from "@/lib/store";
+import { signOut, useSession } from "@/lib/auth";
+import { startHostelSync, stopHostelSync, useHostel, useHostelStatus, useIsClient } from "@/lib/store";
 import { openResident, openRoom, toggleSidebar, useUI } from "@/lib/ui-store";
-import { activeResidents, cn, initials, managerInitials, rentStatus, tenantsByRoom } from "@/lib/utils";
+import { activeResidents, cn, initials, isOpenTicket, managerInitials, rentStatus, tenantsByRoom } from "@/lib/utils";
 import { SUB_PAGES, subPageOf } from "@/lib/nav";
 import { NotificationList, useNotifications } from "./notifications";
 import { ResidentDrawer } from "./ResidentDrawer";
@@ -41,8 +43,8 @@ interface NavItem {
 
 function useNavGroups() {
   const s = useHostel();
-  const pending = s.applications.filter((a) => a.status === "pending").length;
-  const openTickets = s.tickets.filter((t) => t.status !== "resolved").length;
+  const attention = s.bookings.filter((b) => b.status === "needs_attention").length;
+  const openTickets = s.tickets.filter(isOpenTicket).length;
   const dueRent = activeResidents(s).filter((r) => rentStatus(r) !== "active").length;
   const main: NavItem[] = [
     { href: "/", label: "Home", icon: House },
@@ -53,8 +55,8 @@ function useNavGroups() {
   ];
   const manage: NavItem[] = [
     { href: "/messages", label: "Messages", icon: MessageSquareText },
-    { href: "/applications", label: "Applications", icon: ClipboardList, count: pending, countTone: "brand" },
-    { href: "/maintenance", label: "Maintenance", icon: Wrench, count: openTickets, countTone: "grey" },
+    { href: "/bookings", label: "Bookings", icon: ClipboardList, count: attention, countTone: "brand" },
+    { href: "/maintenance", label: "Requests", icon: Wrench, count: openTickets, countTone: "grey" },
   ];
   return { main, manage };
 }
@@ -65,8 +67,8 @@ const ALL_PAGES: Record<string, string> = {
   "/renewals": "Rent & Renewals",
   "/payments": "Payments",
   "/messages": "Messages",
-  "/applications": "Applications",
-  "/maintenance": "Maintenance",
+  "/bookings": "Bookings",
+  "/maintenance": "Requests",
   "/settings": "Settings",
   "/profile": "Profile",
   "/notifications": "Notifications",
@@ -161,11 +163,15 @@ function SidebarBottom() {
         </Link>
       </div>
       <div className="w-full border-t border-grey-100 px-4 py-2">
-        <Link href="/register" target="_blank" className={navRow(false)}>
+        <Link href="/book" target="_blank" className={navRow(false)}>
           <DoorOpen className="size-5 shrink-0" strokeWidth={1.6} />
-          <span className="flex-1">Registration form</span>
+          <span className="flex-1">Booking form</span>
           <ExternalLink className="size-3.5" />
         </Link>
+        <button onClick={() => signOut()} className={navRow(false)}>
+          <LogOut className="size-5 shrink-0" strokeWidth={1.6} />
+          <span className="flex-1 text-left">Sign out</span>
+        </button>
       </div>
     </div>
   );
@@ -492,7 +498,7 @@ function TopBar() {
 
 // ─── Bottom tabs (phones and tablets) ────────────────────────────────────────
 
-const PROFILE_PAGES = ["/profile", "/settings", "/payments", "/messages", "/applications", "/maintenance"];
+const PROFILE_PAGES = ["/profile", "/settings", "/payments", "/messages", "/bookings", "/maintenance"];
 
 function BottomNav() {
   const pathname = usePathname();
@@ -548,13 +554,28 @@ function BottomNav() {
 
 // ─── Shell ───────────────────────────────────────────────────────────────────
 
-function LoadingScreen() {
+function LoadingScreen({ error }: { error?: boolean }) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-grey-10">
-      <div className="flex items-center gap-3 text-sm text-heading-6">
-        <span className="size-4 animate-spin rounded-full border-2 border-brand-600 border-t-transparent" />
-        Loading hostel data…
-      </div>
+      {error ? (
+        <div className="text-center text-sm text-heading-6">
+          <p>Couldn&apos;t load hostel data.</p>
+          <button
+            onClick={() => {
+              stopHostelSync();
+              startHostelSync();
+            }}
+            className="mt-2 font-medium text-brand-700 hover:underline"
+          >
+            Try again
+          </button>
+        </div>
+      ) : (
+        <div className="flex items-center gap-3 text-sm text-heading-6">
+          <span className="size-4 animate-spin rounded-full border-2 border-brand-600 border-t-transparent" />
+          Loading hostel data…
+        </div>
+      )}
     </div>
   );
 }
@@ -562,9 +583,19 @@ function LoadingScreen() {
 export function AppShell({ children }: { children: ReactNode }) {
   const isClient = useIsClient();
   const { residentId } = useUI();
+  const { user, role } = useSession();
+  const status = useHostelStatus();
+  const router = useRouter();
+  const pathname = usePathname();
 
-  // All data lives in the browser for the demo, so render pages only on the client.
-  if (!isClient) return <LoadingScreen />;
+  // Staff only: send visitors to the login page and tenants to their portal
+  useEffect(() => {
+    if (user === null) router.replace(`/login?next=${encodeURIComponent(pathname)}`);
+    else if (role === "tenant") router.replace("/portal");
+    else if (role === "admin") startHostelSync();
+  }, [user, role, router, pathname]);
+
+  if (!isClient || role !== "admin" || status !== "ready") return <LoadingScreen error={status === "error"} />;
 
   return (
     <div className="flex h-screen overflow-hidden bg-grey-10">

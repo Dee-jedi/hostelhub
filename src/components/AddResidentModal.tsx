@@ -1,9 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { addResident, approveApplication, useHostel } from "@/lib/store";
+import { addResident, resolveBooking, useHostel } from "@/lib/store";
 import type { PaymentMethod, StudentInfo } from "@/lib/types";
-import { addMonths, availableRooms, formatDate, todayISO } from "@/lib/utils";
+import { addMonths, availableRooms, formatDate, naira, todayISO } from "@/lib/utils";
 import { EMPTY_STUDENT, StudentForm, validateStudent } from "./StudentForm";
 import { toast } from "./toast";
 import { Button, Field, Input, Modal, Select } from "./ui";
@@ -46,16 +46,18 @@ export function AddResidentModal({
   onClose,
   initial,
   presetRoomId = "",
-  applicationId,
+  bookingId,
   preferredBlock,
 }: {
   onClose: () => void;
   initial?: StudentInfo;
   presetRoomId?: string;
-  applicationId?: string;
+  /** Allocating a room to someone who already paid online */
+  bookingId?: string;
   preferredBlock?: string;
 }) {
   const s = useHostel();
+  const booking = bookingId ? s.bookings.find((b) => b.id === bookingId) : undefined;
   const [info, setInfo] = useState<StudentInfo>(initial ?? EMPTY_STUDENT);
   const [roomId, setRoomId] = useState(presetRoomId);
   const [paid, setPaid] = useState(true);
@@ -68,9 +70,12 @@ export function AddResidentModal({
     const err = validateStudent(info);
     if (err) return toast(err, "info");
     if (!roomId) return toast("Select a room", "info");
-    const payment = paid ? { amount: Number(amount.replace(/[^\d]/g, "")) || 0, method, reference } : undefined;
-    if (applicationId) approveApplication(applicationId, roomId, payment);
-    else addResident(info, roomId, payment, start);
+    if (bookingId) {
+      resolveBooking(bookingId, roomId, info);
+    } else {
+      const payment = paid ? { amount: Number(amount.replace(/[^\d]/g, "")) || 0, method, reference } : undefined;
+      addResident(info, roomId, payment, start);
+    }
     toast(`${info.fullName} added to room ${roomId}`);
     onClose();
   };
@@ -80,18 +85,18 @@ export function AddResidentModal({
       open
       onClose={onClose}
       size="lg"
-      title={applicationId ? "Approve application" : "Add tenant"}
-      description={applicationId ? "Check the details, allocate a room and confirm payment." : "Digital version of the hostel registration form. Rent is per room."}
+      title={bookingId ? "Allocate a room" : "Add tenant"}
+      description={bookingId ? "This tenant has already paid online. Pick a vacant room for them." : "Digital version of the hostel registration form. Rent is per room."}
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={submit}>{applicationId ? "Approve & allocate room" : "Save tenant"}</Button>
+          <Button onClick={submit}>{bookingId ? "Allocate room" : "Save tenant"}</Button>
         </>
       }
     >
-      <StudentForm value={info} onChange={setInfo} />
+      <StudentForm value={info} onChange={setInfo} maxOccupants={s.settings.maxOccupants} />
 
       <fieldset className="mt-7">
         <legend className="mb-3 text-xs font-semibold tracking-wider text-slate-500 uppercase">Room & rent</legend>
@@ -99,17 +104,23 @@ export function AddResidentModal({
           <Field label="Room" required hint="Only vacant rooms are listed">
             <RoomSelect value={roomId} onChange={setRoomId} preferredBlock={preferredBlock} />
           </Field>
-          {!applicationId && (
+          {!bookingId && (
             <Field label="Rent start date" hint={`Ends ${formatDate(addMonths(start, s.settings.leaseMonths))}`}>
               <Input type="date" value={start} onChange={(e) => setStart(e.target.value)} />
             </Field>
           )}
         </div>
-        <label className="mt-4 flex items-center gap-3">
-          <input type="checkbox" checked={paid} onChange={(e) => setPaid(e.target.checked)} className="size-4 accent-brand-600" />
-          <span className="text-sm font-medium text-slate-900">Rent has been paid</span>
-        </label>
-        {paid && (
+        {booking ? (
+          <p className="mt-4 rounded-lg bg-brand-50 p-3 text-sm text-brand-900">
+            Paid {naira(booking.amount)} online · ref <span className="font-mono">{booking.id}</span>. The receipt is issued when you allocate the room.
+          </p>
+        ) : (
+          <label className="mt-4 flex items-center gap-3">
+            <input type="checkbox" checked={paid} onChange={(e) => setPaid(e.target.checked)} className="size-4 accent-brand-600" />
+            <span className="text-sm font-medium text-slate-900">Rent has been paid</span>
+          </label>
+        )}
+        {paid && !booking && (
           <div className="mt-4 grid gap-4 sm:grid-cols-3">
             <Field label="Amount (₦)">
               <Input value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="numeric" />

@@ -170,7 +170,7 @@ export default function ResidentsPage() {
                   <tr key={r.id} onClick={() => openResident(r.id)} className="cursor-pointer hover:bg-slate-50">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <Avatar name={r.fullName} size="sm" />
+                        <Avatar name={r.fullName} src={r.photoUrl} size="sm" />
                         <div className="min-w-0">
                           <p className="truncate font-medium text-slate-900">{r.fullName}</p>
                           <p className="text-xs text-slate-500">
@@ -189,8 +189,14 @@ export default function ResidentsPage() {
                       )}
                     </td>
                     <td className="hidden px-4 py-3 md:table-cell">
-                      <p className="text-slate-700">{r.department}</p>
-                      <p className="text-xs text-slate-500">{r.level} Level</p>
+                      {r.isStudent === false ? (
+                        <p className="text-slate-500">Not a student</p>
+                      ) : (
+                        <>
+                          <p className="text-slate-700">{r.department}</p>
+                          <p className="text-xs text-slate-500">{r.level} Level</p>
+                        </>
+                      )}
                     </td>
                     <td className="hidden px-4 py-3 lg:table-cell">
                       <p className="text-slate-700">{r.nextOfKinName}</p>

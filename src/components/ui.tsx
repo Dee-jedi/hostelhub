@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeft, X } from "lucide-react";
+import { ChevronLeft, Eye, EyeOff, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type TextareaHTMLAttributes } from "react";
@@ -131,6 +131,25 @@ const inputBase =
 
 export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) {
   return <input className={cn(inputBase, className)} {...props} />;
+}
+
+/** Password field with an eye button to show what was typed, so typos can be caught. */
+export function PasswordInput({ className, ...props }: Omit<InputHTMLAttributes<HTMLInputElement>, "type">) {
+  const [show, setShow] = useState(false);
+  return (
+    <div className="relative">
+      <input type={show ? "text" : "password"} className={cn(inputBase, "pr-11", className)} {...props} />
+      <button
+        type="button"
+        onClick={() => setShow((v) => !v)}
+        aria-label={show ? "Hide password" : "Show password"}
+        aria-pressed={show}
+        className="absolute top-1/2 right-1.5 flex size-8 -translate-y-1/2 items-center justify-center rounded-md text-heading-6 transition-colors hover:bg-grey-50 hover:text-heading-4"
+      >
+        {show ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+      </button>
+    </div>
+  );
 }
 
 export { Select } from "./Select";
@@ -352,19 +371,15 @@ export function EmptyState({ icon, title, description, action }: { icon: ReactNo
 
 const avatarColors = ["bg-sky-100 text-sky-700", "bg-violet-100 text-violet-700", "bg-amber-100 text-amber-800", "bg-emerald-100 text-emerald-700", "bg-rose-100 text-rose-700", "bg-brand-100 text-brand-700"];
 
-export function Avatar({ name, size = "md" }: { name: string; size?: "sm" | "md" | "lg" }) {
+/** Passport photo when there is one, otherwise coloured initials. */
+export function Avatar({ name, src, size = "md" }: { name: string; src?: string; size?: "sm" | "md" | "lg" }) {
+  const dims = size === "sm" ? "size-7 text-[11px]" : size === "md" ? "size-9 text-xs" : "size-14 text-lg";
+  if (src) {
+    // eslint-disable-next-line @next/next/no-img-element -- small, already-resized Storage image
+    return <img src={src} alt={name} className={cn("shrink-0 rounded-full bg-grey-50 object-cover", dims)} loading="lazy" />;
+  }
   const color = avatarColors[name.split("").reduce((a, c) => a + c.charCodeAt(0), 0) % avatarColors.length];
-  return (
-    <span
-      className={cn(
-        "inline-flex shrink-0 items-center justify-center rounded-full font-medium",
-        size === "sm" ? "size-7 text-[11px]" : size === "md" ? "size-9 text-xs" : "size-14 text-lg",
-        color,
-      )}
-    >
-      {initials(name)}
-    </span>
-  );
+  return <span className={cn("inline-flex shrink-0 items-center justify-center rounded-full font-medium", dims, color)}>{initials(name)}</span>;
 }
 
 /** Pill-shaped segmented control. */

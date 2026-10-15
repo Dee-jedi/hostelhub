@@ -160,7 +160,7 @@ export default function RenewalsPage() {
                       </td>
                       <td className="px-2.5 py-3 sm:px-4">
                         <button onClick={() => openResident(r.id)} className="flex items-center gap-3 text-left">
-                          <Avatar name={r.fullName} size="sm" />
+                          <Avatar name={r.fullName} src={r.photoUrl} size="sm" />
                           <div>
                             <p className="font-medium text-slate-900 hover:underline">{r.fullName}</p>
                             <p className="text-xs text-slate-500">

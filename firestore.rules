@@ -1,0 +1,61 @@
+rules_version = '2';
+
+// Money and room allocation for online bookings are written only by the server (Admin SDK,
+// which bypasses these rules). Staff write everything else from the admin app.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAdmin() {
+      return request.auth != null && request.auth.token.role == 'admin';
+    }
+    function isSelf(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    // Room availability + hostel basics for the public booking form. No personal data.
+    match /public/{doc} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /config/{doc} {
+      allow read, write: if isAdmin();
+    }
+
+    match /residents/{id} {
+      allow read: if isAdmin() || isSelf(id);
+      allow write: if isAdmin();
+      // Tenants may update their own contact details only
+      allow update: if isSelf(id) && request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly(['phone', 'homeAddress', 'nextOfKinName', 'nextOfKinPhone', 'nextOfKinRelationship', 'notificationsSeenAt']);
+    }
+
+    match /payments/{id} {
+      allow read: if isAdmin() || isSelf(resource.data.residentId);
+      allow write: if isAdmin();
+    }
+
+    match /bookings/{id} {
+      allow read: if isAdmin() || isSelf(resource.data.uid);
+      allow write: if isAdmin();
+    }
+
+    // Rent renewals paid from the tenant portal; written only by the server
+    match /renewals/{id} {
+      allow read: if isAdmin() || isSelf(resource.data.uid);
+      allow write: if isAdmin();
+    }
+
+    match /messages/{id} {
+      allow read: if isAdmin() || (request.auth != null && request.auth.uid in resource.data.recipientIds);
+      allow write: if isAdmin();
+    }
+
+    match /tickets/{id} {
+      allow read: if isAdmin() || isSelf(resource.data.residentId);
+      // Tenants can open a request for themselves; only staff can mark it seen, reply or change status
+      allow create: if isAdmin() || (isSelf(request.resource.data.residentId) && request.resource.data.status == 'open'
+        && !('seenAt' in request.resource.data) && !('updates' in request.resource.data));
+      allow update, delete: if isAdmin();
+    }
+  }
+}
