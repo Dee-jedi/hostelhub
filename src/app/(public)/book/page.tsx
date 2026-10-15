@@ -38,7 +38,7 @@ async function postJSON<T>(url: string, body: unknown, token?: string): Promise<
     body: JSON.stringify(body),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error ?? "Something went wrong. Please try again.");
+  if (!res.ok) throw new Error(data.error ?? `The server couldn't process this (error ${res.status}). Please try again shortly.`);
   return data as T;
 }
 
@@ -61,7 +61,12 @@ async function tenantToken(email: string, password: string) {
   } catch (err) {
     // Came back after an abandoned checkout: same email, so sign in with the same password
     if (err instanceof FirebaseError && err.code === "auth/email-already-in-use") {
-      return await (await signInWithEmailAndPassword(auth, email, password)).user.getIdToken();
+      try {
+        return await (await signInWithEmailAndPassword(auth, email, password)).user.getIdToken();
+      } catch {
+        // Different password: the email belongs to an existing account
+        throw new Error("This email already has a HostelHub account. Use a different email, or enter that account's password. Forgot it? Reset it from the login page.");
+      }
     }
     throw err;
   }

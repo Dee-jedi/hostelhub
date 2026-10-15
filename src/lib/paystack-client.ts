@@ -8,7 +8,7 @@ export async function postJSON<T>(url: string, body: unknown, token?: string): P
     body: JSON.stringify(body),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error ?? "Something went wrong. Please try again.");
+  if (!res.ok) throw new Error(data.error ?? `The server couldn't process this (error ${res.status}). Please try again shortly.`);
   return data as T;
 }
 
