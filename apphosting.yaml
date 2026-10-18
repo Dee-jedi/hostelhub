@@ -27,6 +27,11 @@ env:
   - variable: NEXT_PUBLIC_FIREBASE_APP_ID
     value: 1:867337033198:web:a0bdf78361974455402aff
 
+  # Multi-hostel: the hostel served on addresses that aren't a hostel subdomain (all of them,
+  # until the platform domain is bought; then set NEXT_PUBLIC_PLATFORM_DOMAIN too)
+  - variable: NEXT_PUBLIC_DEFAULT_HOSTEL
+    value: mowarid
+
   # Paystack. The public key is kept in Secret Manager too, so test keys can be swapped for
   # the hostel's live keys without a code change.
   - variable: NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY

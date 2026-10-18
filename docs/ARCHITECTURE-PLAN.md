@@ -121,7 +121,7 @@ hostels/{hostelId}                   orgId, name, slug, address, contacts, brand
   stats/current                      occupancy, collected, outstanding (server-maintained)
   stats/{yyyy-mm}                    monthly roll-ups for charts
 
-public/{hostelId}                    the booking page doc: hostel info + space availability + holds
+listings/{hostelId}                  the booking page doc: hostel info + space availability + holds
                                      (no personal data; same idea as today's public/booking)
 
 users/{uid}                          name, email, phone, fcmTokens[], memberships summary
@@ -133,7 +133,7 @@ Why sub-collections (`hostels/{id}/payments`) rather than one big `payments` col
 - **Deletion and export:** taking out one hostel's data is a single operation.
 - **Queries across hostels:** collection-group queries still work when the owner or platform needs a view across several hostels.
 
-**Size check.** A big hostel has 500 rooms × 4 beds = 2,000 spaces. In `public/{hostelId}` that's about 200 KB, well under Firestore's 1 MiB limit per document. If someone ever outgrows that, we split it by block.
+**Size check.** A big hostel has 500 rooms × 4 beds = 2,000 spaces. In `listings/{hostelId}` that's about 200 KB, well under Firestore's 1 MiB limit per document. If someone ever outgrows that, we split it by block.
 
 ## 5. Hostel settings (what onboarding collects)
 
@@ -208,7 +208,7 @@ Today the staff browser writes most data directly. With money, many hostels and 
 |---|---|
 | **Browser** | Reads with listeners (kept, with the limits added in this session), forms and UI. Writes only low-risk things directly: replies, marking a request seen, profile edits |
 | **Server API (Next.js route handlers on App Hosting, Admin SDK)** | Every command that touches money, occupancy or roles: create tenancy, record payment, change room, start/finish booking, renew, refund deposit, invite staff, onboarding steps. Each command checks permissions, runs in a transaction, and writes an audit entry |
-| **Cloud Functions: triggers** | Keep `stats/current` and the monthly stats up to date when tenancies, charges or payments change; update `public/{hostelId}`; send push notifications |
+| **Cloud Functions: triggers** | Keep `stats/current` and the monthly stats up to date when tenancies, charges or payments change; update `listings/{hostelId}`; send push notifications |
 | **Cloud Functions: scheduled** | Daily reminders (per hostel, in its timezone); expire holds; mark overdue charges; end finished tenancies; nightly backup export |
 | **Paystack** | One **subaccount per hostel**, so rent goes straight to the hostel's bank. With the subscription model the platform split is 0%. The webhook finds the hostel from the transaction metadata. The owner's subscription is a separate Paystack payment to the platform account |
 

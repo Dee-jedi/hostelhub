@@ -12,7 +12,10 @@
     "lint": "eslint",
     "seed": "tsx scripts/seed.mts",
     "test:e2e": "node tests/e2e/e2e.mjs",
-    "test:smoke": "node tests/e2e/smoke.mjs"
+    "test:smoke": "node tests/e2e/smoke.mjs",
+    "test:unit": "tsx --test \"src/**/*.test.ts\"",
+    "test:rules": "node tests/rules/staging-rules.mjs",
+    "test:api": "node tests/api/commands.mjs"
   },
   "dependencies": {
     "@paystack/inline-js": "^2.26.0",

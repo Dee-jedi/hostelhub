@@ -1,4 +1,13 @@
-# Browser tests
+# Tests
+
+| Command | What it checks | Needs |
+|---|---|---|
+| `npm run test:unit` | Pure logic (hostel from address, access claims) | Nothing |
+| `npm run test:rules` | The multi-hostel Firestore rules, on the **staging** database, with throwaway logins and hostels it cleans up | `.env.local` and the service account file |
+| `npm run test:api` | The server command layer (`/api/me`, `/api/platform/access`) on a running site (`HH_BASE`, default staging) | Same |
+| `npm run test:e2e` / `test:smoke` | The whole app in a browser (below) | Staff login |
+
+## Browser tests
 
 These drive Microsoft Edge (set `HH_BROWSER` for another Chromium browser) against a deployed
 site. By default they target **staging** (`hostelhub-1`, staging database).

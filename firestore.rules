@@ -57,5 +57,91 @@ service cloud.firestore {
         && !('seenAt' in request.resource.data) && !('updates' in request.resource.data));
       allow update, delete: if isAdmin();
     }
+
+    // ------------------------------------------------------------------------------------
+    // Multi-hostel structure (docs/ARCHITECTURE-PLAN.md). Everything a hostel owns lives
+    // under hostels/{hostelId}. Access comes from the login's custom claims (src/lib/access.ts):
+    // h[hostelId] = 'manager', t[hostelId] = true, p = 'admin'. Money, occupancy and access are
+    // written only by the server (Admin SDK bypasses these rules); browsers write the few
+    // low-risk things allowed below. Tenant-owned records carry the tenant's login as `uid`.
+
+    function platformAdmin() {
+      return request.auth != null && request.auth.token.p == 'admin';
+    }
+    function manages(h) {
+      return request.auth != null && request.auth.token.h[h] == 'manager';
+    }
+    function livesIn(h) {
+      return request.auth != null && request.auth.token.t[h] == true;
+    }
+    function staff(h) {
+      return manages(h) || platformAdmin();
+    }
+    // The tenant's own record in hostel h
+    function ownRecord(h) {
+      return livesIn(h) && resource.data.uid == request.auth.uid;
+    }
+
+    // Public booking page for one hostel: rooms/beds availability and basics, no personal data
+    match /listings/{h} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /users/{uid} {
+      allow read: if isSelf(uid) || platformAdmin();
+      // Profile basics and push tokens only; memberships live in claims
+      allow create, update: if isSelf(uid)
+        && request.resource.data.keys().hasOnly(['name', 'phone', 'fcmTokens', 'updatedAt']);
+    }
+
+    match /hostels/{h} {
+      allow read: if staff(h) || livesIn(h);
+      allow write: if false;
+
+      // Layout and terms: managers see everything; changes go through server commands
+      match /{coll}/{id} {
+        allow read: if staff(h) && coll in ['blocks', 'roomTypes', 'rooms', 'rentPeriods', 'members', 'counters', 'stats', 'audit'];
+        allow write: if false;
+      }
+
+      match /residents/{id} {
+        allow read: if staff(h) || ownRecord(h);
+        // Tenants may correct their contact details and mark notifications read
+        allow update: if ownRecord(h) && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['phone', 'homeAddress', 'nextOfKinName', 'nextOfKinPhone', 'nextOfKinRelationship', 'notificationsSeenAt']);
+      }
+
+      // Money and occupancy: read-only to browsers
+      match /tenancies/{id} {
+        allow read: if staff(h) || ownRecord(h);
+      }
+      match /charges/{id} {
+        allow read: if staff(h) || ownRecord(h);
+      }
+      match /payments/{id} {
+        allow read: if staff(h) || ownRecord(h);
+      }
+
+      // Checkout records; the applicant may not be a tenant yet, so match on the login alone
+      match /bookings/{id} {
+        allow read: if staff(h) || (request.auth != null && resource.data.uid == request.auth.uid);
+      }
+
+      match /requests/{id} {
+        allow read: if staff(h) || ownRecord(h);
+        // A tenant opens a request for themselves; status and replies are staff-only
+        allow create: if livesIn(h) && request.resource.data.uid == request.auth.uid
+          && request.resource.data.status == 'open'
+          && !('seenAt' in request.resource.data) && !('updates' in request.resource.data);
+        // Managers reply, mark seen and change status directly (low risk, shown to the tenant)
+        allow update: if manages(h);
+      }
+
+      match /messages/{id} {
+        allow read: if staff(h) || (livesIn(h) && request.auth.uid in resource.data.recipientUids);
+        allow create: if manages(h);
+      }
+    }
   }
 }
