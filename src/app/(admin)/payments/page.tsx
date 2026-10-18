@@ -4,6 +4,7 @@ import { Download, Plus, Receipt, Wallet } from "lucide-react";
 import { useMemo, useState } from "react";
 import { PaymentModal, ReceiptModal } from "@/components/PaymentModal";
 import { CollectionsChart } from "@/components/charts";
+import { OlderRecords } from "@/components/OlderRecords";
 import { Avatar, Badge, BtnLabel, Button, headerBtn, Card, EmptyState, Modal, PageHeader, Panel, SearchInput, Select, StatCard } from "@/components/ui";
 import { useDashboard } from "@/lib/dashboard";
 import { useHostel } from "@/lib/store";
@@ -193,6 +194,7 @@ export default function PaymentsPage() {
             {filtered.length > 100 && <p className="border-t border-slate-100 px-4 py-3 text-xs text-slate-500">Showing latest 100 — narrow the filters or export to see all.</p>}
           </div>
         )}
+        <OlderRecords name="payments" what="payments" />
       </Card>
 
       <ReceiptModal payment={receipt} onClose={() => setReceipt(null)} />

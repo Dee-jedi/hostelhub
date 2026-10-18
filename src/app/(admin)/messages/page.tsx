@@ -3,6 +3,7 @@
 import { Bot, Megaphone, MessageSquare, Send } from "lucide-react";
 import { useMemo, useState } from "react";
 import { ComposeModal } from "@/components/ComposeModal";
+import { OlderRecords } from "@/components/OlderRecords";
 import { Badge, Button, Panel, EmptyState, Field, PageHeader, Select } from "@/components/ui";
 import { useHostel } from "@/lib/store";
 import type { Resident } from "@/lib/types";
@@ -116,6 +117,7 @@ export default function MessagesPage() {
               ))}
             </ul>
           )}
+          <OlderRecords name="messages" what="messages" />
         </Panel>
       </div>
 

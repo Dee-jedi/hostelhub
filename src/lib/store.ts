@@ -1,6 +1,20 @@
 "use client";
 
-import { arrayUnion, collection, deleteField, doc, onSnapshot, writeBatch, type WriteBatch } from "firebase/firestore";
+import {
+  arrayUnion,
+  collection,
+  deleteField,
+  doc,
+  getDocs,
+  onSnapshot,
+  query,
+  runTransaction,
+  where,
+  writeBatch,
+  type Query,
+  type Transaction,
+  type WriteBatch,
+} from "firebase/firestore";
 import { useSyncExternalStore } from "react";
 import { toast } from "@/components/toast";
 import { auth, db } from "./firebase";
@@ -22,20 +36,20 @@ import type {
   TicketCategory,
   TicketUpdate,
 } from "./types";
-import { addMonths, daysBetween, publicInfo, publicRoom, tenantsByRoom, todayISO, toStudentInfo, uid } from "./utils";
+import { addMonths, daysBetween, parseDate, publicInfo, publicRoom, tenantsByRoom, todayISO, toISODate, toStudentInfo, uid } from "./utils";
 
 /*
  * Staff data layer. Live Firestore listeners keep an in-memory copy of the hostel up to date
  * (see startHostelSync for what that costs). Actions update memory immediately and write to
  * Firestore in the background, so pages stay as fast as the localStorage demo was; the
- * listeners then confirm the write, or correct memory if it was rejected.
+ * listeners then confirm the write, or correct memory if it was rejected. Payments are the
+ * exception: they wait for the server so every receipt gets a unique number.
  */
 
 type LoadStatus = "idle" | "loading" | "ready" | "error";
 
 let state: HostelState = createEmptyState();
 let status: LoadStatus = "idle";
-let receiptSeq = 1000;
 const listeners = new Set<() => void>();
 
 function emit() {
@@ -88,10 +102,102 @@ const COLLECTIONS = {
   bookings: "createdAt",
 } as const;
 type CollectionKey = keyof typeof COLLECTIONS;
+/** Collections that only load recent records until staff ask for more. */
+export type HistoryKey = Exclude<CollectionKey, "residents">;
+
+const RECENT_DAYS = 90;
+
+/** Where each collection's recent window starts, compared as ISO strings against its date field. */
+function windowStarts(): Record<HistoryKey, string> {
+  const today = parseDate(todayISO());
+  const recent = new Date(Date.now() - RECENT_DAYS * 86_400_000).toISOString();
+  return {
+    // The start of the month a year ago, so the 12-month charts and "this year" totals are complete
+    payments: toISODate(new Date(today.getFullYear(), today.getMonth() - 12, 1)),
+    messages: recent,
+    tickets: recent,
+    bookings: recent,
+  };
+}
+
+export const HISTORY_WINDOW: Record<HistoryKey, string> = {
+  payments: "the last 12 months",
+  messages: `the last ${RECENT_DAYS} days`,
+  tickets: `open requests and the last ${RECENT_DAYS} days`,
+  bookings: `rooms still to allocate and the last ${RECENT_DAYS} days`,
+};
 
 let settingsLoaded: Settings | null = null;
 let pubLoaded: PublicBookingDoc | null = null;
 let unsubscribers: (() => void)[] = [];
+let windowStart = windowStarts();
+let historyLoaded = new Set<HistoryKey>();
+
+/*
+ * A collection in memory is the union of several live queries (recent, still open, older…),
+ * each kept separately here and merged by document id whenever one of them changes.
+ */
+let sources = new Map<CollectionKey, Map<string, Map<string, unknown>>>();
+
+function listen(name: CollectionKey, key: string, q: Query, arrived: (key: string) => void, failed: (err: unknown) => void) {
+  return onSnapshot(
+    q,
+    (snap) => {
+      const bySource = sources.get(name) ?? new Map<string, Map<string, unknown>>();
+      sources.set(name, bySource);
+      bySource.set(key, new Map(snap.docs.map((d) => [d.id, { ...d.data(), id: d.id }])));
+      const merged = new Map<string, unknown>();
+      for (const rows of bySource.values()) for (const [id, row] of rows) merged.set(id, row);
+      state = { ...state, [name]: [...merged.values()].sort(byNewest(COLLECTIONS[name] as never)) };
+      arrived(`${name}:${key}`);
+    },
+    failed,
+  );
+}
+
+/** The queries the staff app opens with: everything still in play, but no old history. */
+function baseQueries(): [CollectionKey, string, Query][] {
+  const col = (name: CollectionKey) => collection(db, name);
+  const since = (name: HistoryKey) => query(col(name), where(COLLECTIONS[name], ">=", windowStart[name]));
+  return [
+    // One document per tenant ever; small enough to keep whole, and names are needed everywhere
+    ["residents", "all", col("residents")],
+    ["payments", "recent", since("payments")],
+    ["messages", "recent", since("messages")],
+    ["tickets", "recent", since("tickets")],
+    ["tickets", "open", query(col("tickets"), where("status", "in", ["open", "in_progress"]))],
+    ["bookings", "recent", since("bookings")],
+    ["bookings", "attention", query(col("bookings"), where("status", "==", "needs_attention"))],
+  ];
+}
+
+let liveCallbacks: { arrived: (key: string) => void; failed: (err: unknown) => void } | null = null;
+
+/** Loads everything older than the recent window for one collection, live for the rest of the session. */
+export function loadHistory(name: HistoryKey) {
+  if (!liveCallbacks || historyLoaded.has(name)) return;
+  historyLoaded = new Set(historyLoaded).add(name);
+  const older = query(collection(db, name), where(COLLECTIONS[name], "<", windowStart[name]));
+  unsubscribers.push(listen(name, "older", older, liveCallbacks.arrived, liveCallbacks.failed));
+  emit();
+}
+
+export function useHistoryLoaded(name: HistoryKey) {
+  return useSyncExternalStore(
+    subscribe,
+    () => historyLoaded.has(name),
+    () => false,
+  );
+}
+
+/** A tenant's whole payment history, for their profile when it goes back past the recent window. */
+export function watchResidentPayments(resident: Resident) {
+  const key = `resident:${resident.id}`;
+  const since = resident.checkInDate < resident.createdAt ? resident.checkInDate : resident.createdAt;
+  if (!liveCallbacks || historyLoaded.has("payments") || sources.get("payments")?.has(key) || since >= windowStart.payments) return;
+  const q = query(collection(db, "payments"), where("residentId", "==", resident.id));
+  unsubscribers.push(listen("payments", key, q, liveCallbacks.arrived, liveCallbacks.failed));
+}
 
 function roomsFrom(settings: Settings, pub: PublicBookingDoc | null): Room[] {
   return buildRooms(settings).map((r) => {
@@ -104,14 +210,17 @@ function roomsFrom(settings: Settings, pub: PublicBookingDoc | null): Room[] {
  * Starts live listeners for the staff app (idempotent). Firestore bills one read per document
  * when a listener first attaches, then one read per document that changes — so a new booking
  * costs a handful of reads, not a reload of the hostel. With the browser cache in firebase.ts,
- * reopening the app shortly after only bills what changed while it was closed.
+ * reopening the app within 30 minutes only bills what changed while it was closed; after that
+ * it re-reads what's in the window, which is why old history stays out of it.
  */
 export function startHostelSync() {
   if (unsubscribers.length) return;
   status = "loading";
+  windowStart = windowStarts();
   emit();
 
-  const pending = new Set<string>(["settings", "meta", "public", ...Object.keys(COLLECTIONS)]);
+  const queries = baseQueries();
+  const pending = new Set<string>(["settings", "meta", "public", ...queries.map(([name, key]) => `${name}:${key}`)]);
   const arrived = (key: string) => {
     pending.delete(key);
     if (!pending.size && status !== "ready") {
@@ -124,8 +233,11 @@ export function startHostelSync() {
     if (status !== "ready") {
       status = "error";
       emit();
+    } else {
+      toast("Couldn't load some records. Please refresh.", "info");
     }
   };
+  liveCallbacks = { arrived, failed };
 
   unsubscribers.push(
     onSnapshot(
@@ -141,7 +253,6 @@ export function startHostelSync() {
       doc(db, "config/meta"),
       (snap) => {
         const meta = snap.data() ?? {};
-        receiptSeq = Math.max(receiptSeq, (meta.receiptSeq as number | undefined) ?? 1000);
         state = { ...state, sentReminderKeys: (meta.sentReminderKeys as string[] | undefined) ?? [] };
         arrived("meta");
       },
@@ -156,17 +267,7 @@ export function startHostelSync() {
       },
       failed,
     ),
-    ...(Object.keys(COLLECTIONS) as CollectionKey[]).map((name) =>
-      onSnapshot(
-        collection(db, name),
-        (snap) => {
-          const rows = snap.docs.map((d) => ({ ...d.data(), id: d.id }));
-          state = { ...state, [name]: rows.sort(byNewest(COLLECTIONS[name] as never)) };
-          arrived(name);
-        },
-        failed,
-      ),
-    ),
+    ...queries.map(([name, key, q]) => listen(name, key, q, arrived, failed)),
   );
 }
 
@@ -174,6 +275,9 @@ export function startHostelSync() {
 export function stopHostelSync() {
   unsubscribers.forEach((u) => u());
   unsubscribers = [];
+  liveCallbacks = null;
+  sources = new Map();
+  historyLoaded = new Set();
   settingsLoaded = null;
   pubLoaded = null;
   state = createEmptyState();
@@ -187,34 +291,51 @@ export function stopHostelSync() {
 function commit(build: (b: WriteBatch) => void) {
   const batch = writeBatch(db);
   build(batch);
-  batch.commit().catch((err) => {
-    console.error(err);
-    toast("Couldn't save that change. Please try again.", "info");
-  });
+  batch.commit().catch(saveFailed);
 }
 
 const PUBLIC = () => doc(db, "public/booking");
 
-/** Mirrors the occupancy of the given rooms into the public booking document. */
-function syncRooms(b: WriteBatch, s: HostelState, roomIds: (string | null | undefined)[]) {
+/** The public booking document's fields for the given rooms' occupancy, or null if none apply. */
+function roomUpdates(s: HostelState, roomIds: (string | null | undefined)[]) {
   const ids = [...new Set(roomIds.filter((id): id is string => !!id))];
-  if (!ids.length) return;
   const tenants = tenantsByRoom(s);
   const updates: Record<string, unknown> = {};
   for (const id of ids) {
     const room = s.rooms.find((r) => r.id === id);
     if (room) updates[`rooms.${id}`] = publicRoom(room, tenants.has(id));
   }
-  if (Object.keys(updates).length) b.update(PUBLIC(), updates);
+  return Object.keys(updates).length ? updates : null;
 }
 
-function nextReceiptNo(s: HostelState) {
-  const max = s.payments.reduce((m, p) => Math.max(m, Number(p.receiptNo.replace(/\D/g, "")) || 0), receiptSeq);
-  receiptSeq = max + 1;
-  return `RCP-${receiptSeq}`;
+/** Mirrors the occupancy of the given rooms into the public booking document. */
+function syncRooms(b: WriteBatch, s: HostelState, roomIds: (string | null | undefined)[]) {
+  const updates = roomUpdates(s, roomIds);
+  if (updates) b.update(PUBLIC(), updates);
 }
 
 const META = () => doc(db, "config/meta");
+
+/**
+ * Writes a payment under the next receipt number. The counter in config/meta is only ever
+ * bumped inside a transaction, here and in the server's Paystack confirmations, so two receipts
+ * can never share a number even when staff and an online payment land at the same moment.
+ */
+function commitWithReceipt(build: (tx: Transaction, receiptNo: string) => void) {
+  return runTransaction(db, async (tx) => {
+    const meta = await tx.get(META());
+    const seq = ((meta.data()?.receiptSeq as number | undefined) ?? 1000) + 1;
+    const receiptNo = `RCP-${seq}`;
+    build(tx, receiptNo);
+    tx.set(META(), { receiptSeq: seq }, { merge: true });
+    return receiptNo;
+  });
+}
+
+const saveFailed = (err: unknown) => {
+  console.error(err);
+  toast("Couldn't save that change. Please try again.", "info");
+};
 
 // ---------------------------------------------------------------- actions
 
@@ -227,8 +348,20 @@ export interface PaymentInput {
 }
 
 export function addResident(info: StudentInfo, roomId: string | null, payment?: PaymentInput, leaseStart = todayISO(), id = uid("res_")) {
-  const s = state;
-  const leaseEnd = addMonths(leaseStart, s.settings.leaseMonths);
+  placeResident(info, roomId, payment, leaseStart, id);
+  return id;
+}
+
+/** Adds a tenant, with their first payment if there is one. `alsoWrite` joins the same transaction. */
+function placeResident(
+  info: StudentInfo,
+  roomId: string | null,
+  payment: PaymentInput | undefined,
+  leaseStart: string,
+  id: string,
+  alsoWrite?: (tx: Transaction) => void,
+) {
+  const leaseEnd = addMonths(leaseStart, state.settings.leaseMonths);
   const resident: Resident = {
     ...info,
     id,
@@ -239,31 +372,42 @@ export function addResident(info: StudentInfo, roomId: string | null, payment?: 
     leaseEnd,
     createdAt: new Date().toISOString(),
   };
-  const pay: Payment | null = payment
-    ? {
-        id: uid("pay_"),
-        receiptNo: nextReceiptNo(s),
-        residentId: id,
-        roomId: roomId ?? undefined,
-        amount: payment.amount,
-        method: payment.method,
-        reference: payment.reference,
-        date: payment.date ?? todayISO(),
-        periodStart: leaseStart,
-        periodEnd: leaseEnd,
-        note: payment.note,
-      }
-    : null;
-  setState((s) => ({ ...s, residents: [resident, ...s.residents], payments: pay ? [pay, ...s.payments] : s.payments }));
-  commit((b) => {
-    b.set(doc(db, "residents", id), resident);
-    if (pay) {
-      b.set(doc(db, "payments", pay.id), pay);
-      b.set(META(), { receiptSeq }, { merge: true });
-    }
-    syncRooms(b, state, [roomId]);
-  });
-  return id;
+  setState((s) => ({ ...s, residents: [resident, ...s.residents] }));
+  const rooms = roomUpdates(state, [roomId]);
+  if (!payment) {
+    commit((b) => {
+      b.set(doc(db, "residents", id), resident);
+      if (rooms) b.update(PUBLIC(), rooms);
+    });
+    return Promise.resolve();
+  }
+  // The payment (and the listing) shows up once the transaction lands, with its real receipt number
+  return commitWithReceipt((tx, receiptNo) => {
+    const pay: Payment = {
+      id: uid("pay_"),
+      receiptNo,
+      residentId: id,
+      roomId: roomId ?? undefined,
+      amount: payment.amount,
+      method: payment.method,
+      reference: payment.reference,
+      date: payment.date ?? todayISO(),
+      periodStart: leaseStart,
+      periodEnd: leaseEnd,
+      note: payment.note,
+    };
+    tx.set(doc(db, "residents", id), resident);
+    tx.set(doc(db, "payments", pay.id), pay);
+    if (rooms) tx.update(PUBLIC(), rooms);
+    alsoWrite?.(tx);
+  }).then(
+    () => {},
+    (err) => {
+      // Transactions aren't applied locally first, so undo the optimistic tenant by hand
+      setState((s) => ({ ...s, residents: s.residents.filter((r) => r.id !== id) }));
+      saveFailed(err);
+    },
+  );
 }
 
 export function updateResident(id: string, patch: Partial<Resident>) {
@@ -282,30 +426,35 @@ export function moveOut(id: string) {
 
 export function deleteResident(id: string) {
   const before = state.residents.find((r) => r.id === id);
-  const payIds = state.payments.filter((p) => p.residentId === id).map((p) => p.id);
   setState((s) => ({
     ...s,
     residents: s.residents.filter((r) => r.id !== id),
     payments: s.payments.filter((p) => p.residentId !== id),
   }));
-  commit((b) => {
-    b.delete(doc(db, "residents", id));
-    payIds.forEach((p) => b.delete(doc(db, "payments", p)));
-    syncRooms(b, state, [before?.roomId]);
-  });
+  // Older payments may not be loaded, so ask Firestore for all of theirs
+  getDocs(query(collection(db, "payments"), where("residentId", "==", id)))
+    .then((snap) =>
+      commit((b) => {
+        b.delete(doc(db, "residents", id));
+        snap.docs.forEach((p) => b.delete(p.ref));
+        syncRooms(b, state, [before?.roomId]);
+      }),
+    )
+    .catch(saveFailed);
 }
 
-/** Records a rent payment and extends the lease by one rent period. */
-export function recordPayment(residentId: string, input: PaymentInput, extendLease = true): Payment | null {
-  const s = state;
-  const resident = s.residents.find((r) => r.id === residentId);
+/**
+ * Records a rent payment and extends the lease by one rent period. Resolves once it's saved
+ * with its receipt number, or null if it couldn't be (a toast says so).
+ */
+export async function recordPayment(residentId: string, input: PaymentInput, extendLease = true): Promise<Payment | null> {
+  const resident = state.residents.find((r) => r.id === residentId);
   if (!resident) return null;
   const today = todayISO();
   const periodStart = extendLease ? (resident.leaseEnd >= today ? resident.leaseEnd : today) : resident.leaseStart;
-  const periodEnd = extendLease ? addMonths(periodStart, s.settings.leaseMonths) : resident.leaseEnd;
-  const created: Payment = {
+  const periodEnd = extendLease ? addMonths(periodStart, state.settings.leaseMonths) : resident.leaseEnd;
+  const draft: Omit<Payment, "receiptNo"> = {
     id: uid("pay_"),
-    receiptNo: nextReceiptNo(s),
     residentId,
     roomId: resident.roomId ?? undefined,
     amount: input.amount,
@@ -317,17 +466,16 @@ export function recordPayment(residentId: string, input: PaymentInput, extendLea
     note: input.note,
   };
   const lease = { leaseStart: periodStart, leaseEnd: periodEnd, status: "active" as const };
-  setState((s) => ({
-    ...s,
-    payments: [created, ...s.payments],
-    residents: extendLease ? s.residents.map((r) => (r.id === residentId ? { ...r, ...lease } : r)) : s.residents,
-  }));
-  commit((b) => {
-    b.set(doc(db, "payments", created.id), created);
-    b.set(META(), { receiptSeq }, { merge: true });
-    if (extendLease) b.update(doc(db, "residents", residentId), lease);
-  });
-  return created;
+  try {
+    const receiptNo = await commitWithReceipt((tx, receiptNo) => {
+      tx.set(doc(db, "payments", draft.id), { ...draft, receiptNo });
+      if (extendLease) tx.update(doc(db, "residents", residentId), lease);
+    });
+    return { ...draft, receiptNo };
+  } catch (err) {
+    saveFailed(err);
+    return null;
+  }
 }
 
 export function sendMessage(msg: { kind: Message["kind"]; channel: Channel; recipientIds: string[]; body: string; automated?: boolean }) {
@@ -393,10 +541,11 @@ export function runAutomatedReminders(channel: Channel = "SMS") {
 export function resolveBooking(bookingId: string, roomId: string, info: StudentInfo) {
   const booking = state.bookings.find((b) => b.id === bookingId);
   if (!booking) return null;
-  const residentId = addResident(info, roomId, { amount: booking.amount, method: "Online", reference: booking.id, note: "Paystack" }, todayISO(), booking.uid);
+  const residentId = booking.uid;
   const patch = { status: "resolved" as const, residentId, roomId };
-  setState((s) => ({ ...s, bookings: s.bookings.map((b) => (b.id === bookingId ? { ...b, ...patch } : b)) }));
-  commit((b) => b.update(doc(db, "bookings", bookingId), patch));
+  const payment: PaymentInput = { amount: booking.amount, method: "Online", reference: booking.id, note: "Paystack" };
+  // One transaction, so a booking is never marked resolved without its tenant and receipt
+  placeResident(info, roomId, payment, todayISO(), residentId, (tx) => tx.update(doc(db, "bookings", bookingId), patch));
   return residentId;
 }
 

@@ -80,6 +80,7 @@ export function PaymentModal({ residentId, onClose }: { residentId: string | nul
   const [date, setDate] = useState(todayISO());
   const [extend, setExtend] = useState(true);
   const [receipt, setReceipt] = useState<Payment | null>(null);
+  const [saving, setSaving] = useState(false);
 
   if (receipt) return <ReceiptModal payment={receipt} onClose={() => { setReceipt(null); onClose(); }} />;
   if (!resident) return null;
@@ -88,10 +89,13 @@ export function PaymentModal({ residentId, onClose }: { residentId: string | nul
   const newStart = resident.leaseEnd >= today ? resident.leaseEnd : today;
   const newEnd = addMonths(newStart, s.settings.leaseMonths);
 
-  const submit = () => {
+  const submit = async () => {
     const value = Number(amount.replace(/[^\d]/g, ""));
     if (!value) return toast("Enter an amount", "info");
-    const p = recordPayment(resident.id, { amount: value, method, reference, date }, extend);
+    setSaving(true);
+    const p = await recordPayment(resident.id, { amount: value, method, reference, date }, extend);
+    setSaving(false);
+    if (!p) return;
     toast(`Payment of ${naira(value)} recorded`);
     setReceipt(p);
   };
@@ -107,7 +111,9 @@ export function PaymentModal({ residentId, onClose }: { residentId: string | nul
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={submit}>Record payment</Button>
+          <Button onClick={submit} disabled={saving}>
+            {saving ? "Saving…" : "Record payment"}
+          </Button>
         </>
       }
     >

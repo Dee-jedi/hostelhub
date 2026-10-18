@@ -4,6 +4,7 @@ import { ClipboardList, Copy, DoorOpen, Printer, QrCode } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useState } from "react";
 import { AddResidentModal } from "@/components/AddResidentModal";
+import { OlderRecords } from "@/components/OlderRecords";
 import { toast } from "@/components/toast";
 import { Avatar, Badge, BtnLabel, Button, headerBtn, Card, EmptyState, Modal, PageHeader, Tabs } from "@/components/ui";
 import { bookingToStudent, useHostel } from "@/lib/store";
@@ -144,6 +145,7 @@ export default function BookingsPage() {
           ))}
         </div>
       )}
+      {tab !== "attention" && <OlderRecords name="bookings" what="bookings" className="mt-2 border-t-0" />}
 
       {allocating && (
         <AddResidentModal

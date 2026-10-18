@@ -1,8 +1,8 @@
 "use client";
 
 import { ArrowRightLeft, CreditCard, LogOut, MessageCircle, Pencil, Phone, Receipt, Send } from "lucide-react";
-import { useState } from "react";
-import { moveOut, updateResident, useHostel } from "@/lib/store";
+import { useEffect, useState } from "react";
+import { HISTORY_WINDOW, moveOut, updateResident, useHistoryLoaded, useHostel, watchResidentPayments } from "@/lib/store";
 import type { Payment, StudentInfo } from "@/lib/types";
 import { academicLine, daysLeft, describeDaysLeft, formatDate, naira, rentStatus, whatsappLink, fillTemplate } from "@/lib/utils";
 import { TEMPLATES } from "@/lib/templates";
@@ -32,6 +32,12 @@ export function ResidentDrawer({ residentId, onClose }: { residentId: string | n
   const [newRoom, setNewRoom] = useState("");
   const [confirmMoveOut, setConfirmMoveOut] = useState(false);
   const [receipt, setReceipt] = useState<Payment | null>(null);
+  const allMessages = useHistoryLoaded("messages");
+
+  // Long-standing tenants have receipts older than the staff app loads by default
+  useEffect(() => {
+    if (resident) watchResidentPayments(resident);
+  }, [resident]);
 
   if (!resident) return null;
   const payments = s.payments.filter((p) => p.residentId === resident.id);
@@ -210,7 +216,9 @@ export function ResidentDrawer({ residentId, onClose }: { residentId: string | n
                     ))}
                   </ul>
                 )}
-                <p className="mt-2 text-xs text-slate-500">{msgCount} message{msgCount === 1 ? "" : "s"} sent to this resident.</p>
+                <p className="mt-2 text-xs text-slate-500">
+                  {msgCount} message{msgCount === 1 ? "" : "s"} sent to this resident{allMessages ? "" : ` in ${HISTORY_WINDOW.messages}`}.
+                </p>
               </section>
 
               {active && (

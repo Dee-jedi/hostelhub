@@ -2,6 +2,7 @@
 
 import { ArrowRight, Camera, ClipboardList, MessageCircle, Phone, Plus } from "lucide-react";
 import { useState } from "react";
+import { OlderRecords } from "@/components/OlderRecords";
 import { KIND, KindIcon, kindOf } from "@/components/RequestStatus";
 import { toast } from "@/components/toast";
 import { Avatar, Badge, BtnLabel, Button, Card, Drawer, EmptyState, Field, FilterChips, headerBtn, Input, Modal, PageHeader, Select, Tabs, Textarea } from "@/components/ui";
@@ -254,6 +255,7 @@ export default function RequestsInboxPage() {
             })}
           </ul>
         )}
+        {(tab === "closed" || tab === "all") && <OlderRecords name="tickets" what="requests" />}
       </Card>
 
       {viewed && <RequestDrawer ticket={viewed} resident={viewed.residentId ? residentsById.get(viewed.residentId) : undefined} onClose={() => setViewing(null)} />}
