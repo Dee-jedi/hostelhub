@@ -9,8 +9,10 @@ export async function GET() {
     NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY: has("NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY"),
     NEXT_PUBLIC_FIREBASE_PROJECT_ID: has("NEXT_PUBLIC_FIREBASE_PROJECT_ID"),
     NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: has("NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET"),
-    // On hosting this must be FIREBASE_SERVICE_ACCOUNT_BASE64; locally the file path is fine
-    FIREBASE_SERVICE_ACCOUNT: has("FIREBASE_SERVICE_ACCOUNT_BASE64") || has("FIREBASE_SERVICE_ACCOUNT") || has("FIREBASE_SERVICE_ACCOUNT_PATH"),
+    // On Vercel this must be FIREBASE_SERVICE_ACCOUNT_BASE64; locally the file path is fine.
+    // Firebase App Hosting needs neither (it sets FIREBASE_CONFIG and uses its own service account).
+    FIREBASE_SERVICE_ACCOUNT:
+      has("FIREBASE_SERVICE_ACCOUNT_BASE64") || has("FIREBASE_SERVICE_ACCOUNT") || has("FIREBASE_SERVICE_ACCOUNT_PATH") || has("FIREBASE_CONFIG"),
     ID_CARD_SECRET: has("ID_CARD_SECRET"),
   };
   let firebase = "ok";

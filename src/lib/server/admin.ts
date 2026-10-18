@@ -6,9 +6,16 @@ import { getFirestore } from "firebase-admin/firestore";
 
 /*
  * Server-only Firebase Admin SDK. Never import this from a client component.
- * Credentials come from FIREBASE_SERVICE_ACCOUNT_BASE64 (hosting: the JSON file base64-encoded,
- * or the raw JSON pasted as-is) or FIREBASE_SERVICE_ACCOUNT_PATH (local file, gitignored).
+ * On Firebase App Hosting no key is needed: the server runs as the project's own service account.
+ * Elsewhere, credentials come from FIREBASE_SERVICE_ACCOUNT_BASE64 (Vercel: the JSON file
+ * base64-encoded, or the raw JSON pasted as-is) or FIREBASE_SERVICE_ACCOUNT_PATH (local file, gitignored).
  */
+
+const hasServiceAccount = () =>
+  !!(process.env.FIREBASE_SERVICE_ACCOUNT_BASE64 || process.env.FIREBASE_SERVICE_ACCOUNT || process.env.FIREBASE_SERVICE_ACCOUNT_PATH)?.trim();
+
+/** True on App Hosting (Cloud Run), which sets FIREBASE_CONFIG and K_SERVICE for every instance. */
+export const onGoogleCloud = () => !!(process.env.FIREBASE_CONFIG || process.env.K_SERVICE);
 
 /** Reads the service account from the environment, with an error that says exactly what's wrong. */
 export function credentials(): ServiceAccount {
@@ -35,7 +42,14 @@ export function credentials(): ServiceAccount {
   }
 }
 
-const app = getApps().length ? getApp() : initializeApp({ credential: cert(credentials()) });
+function init() {
+  // A key, if given, always wins, so a Vercel deploy or local dev behaves exactly as before
+  if (hasServiceAccount() || !onGoogleCloud()) return initializeApp({ credential: cert(credentials()) });
+  // No arguments: the SDK reads the project from FIREBASE_CONFIG and signs in as the backend's service account
+  return initializeApp();
+}
+
+const app = getApps().length ? getApp() : init();
 
 export const adminDb = getFirestore(app);
 try {

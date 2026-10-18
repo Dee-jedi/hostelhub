@@ -1,0 +1,46 @@
+# Firebase App Hosting settings. Values set in the Firebase console override these.
+# Secrets live in Cloud Secret Manager; create each one once with
+#   firebase apphosting:secrets:set <name>
+# (setup steps are in the README under "Deploying to Firebase App Hosting").
+
+runConfig:
+  cpu: 1
+  memoryMiB: 512
+  # 0 = no cost while idle; the first visit after a quiet spell takes a second or two longer
+  minInstances: 0
+  # A cap so a traffic spike (or a bot) can't run up the bill
+  maxInstances: 10
+  concurrency: 80
+
+env:
+  # Firebase web config. Not secret: it ships to every browser anyway.
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+    value: AIzaSyANjM-sB-dwdzZJgoh8K2wI4voQ_jOPbVA
+  - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    value: hostelhub-b51cc.firebaseapp.com
+  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    value: hostelhub-b51cc
+  - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+    value: hostelhub-b51cc.firebasestorage.app
+  - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+    value: "867337033198"
+  - variable: NEXT_PUBLIC_FIREBASE_APP_ID
+    value: 1:867337033198:web:a0bdf78361974455402aff
+
+  # Paystack. The public key is kept in Secret Manager too, so test keys can be swapped for
+  # the hostel's live keys without a code change.
+  - variable: NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY
+    secret: paystackPublicKey
+  - variable: PAYSTACK_SECRET_KEY
+    secret: paystackSecretKey
+    availability:
+      - RUNTIME
+
+  # Signs the QR code on tenant ID cards
+  - variable: ID_CARD_SECRET
+    secret: idCardSecret
+    availability:
+      - RUNTIME
+
+  # No service account variable: on App Hosting the server already runs as the project's
+  # service account, and src/lib/server/admin.ts uses that.
