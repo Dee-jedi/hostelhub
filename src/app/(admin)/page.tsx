@@ -8,6 +8,7 @@ import { BlockOccupancyChart, ExpiryForecastChart } from "@/components/charts";
 import { toast } from "@/components/toast";
 import { Avatar, Badge, BtnLabel, Button, headerBtn, PageHeader, Panel, PanelLink, RentBadge, StatCard } from "@/components/ui";
 import { useDashboard } from "@/lib/dashboard";
+import { spaceLabel } from "@/lib/spaces";
 import { runAutomatedReminders, useHostel } from "@/lib/store";
 import { openResident } from "@/lib/ui-store";
 import { addDays, cn, daysLeft, describeDaysLeft, formatDateTime, isOpenTicket, naira, nairaShort, todayISO } from "@/lib/utils";
@@ -56,8 +57,19 @@ export default function DashboardPage() {
       />
 
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-        <StatCard label="Room occupancy" value={`${occPct}%`} sub={`${d.occupiedRooms} of ${d.usableRooms} rooms let · ${d.people} people`} icon={<BedDouble />} />
-        <StatCard label="Vacant rooms" value={d.vacantRooms} sub={`${d.maintenanceRooms} under maintenance`} icon={<DoorOpen />} tone="blue" />
+        <StatCard
+          label={d.unit === "bed" ? "Bed occupancy" : "Room occupancy"}
+          value={`${occPct}%`}
+          sub={`${d.occupiedRooms} of ${d.usableRooms} ${d.unit}s let · ${d.people} people`}
+          icon={<BedDouble />}
+        />
+        <StatCard
+          label={d.unit === "bed" ? "Free beds" : "Vacant rooms"}
+          value={d.vacantRooms}
+          sub={`${d.maintenanceRooms} room${d.maintenanceRooms === 1 ? "" : "s"} under maintenance`}
+          icon={<DoorOpen />}
+          tone="blue"
+        />
         <StatCard label="Expiring this month" value={d.expiringThisMonth.length} sub={`${d.due30.length} due in the next 30 days`} icon={<CalendarClock />} tone="amber" />
         <StatCard label="Expired rent" value={d.expired.length} sub={`${naira(d.outstanding)} outstanding`} icon={<AlertTriangle />} tone="red" />
       </div>
@@ -77,7 +89,7 @@ export default function DashboardPage() {
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium text-heading-2">{r.fullName}</p>
                     <p className="text-xs text-heading-6">
-                      Room {r.roomId} · {r.phone}
+                      {spaceLabel(r.roomId, r.spaceId)} · {r.phone}
                     </p>
                   </div>
                   <span className="hidden text-xs text-heading-6 sm:block">{describeDaysLeft(daysLeft(r))}</span>
@@ -90,7 +102,7 @@ export default function DashboardPage() {
         </Panel>
 
         <div className="flex flex-col gap-4">
-          <Panel title="Rent status" description={`${d.residents.length} rooms let`}>
+          <Panel title="Rent status" description={`${d.residents.length} ${d.unit}s let`}>
             <div className="p-4">
               <div className="flex h-2.5 gap-0.5 overflow-hidden rounded-full">
                 <div className="bg-emerald-500" style={{ width: `${(d.statusCounts.active / totalStatus) * 100}%` }} />
@@ -136,7 +148,7 @@ export default function DashboardPage() {
       </div>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
-        <Panel title="Rent expiry forecast" description="Rooms whose rent runs out each month" action={<PanelLink href="/renewals">Renewals</PanelLink>}>
+        <Panel title="Rent expiry forecast" description={d.unit === "bed" ? "Beds whose rent runs out each month" : "Rooms whose rent runs out each month"} action={<PanelLink href="/renewals">Renewals</PanelLink>}>
           <div className="px-2 pt-4 pb-1">
             <ExpiryForecastChart data={d.forecast} />
           </div>
@@ -146,7 +158,7 @@ export default function DashboardPage() {
           </div>
         </Panel>
 
-        <Panel title="Occupancy by block" description="Occupied and vacant rooms" action={<PanelLink href="/rooms">Room map</PanelLink>}>
+        <Panel title="Occupancy by block" description={d.unit === "bed" ? "Taken and free beds" : "Occupied and vacant rooms"} action={<PanelLink href="/rooms">Room map</PanelLink>}>
           <div className="px-2 pt-4 pb-2">
             <BlockOccupancyChart data={d.blocks} />
           </div>

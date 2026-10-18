@@ -10,7 +10,8 @@ import { Avatar, Badge, BtnLabel, Button, headerBtn, Card, EmptyState, PageHeade
 import { runAutomatedReminders, useHostel } from "@/lib/store";
 import { openResident } from "@/lib/ui-store";
 import { TEMPLATES } from "@/lib/templates";
-import { activeResidents, daysLeft, describeDaysLeft, fillTemplate, formatDate, formatDateTime, isSameMonth, naira, todayISO, whatsappLink } from "@/lib/utils";
+import type { Resident } from "@/lib/types";
+import { activeResidents, daysLeft, describeDaysLeft, fillTemplate, formatDate, formatDateTime, isSameMonth, naira, rentFor, todayISO, whatsappLink } from "@/lib/utils";
 
 type View = "expired" | "month" | "30" | "60";
 
@@ -41,6 +42,8 @@ export default function RenewalsPage() {
     return map;
   }, [s.messages]);
 
+  // Each tenant's own rent: room types can differ in price
+  const rentOf = (rs: Resident[]) => rs.reduce((n, r) => n + rentFor(s, r), 0);
   const list = groups[view];
   const selectedResidents = list.filter((r) => selected.has(r.id));
   const allChecked = list.length > 0 && selectedResidents.length === list.length;
@@ -100,9 +103,9 @@ export default function RenewalsPage() {
         </Card>
         <Card bodyClassName="p-5">
           <p className="text-sm font-medium text-slate-500">Expected renewals (next 30 days)</p>
-          <p className="mt-2 text-[29px] leading-tight font-medium text-slate-900 tabular-nums">{naira(groups["30"].length * s.settings.rentAmount)}</p>
+          <p className="mt-2 text-[29px] leading-tight font-medium text-slate-900 tabular-nums">{naira(rentOf(groups["30"]))}</p>
           <p className="mt-1 text-xs text-slate-500">
-            {groups["30"].length} residents · plus {naira(groups.expired.length * s.settings.rentAmount)} overdue
+            {groups["30"].length} residents · plus {naira(rentOf(groups.expired))} overdue
           </p>
         </Card>
       </div>
@@ -211,7 +214,7 @@ export default function RenewalsPage() {
               {list.length} resident{list.length === 1 ? "" : "s"}
             </span>
             <span>
-              Rent value: <span className="font-semibold text-slate-700">{naira(list.length * s.settings.rentAmount)}</span>
+              Rent value: <span className="font-semibold text-slate-700">{naira(rentOf(list))}</span>
             </span>
           </div>
         )}

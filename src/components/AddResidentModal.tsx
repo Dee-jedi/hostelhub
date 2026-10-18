@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { addResident, resolveBooking, useHostel } from "@/lib/store";
 import type { PaymentMethod, StudentInfo } from "@/lib/types";
-import { addMonths, availableRooms, formatDate, naira, todayISO } from "@/lib/utils";
+import { addMonths, availableRooms, formatDate, freeSpaces, naira, roomTypeOf, todayISO } from "@/lib/utils";
 import { EMPTY_STUDENT, StudentForm, validateStudent } from "./StudentForm";
 import { toast } from "./toast";
 import { Button, Field, Input, Modal, Select } from "./ui";
@@ -38,11 +38,15 @@ export function RoomSelect({
         <optgroup key={b} label={`Block ${b}${b === preferredBlock ? " (preferred)" : ""}`}>
           {rooms
             .filter((r) => r.block === b)
-            .map((r) => (
-              <option key={r.id} value={r.id}>
-                Room {r.id}
-              </option>
-            ))}
+            .map((r) => {
+              const t = roomTypeOf(s, r);
+              const free = freeSpaces(s, r).length;
+              return (
+                <option key={r.id} value={r.id}>
+                  {t.pricingMode === "per_bed" ? `Room ${r.id} · ${free} of ${t.capacity} beds free` : (s.roomTypes?.length ?? 0) > 1 ? `Room ${r.id} · ${t.name}` : `Room ${r.id}`}
+                </option>
+              );
+            })}
         </optgroup>
       ))}
     </Select>
@@ -68,11 +72,21 @@ export function AddResidentModal({
   const [info, setInfo] = useState<StudentInfo>(initial ?? EMPTY_STUDENT);
   const [roomId, setRoomId] = useState(presetRoomId);
   const [paid, setPaid] = useState(true);
-  const [amount, setAmount] = useState(String(s.settings.rentAmount));
+  const [amount, setAmount] = useState(String(roomTypeOf(s, s.rooms.find((r) => r.id === presetRoomId)).price));
   const [method, setMethod] = useState<PaymentMethod>("Transfer");
   const [reference, setReference] = useState("");
   const [start, setStart] = useState(todayISO());
   const [saving, setSaving] = useState(false);
+
+  const chosenType = roomTypeOf(s, s.rooms.find((r) => r.id === roomId));
+  // Per-bed rooms: everyone rents their own bed, so nobody is recorded as sharing
+  const sharingLimit = chosenType.pricingMode === "per_bed" ? 1 : chosenType.capacity;
+  const pickRoom = (id: string) => {
+    setRoomId(id);
+    const t = roomTypeOf(s, s.rooms.find((r) => r.id === id));
+    setAmount(String(t.price));
+    if (t.pricingMode === "per_bed") setInfo((x) => ({ ...x, occupants: [] }));
+  };
 
   const submit = async () => {
     const err = validateStudent(info);
@@ -105,13 +119,13 @@ export function AddResidentModal({
         </>
       }
     >
-      <StudentForm value={info} onChange={setInfo} maxOccupants={s.settings.maxOccupants} />
+      <StudentForm value={info} onChange={setInfo} maxOccupants={sharingLimit} />
 
       <fieldset className="mt-7">
         <legend className="mb-3 text-xs font-semibold tracking-wider text-slate-500 uppercase">Room & rent</legend>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Room" required hint="Only vacant rooms are listed">
-            <RoomSelect value={roomId} onChange={setRoomId} preferredBlock={preferredBlock} />
+            <RoomSelect value={roomId} onChange={pickRoom} preferredBlock={preferredBlock} />
           </Field>
           {!bookingId && (
             <Field label="Rent start date" hint={`Ends ${formatDate(addMonths(start, s.settings.leaseMonths))}`}>

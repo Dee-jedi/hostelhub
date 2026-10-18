@@ -3,6 +3,7 @@
 import { Check, ChevronLeft, ChevronRight, DoorOpen, Wrench } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import type { PublicBookingDoc } from "@/lib/types";
+import { bookableSpaces } from "@/lib/spaces";
 import { cn, isBookable } from "@/lib/utils";
 
 type TileState = "vacant" | "selected" | "held" | "occupied" | "maintenance";
@@ -73,7 +74,10 @@ export function RoomPicker({
 }) {
   const blocks = doc.info.blocks;
   const ids = Object.keys(doc.rooms);
-  const vacantIn = (block: string) => ids.filter((id) => doc.rooms[id].block === block && isBookable(doc, id, now)).length;
+  // Per-bed hostels count free beds; per-room hostels count free rooms
+  const perBed = ids.some((id) => doc.rooms[id].beds);
+  const freeIn = (id: string) => bookableSpaces(id, doc.rooms[id], doc.holds, now).length;
+  const vacantIn = (block: string) => ids.filter((id) => doc.rooms[id].block === block).reduce((n, id) => n + (perBed ? freeIn(id) : isBookable(doc, id, now) ? 1 : 0), 0);
   const firstWithSpace = blocks.find((b) => vacantIn(b) > 0) ?? blocks[0];
   const [block, setBlock] = useState(() => (value ? doc.rooms[value]?.block : undefined) ?? firstWithSpace);
   const rooms = ids.filter((id) => doc.rooms[id].block === block).sort((a, b) => doc.rooms[a].number - doc.rooms[b].number);
@@ -107,7 +111,7 @@ export function RoomPicker({
           {id}
         </span>
         <span className={cn("mt-0.5 text-[10px] font-medium", st === "selected" ? "text-white/85" : st === "vacant" ? "text-brand-700" : "")}>
-          {statusText[st]}
+          {doc.rooms[id].beds && (st === "vacant" || st === "selected") ? `${freeIn(id)} bed${freeIn(id) === 1 ? "" : "s"} free` : statusText[st]}
         </span>
       </button>
     );
@@ -117,7 +121,8 @@ export function RoomPicker({
     <div>
       <div className="mb-3 flex items-center justify-between gap-3">
         <p className="text-sm text-heading-5">
-          <span className="font-semibold text-brand-700">{totalVacant}</span> room{totalVacant === 1 ? "" : "s"} available
+          <span className="font-semibold text-brand-700">{totalVacant}</span> {perBed ? "bed" : "room"}
+          {totalVacant === 1 ? "" : "s"} available
         </p>
         <span className="inline-flex items-center gap-1.5 text-xs text-heading-6">
           <span className="size-1.5 animate-pulse rounded-full bg-emerald-500" /> Live

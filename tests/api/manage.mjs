@@ -54,7 +54,6 @@ async function check(label, fn) {
 // Pick a tenant and some vacant rooms from the demo data
 const listing = (await db.doc(`listings/${H}`).get()).data();
 const vacant = Object.entries(listing.rooms).filter(([, r]) => r.status === "vacant").map(([id]) => id);
-const occupiedRoom = Object.entries(listing.rooms).find(([, r]) => r.status === "occupied")[0];
 const stays = (await db.collection(`hostels/${H}/tenancies`).where("status", "==", "active").get()).docs.map((d) => d.data());
 // Tenants from the demo data itself (ids res_…), so the reset at the end puts them back
 const demo = stays.filter((t) => t.residentId.startsWith("res_") && t.roomId);

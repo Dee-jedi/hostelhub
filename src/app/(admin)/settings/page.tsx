@@ -2,11 +2,12 @@
 
 import { Database, Plus, RotateCcw, Save, Trash2 } from "lucide-react";
 import { useState } from "react";
+import { RoomTypesPanel } from "@/components/RoomTypesPanel";
 import { toast } from "@/components/toast";
 import { BtnLabel, Button, headerBtn, Panel, Field, Input, Modal, PageHeader } from "@/components/ui";
 import { getState, resetDemoData, startFresh, updateSettings, useHostel } from "@/lib/store";
 import type { Settings } from "@/lib/types";
-import { naira } from "@/lib/utils";
+
 
 export default function SettingsPage() {
   const s = useHostel();
@@ -39,7 +40,7 @@ export default function SettingsPage() {
     <>
       <PageHeader
         title="Settings"
-        description="Hostel details, pricing, rooms and reminder schedule."
+        description="Hostel details, room types and prices, rooms and reminder schedule."
         actions={
           <Button className={headerBtn} onClick={save}>
             <Save className="size-4" />
@@ -71,10 +72,7 @@ export default function SettingsPage() {
 
         <Panel title="Rent & payment">
           <div className="grid gap-4 p-5 sm:grid-cols-2">
-            <Field label="Rent per room (₦)" hint={naira(form.rentAmount)}>
-              <Input inputMode="numeric" value={form.rentAmount} onChange={(e) => set("rentAmount", Number(e.target.value.replace(/\D/g, "")) || 0)} />
-            </Field>
-            <Field label="Rent period (months)">
+            <Field label="Rent period (months)" hint="Rent for each room size is under Room types">
               <Input type="number" min={1} value={form.leaseMonths} onChange={(e) => set("leaseMonths", Math.max(1, Number(e.target.value)))} />
             </Field>
             <Field label="Bank">
@@ -92,14 +90,13 @@ export default function SettingsPage() {
           </div>
         </Panel>
 
+        <RoomTypesPanel />
+
         <Panel className="lg:col-span-2" title="Blocks & rooms" description={`${form.blocks.length} blocks × ${form.roomsPerBlock} rooms = ${totalRooms} rooms`}>
           <div className="p-5">
             <div className="mb-5 grid gap-4 sm:grid-cols-3">
               <Field label="Rooms per block">
                 <Input type="number" min={1} value={form.roomsPerBlock} onChange={(e) => set("roomsPerBlock", Math.max(1, Number(e.target.value)))} />
-              </Field>
-              <Field label="Max people per room" hint="Tenant plus anyone sharing">
-                <Input type="number" min={1} value={form.maxOccupants} onChange={(e) => set("maxOccupants", Math.max(1, Number(e.target.value)))} />
               </Field>
             </div>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
@@ -127,7 +124,7 @@ export default function SettingsPage() {
                 <Plus className="size-4" /> Add block
               </Button>
             </div>
-            <p className="mt-3 text-xs text-slate-500">Removing a block hides its rooms; residents keep their records.</p>
+            <p className="mt-3 text-xs text-slate-500">New rooms get your first room type; change sizes on the Rooms page. A block with tenants can&apos;t be removed.</p>
           </div>
         </Panel>
 

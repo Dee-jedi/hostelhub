@@ -4,7 +4,7 @@ import { Printer } from "lucide-react";
 import { useState } from "react";
 import { recordPayment, useHostel } from "@/lib/store";
 import type { Payment, PaymentMethod } from "@/lib/types";
-import { addMonths, formatDate, naira, todayISO } from "@/lib/utils";
+import { addMonths, formatDate, naira, rentFor, todayISO } from "@/lib/utils";
 import { toast } from "./toast";
 import { Button, Field, Input, Modal, Select } from "./ui";
 
@@ -74,7 +74,7 @@ export function ReceiptModal({ payment, onClose }: { payment: Payment | null; on
 export function PaymentModal({ residentId, onClose }: { residentId: string | null; onClose: () => void }) {
   const s = useHostel();
   const resident = s.residents.find((r) => r.id === residentId);
-  const [amount, setAmount] = useState(String(s.settings.rentAmount));
+  const [amount, setAmount] = useState(String(rentFor(s, s.residents.find((r) => r.id === residentId))));
   const [method, setMethod] = useState<PaymentMethod>("Transfer");
   const [reference, setReference] = useState("");
   const [date, setDate] = useState(todayISO());

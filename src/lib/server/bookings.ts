@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { FieldValue } from "firebase-admin/firestore";
 import type { HostelBooking, HostelMessage, HostelPayment, HostelResident, HostelRoom, Listing, Tenancy } from "../model";
 import type { StudentInfo } from "../types";
-import { bookableSpaces, spaceIdsOf } from "../spaces";
+import { bedOf, bookableSpaces, spaceIdsOf } from "../spaces";
 import { addMonths, todayISO, toStudentInfo } from "../utils";
 import { adminDb } from "./admin";
 import { setTenantOf } from "./claims";
@@ -60,6 +60,9 @@ export async function startBooking(input: { hostelId: string; uid: string; email
     if (!room || !spaceId) throw new BookingError(`Room ${input.roomId} was just taken. Please pick another room.`);
     amount = type.price;
     chosenSpace = spaceId;
+    const sharing = (input.info.occupants ?? []).length;
+    if (type.pricingMode === "per_bed" && sharing) throw new BookingError("Each bed is booked by one person. Remove the room occupants, or have each person book their own bed.");
+    if (type.pricingMode === "per_room" && sharing + 1 > type.capacity) throw new BookingError(`Room ${input.roomId} takes up to ${type.capacity} people including you.`);
 
     // One hold per person, and sweep expired holds while we're here
     const updates: Record<string, unknown> = {};
@@ -110,6 +113,7 @@ async function releaseHold(h: string, spaceId: string, reference: string) {
 export interface BookingResult {
   status: HostelBooking["status"] | "failed";
   roomId?: string;
+  spaceId?: string;
   fullName?: string;
   amount?: number;
   receiptNo?: string;
@@ -186,7 +190,7 @@ export async function finalizeBooking(hostelId: string, reference: string): Prom
     };
     const welcome: HostelMessage = {
       id: newId("msg_"), kind: "notice", channel: "Email", recipientIds: [booking.uid], recipientUids: [booking.uid],
-      body: `Welcome to ${hostel.name}, ${booking.fullName.split(" ")[0]}! Your payment of ₦${(trx.amount / 100).toLocaleString("en-NG")} is confirmed and room ${booking.roomId} is yours until ${leaseEnd}. Receipt ${receipt.receiptNo}.`,
+      body: `Welcome to ${hostel.name}, ${booking.fullName.split(" ")[0]}! Your payment of ₦${(trx.amount / 100).toLocaleString("en-NG")} is confirmed and ${bedOf(spaceId, booking.roomId) ? `bed ${bedOf(spaceId, booking.roomId)} in room ${booking.roomId}` : `room ${booking.roomId}`} is yours until ${leaseEnd}. Receipt ${receipt.receiptNo}.`,
       sentAt: now, automated: true,
     };
 
@@ -215,6 +219,7 @@ async function summarize(h: string, reference: string): Promise<BookingResult> {
   return {
     status: "paid",
     roomId: booking.roomId,
+    spaceId: booking.spaceId,
     fullName: booking.fullName,
     amount: booking.amount,
     receiptNo: booking.receiptNo,

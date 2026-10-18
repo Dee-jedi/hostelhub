@@ -4,8 +4,10 @@
 |---|---|---|
 | `npm run test:unit` | Pure logic (hostel from address, access claims) | Nothing |
 | `npm run test:rules` | The multi-hostel Firestore rules, on the **staging** database, with throwaway logins and hostels it cleans up | `.env.local` and the service account file |
-| `npm run test:api` | The server command layer (`/api/me`, `/api/platform/access`) and every manager action (`/api/manage/*`, checked in the database, then the demo is reset) on a running site (`HH_BASE`, default staging) | Same |
+| `npm run test:api` | The server command layer (`/api/me`, `/api/platform/access`) and every manager action (`/api/manage/*`, checked in the database, then the demo is reset) and the per-bed rules on Unity (`beds.mjs`) on a running site (`HH_BASE`, default staging) | Same |
 | `npm run test:e2e` / `test:smoke` | The whole app in a browser (below) | Staff login |
+| `node tests/e2e/beds-ui.mjs [url]` | The per-bed screens on the Unity demo: add a room type, Set sizes, add a tenant to a bed, a student books and pays for a bed, portal shows it; then resets Unity. Default `http://unity.localhost:3100` | Staff login |
+| `node tests/e2e/screens.mjs <url> <name>` | Screenshots of booking, dashboard, Rooms and Settings for one hostel | Staff login |
 
 ## Browser tests
 

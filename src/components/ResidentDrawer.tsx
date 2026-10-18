@@ -4,8 +4,10 @@ import { ArrowRightLeft, CreditCard, LogOut, MessageCircle, Pencil, Phone, Recei
 import { useEffect, useState } from "react";
 import { HISTORY_WINDOW, moveOut, updateResident, useHistoryLoaded, useHostel, watchResidentPayments } from "@/lib/store";
 import type { Payment, StudentInfo } from "@/lib/types";
-import { academicLine, daysLeft, describeDaysLeft, formatDate, naira, rentStatus, whatsappLink, fillTemplate } from "@/lib/utils";
+import { academicLine, daysLeft, describeDaysLeft, formatDate, naira, rentStatus, whatsappLink, fillTemplate, occupantsByRoom, roomTypeOf } from "@/lib/utils";
+import { bedOf, spaceLabel } from "@/lib/spaces";
 import { TEMPLATES } from "@/lib/templates";
+import { openResident } from "@/lib/ui-store";
 import { RoomSelect } from "./AddResidentModal";
 import { ComposeModal } from "./ComposeModal";
 import { PaymentModal, ReceiptModal } from "./PaymentModal";
@@ -41,6 +43,9 @@ export function ResidentDrawer({ residentId, onClose }: { residentId: string | n
 
   if (!resident) return null;
   const payments = s.payments.filter((p) => p.residentId === resident.id);
+  const roomType = roomTypeOf(s, s.rooms.find((r) => r.id === resident.roomId));
+  const perBedRoom = roomType.pricingMode === "per_bed";
+  const roommates = perBedRoom && resident.roomId ? (occupantsByRoom(s).get(resident.roomId) ?? []).filter((r) => r.id !== resident.id) : [];
   const left = daysLeft(resident);
   const status = rentStatus(resident);
   const active = resident.status === "active";
@@ -60,7 +65,7 @@ export function ResidentDrawer({ residentId, onClose }: { residentId: string | n
       <Drawer open onClose={onClose} title="Tenant profile">
         {editing ? (
           <div className="p-5">
-            <StudentForm value={editing} onChange={setEditing} maxOccupants={s.settings.maxOccupants} />
+            <StudentForm value={editing} onChange={setEditing} maxOccupants={perBedRoom ? 1 : roomType.capacity} />
             <div className="mt-6 flex justify-end gap-2">
               <Button variant="secondary" onClick={() => setEditing(null)}>
                 Cancel
@@ -79,7 +84,7 @@ export function ResidentDrawer({ residentId, onClose }: { residentId: string | n
                     {academicLine(resident)}
                   </p>
                   <div className="mt-2 flex flex-wrap gap-1.5">
-                    {resident.roomId && <Badge tone="brand">Room {resident.roomId}</Badge>}
+                    {resident.roomId && <Badge tone="brand">{spaceLabel(resident.roomId, resident.spaceId).replace(", bed", " · bed")}</Badge>}
                     <RentBadge resident={resident} />
                     <Badge>{resident.sex}</Badge>
                   </div>
@@ -151,31 +156,54 @@ export function ResidentDrawer({ residentId, onClose }: { residentId: string | n
                 </dl>
               </section>
 
-              <section>
-                <h3 className="mb-3 text-xs font-semibold tracking-wider text-slate-500 uppercase">
-                  Room occupants <span className="font-normal normal-case">({resident.occupants.length + 1} of {s.settings.maxOccupants})</span>
-                </h3>
-                <ul className="divide-y divide-grey-100 rounded-xl border border-grey-100">
-                  <li className="flex items-center gap-3 px-3 py-2.5">
-                    <Avatar name={resident.fullName} src={resident.photoUrl} size="sm" />
-                    <span className="flex-1 text-sm font-medium text-heading-2">{resident.fullName}</span>
-                    <Badge tone="brand">Tenant</Badge>
-                  </li>
-                  {resident.occupants.map((o, i) => (
-                    <li key={i} className="flex items-center gap-3 px-3 py-2.5">
-                      <Avatar name={o.fullName} size="sm" />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-heading-2">{o.fullName}</p>
-                        <p className="text-xs text-heading-6">{academicLine(o, true)}</p>
-                      </div>
-                      <a href={`tel:${o.phone}`} className="text-xs text-brand-700 hover:underline">
-                        {o.phone}
-                      </a>
+              {perBedRoom ? (
+                <section>
+                  <h3 className="mb-3 text-xs font-semibold tracking-wider text-slate-500 uppercase">
+                    Roommates <span className="font-normal normal-case">({roommates.length + 1} of {roomType.capacity} beds taken)</span>
+                  </h3>
+                  {roommates.length === 0 ? (
+                    <p className="text-xs text-heading-6">Nobody else in this room yet.</p>
+                  ) : (
+                    <ul className="divide-y divide-grey-100 rounded-xl border border-grey-100">
+                      {roommates.map((m) => (
+                        <li key={m.id}>
+                          <button onClick={() => openResident(m.id)} className="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-grey-10">
+                            <Avatar name={m.fullName} src={m.photoUrl} size="sm" />
+                            <span className="min-w-0 flex-1 truncate text-sm font-medium text-heading-2">{m.fullName}</span>
+                            <Badge tone="slate">Bed {bedOf(m.spaceId, m.roomId) ?? "?"}</Badge>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
+              ) : (
+                <section>
+                  <h3 className="mb-3 text-xs font-semibold tracking-wider text-slate-500 uppercase">
+                    Room occupants <span className="font-normal normal-case">({resident.occupants.length + 1} of {roomType.capacity})</span>
+                  </h3>
+                  <ul className="divide-y divide-grey-100 rounded-xl border border-grey-100">
+                    <li className="flex items-center gap-3 px-3 py-2.5">
+                      <Avatar name={resident.fullName} src={resident.photoUrl} size="sm" />
+                      <span className="flex-1 text-sm font-medium text-heading-2">{resident.fullName}</span>
+                      <Badge tone="brand">Tenant</Badge>
                     </li>
-                  ))}
-                </ul>
-                {resident.occupants.length === 0 && <p className="mt-2 text-xs text-heading-6">Living alone. Use Edit to record anyone sharing the room.</p>}
-              </section>
+                    {resident.occupants.map((o, i) => (
+                      <li key={i} className="flex items-center gap-3 px-3 py-2.5">
+                        <Avatar name={o.fullName} size="sm" />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium text-heading-2">{o.fullName}</p>
+                          <p className="text-xs text-heading-6">{academicLine(o, true)}</p>
+                        </div>
+                        <a href={`tel:${o.phone}`} className="text-xs text-brand-700 hover:underline">
+                          {o.phone}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                  {resident.occupants.length === 0 && <p className="mt-2 text-xs text-heading-6">Living alone. Use Edit to record anyone sharing the room.</p>}
+                </section>
+              )}
 
               <section>
                 <h3 className="mb-3 text-xs font-semibold tracking-wider text-slate-500 uppercase">Next of kin</h3>

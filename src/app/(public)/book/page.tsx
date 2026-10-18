@@ -15,6 +15,7 @@ import { toast } from "@/components/toast";
 import { Button, Field, Input, PasswordInput } from "@/components/ui";
 import { authMessage } from "@/lib/auth";
 import { listingPath } from "@/lib/current-hostel";
+import { bedOf, spaceLabel } from "@/lib/spaces";
 import { auth, db, storage } from "@/lib/firebase";
 import type { PublicBookingDoc, StudentInfo } from "@/lib/types";
 import { addMonths, cn, formatDate, isBookable, naira, todayISO } from "@/lib/utils";
@@ -24,6 +25,7 @@ const STEPS = ["Your details", "Pick a room", "Pay"] as const;
 interface Result {
   status: "paid" | "needs_attention" | "pending" | "resolved" | "failed";
   roomId?: string;
+  spaceId?: string;
   fullName?: string;
   amount?: number;
   receiptNo?: string;
@@ -165,6 +167,10 @@ export default function BookPage() {
 
   const nextFromRoom = () => {
     if (!roomId) return toast("Tap a room to select it", "info");
+    const type = pub?.info.roomTypes?.find((t) => t.id === pub.rooms[roomId]?.typeId);
+    if (type?.pricingMode === "per_room" && info.occupants.length + 1 > type.capacity) {
+      return toast(`Room ${roomId} is a ${type.name.toLowerCase()}: up to ${type.capacity} people including you. Remove someone from "Room occupants" or pick a bigger room.`, "info");
+    }
     if (pub && !isBookable(pub, roomId, Date.now(), auth.currentUser?.uid)) {
       toast(`Room ${roomId} was just taken. Please pick another.`, "info");
       return setRoomId("");
@@ -219,6 +225,15 @@ export default function BookPage() {
     }
   };
 
+  // Prices come from each room's type; per-bed hostels show beds instead of rooms
+  const types = pub?.info.roomTypes ?? [];
+  const perBed = types.some((t) => t.pricingMode === "per_bed");
+  const unit = perBed ? "bed" : "room";
+  const chosenType = pub && roomId ? (types.find((t) => t.id === pub.rooms[roomId]?.typeId) ?? null) : null;
+  const price = chosenType?.price ?? pub?.info.rentAmount ?? 0;
+  const prices = [...new Set(types.map((t) => t.price))];
+  const priceLine = !pub ? "" : prices.length > 1 ? `From ${naira(Math.min(...prices))} per ${unit}` : `${naira(prices[0] ?? pub.info.rentAmount)} per ${unit}`;
+
   // Only once the room data has loaded in the browser (the page is prerendered without a clock)
   const leaseStart = pub ? todayISO() : "";
   const leaseEnd = pub ? addMonths(leaseStart, pub.info.leaseMonths) : leaseStart;
@@ -227,14 +242,14 @@ export default function BookPage() {
     <BrandLayout
       phoneIllustration={false}
       title={pub ? `Book your room at ${pub.info.hostelName}` : "Book your room"}
-      subtitle={pub ? `${naira(pub.info.rentAmount)} per room for ${pub.info.leaseMonths} months · Pay securely online` : undefined}
+      subtitle={pub ? `${priceLine} for ${pub.info.leaseMonths} months · Pay securely online` : undefined}
       action={{ href: "/login", label: "Log in" }}
     >
       <div className="mx-auto w-full max-w-2xl">
         {!result && (
           <div className="mb-6">
             <h1 className="text-2xl font-semibold tracking-tight text-grey-950">{pub?.info.hostelName ?? "Book a room"}</h1>
-            <p className="mt-1 text-sm text-heading-6">{pub ? `${naira(pub.info.rentAmount)} per room · ${pub.info.leaseMonths} months` : "Loading rooms…"}</p>
+            <p className="mt-1 text-sm text-heading-6">{pub ? `${priceLine} · ${pub.info.leaseMonths} months` : "Loading rooms…"}</p>
           </div>
         )}
         {result ? (
@@ -272,7 +287,7 @@ export default function BookPage() {
                       }}
                     />
                   </div>
-                  <StudentForm value={info} onChange={setInfo} maxOccupants={pub.info.maxOccupants} hideEmail requireMatric />
+                  <StudentForm value={info} onChange={setInfo} maxOccupants={perBed ? 1 : pub.info.maxOccupants} hideEmail requireMatric />
                 </FormCard>
                 <StepActions>
                   <Button className="h-12 flex-1 rounded-xl text-[15px]" onClick={nextFromDetails}>
@@ -287,9 +302,18 @@ export default function BookPage() {
                 <FormCard
                   icon={BedDouble}
                   title="Pick your room"
-                  description={`Choose the room you were shown. Rent is per room, for up to ${pub.info.maxOccupants} people.`}
+                  description={
+                    perBed
+                      ? "Choose the room you were shown. Rent is per bed; you'll get the next free bed in that room."
+                      : `Choose the room you were shown. Rent is per room, for up to ${pub.info.maxOccupants} people.`
+                  }
                 >
                   <RoomPicker doc={pub} now={now} value={roomId} onChange={setRoomId} />
+                  {chosenType && (
+                    <p className="mt-3 rounded-xl bg-brand-50 px-3 py-2 text-sm text-brand-900">
+                      Room {roomId} · {chosenType.name} · <span className="font-semibold">{naira(chosenType.price)}</span> per {chosenType.pricingMode === "per_bed" ? "bed" : "room"}
+                    </p>
+                  )}
                 </FormCard>
                 <StepActions>
                   <Button variant="secondary" className="h-12 rounded-xl" onClick={() => goTo(0)} aria-label="Back">
@@ -316,12 +340,13 @@ export default function BookPage() {
                     </div>
                   </div>
                   <dl className="divide-y divide-grey-100 text-sm">
-                    <Row label="Room" value={`${roomId} · Block ${pub.rooms[roomId]?.block}`} />
+                    <Row label="Room" value={`${roomId} · Block ${pub.rooms[roomId]?.block}${chosenType ? ` · ${chosenType.name}` : ""}`} />
+                    {perBed && <Row label="Bed" value="The next free bed, confirmed after payment" />}
                     <Row label="Rent period" value={`${formatDate(leaseStart)} – ${formatDate(leaseEnd)}`} />
                     {info.occupants.length > 0 && <Row label="Sharing with" value={info.occupants.map((o) => o.fullName).join(", ")} />}
                     <div className="flex items-center justify-between pt-3">
                       <dt className="font-medium text-grey-950">Total</dt>
-                      <dd className="text-lg font-semibold text-grey-950">{naira(pub.info.rentAmount)}</dd>
+                      <dd className="text-lg font-semibold text-grey-950">{naira(price)}</dd>
                     </div>
                   </dl>
                   {heldUntil > 0 && (
@@ -361,7 +386,7 @@ export default function BookPage() {
                     <ArrowLeft className="size-4" /> <span className="max-sm:hidden">Back</span>
                   </Button>
                   <Button className="h-12 flex-1 rounded-xl text-[15px]" onClick={pay} disabled={paying}>
-                    <Lock className="size-4" /> {paying ? "Opening payment…" : `Pay ${naira(pub.info.rentAmount)}`}
+                    <Lock className="size-4" /> {paying ? "Opening payment…" : `Pay ${naira(price)}`}
                   </Button>
                 </StepActions>
                 <p className="flex items-center justify-center gap-1.5 text-xs text-heading-6">
@@ -511,7 +536,9 @@ function Done({ result }: { result: Result }) {
       <section className={cn(CARD, "p-6 sm:p-8")}>
         <div className="text-center">
           <CheckCircle2 className="mx-auto size-14 text-emerald-500" />
-          <h2 className="mt-4 text-xl font-medium text-grey-950">Room {result.roomId} is yours!</h2>
+          <h2 className="mt-4 text-xl font-medium text-grey-950">
+            {bedOf(result.spaceId, result.roomId) ? `Bed ${bedOf(result.spaceId, result.roomId)} in room ${result.roomId} is yours!` : `Room ${result.roomId} is yours!`}
+          </h2>
           <p className="mx-auto mt-2 max-w-sm text-sm text-heading-6">
             Payment confirmed. Welcome, {result.fullName?.split(" ")[0]}. You&apos;re now registered as a tenant.
           </p>
@@ -519,7 +546,7 @@ function Done({ result }: { result: Result }) {
         <dl className="mt-6 divide-y divide-grey-100 rounded-xl border border-grey-100 px-4 text-sm">
           <Row label="Receipt" value={result.receiptNo} />
           <Row label="Amount paid" value={naira(result.amount ?? 0)} />
-          <Row label="Room" value={result.roomId} />
+          <Row label="Room" value={spaceLabel(result.roomId, result.spaceId).replace(/^Room /, "")} />
           <Row label="Rent period" value={`${formatDate(result.leaseStart)} – ${formatDate(result.leaseEnd)}`} />
         </dl>
         <div className="mt-6 flex flex-col gap-2">

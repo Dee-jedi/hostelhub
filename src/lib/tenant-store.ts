@@ -25,9 +25,11 @@ export interface TenantData {
   requests: Ticket[];
   booking: Booking | null;
   info: PublicBookingDoc["info"] | null;
+  /** Each room's type (from the public listing), for the tenant's own rent */
+  roomTypeIds: Record<string, string>;
 }
 
-const EMPTY: TenantData = { status: "idle", uid: null, resident: null, payments: [], notices: [], requests: [], booking: null, info: null };
+const EMPTY: TenantData = { status: "idle", uid: null, resident: null, payments: [], notices: [], requests: [], booking: null, info: null, roomTypeIds: {} };
 
 let data: TenantData = EMPTY;
 let unsubscribers: (() => void)[] = [];
@@ -85,7 +87,13 @@ export function startTenantSync(uid: string) {
   const mine = (name: string) => query(col(name), where("uid", "==", uid));
 
   getDoc(doc(db, listingPath()))
-    .then((snap) => arrived("info", { info: snap.exists() ? ((snap.data() as Listing).info as unknown as PublicBookingDoc["info"]) : null }))
+    .then((snap) => {
+      const listing = snap.exists() ? (snap.data() as Listing) : null;
+      arrived("info", {
+        info: listing ? (listing.info as unknown as PublicBookingDoc["info"]) : null,
+        roomTypeIds: listing ? Object.fromEntries(Object.entries(listing.rooms).map(([id, room]) => [id, room.typeId])) : {},
+      });
+    })
     .catch(failed);
 
   // Someone who paid but has no room yet isn't a tenant: they only see their booking
@@ -274,4 +282,10 @@ export function personalise(body: string, r: Resident | null, info: TenantData["
 export function unreadCount(t: TenantData) {
   const seen = t.resident?.notificationsSeenAt ?? "";
   return tenantNotifications(t).filter((n) => n.at > seen).length;
+}
+
+/** What the tenant pays per rent period: their room's type, or the hostel's starting price. */
+export function tenantRent(t: TenantData) {
+  const typeId = t.resident?.roomId ? t.roomTypeIds[t.resident.roomId] : undefined;
+  return t.info?.roomTypes?.find((x) => x.id === typeId)?.price ?? t.info?.rentAmount ?? 0;
 }

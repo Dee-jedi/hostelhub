@@ -4,7 +4,8 @@ import { ArrowRight, Bell, CalendarClock, ChevronRight, IdCard, MessageSquareWar
 import Link from "next/link";
 import { KindIcon, RequestStatusBadge } from "@/components/RequestStatus";
 import { Avatar } from "@/components/ui";
-import { personalise, useTenant } from "@/lib/tenant-store";
+import { bedOf } from "@/lib/spaces";
+import { personalise, tenantRent, useTenant } from "@/lib/tenant-store";
 import { cn, daysBetween, daysLeft, describeDaysLeft, formatDate, formatDateTime, greeting, isOpenTicket, naira, todayISO } from "@/lib/utils";
 
 const ACTIONS: { href: string; label: string; icon: LucideIcon; tint: string }[] = [
@@ -54,6 +55,7 @@ export default function PortalHome() {
   const open = t.requests.filter(isOpenTicket);
   const latest = t.notices[0];
   const block = r.roomId?.replace(/\d+$/, "");
+  const bed = bedOf(r.spaceId, r.roomId);
 
   return (
     <div className="space-y-5">
@@ -72,7 +74,7 @@ export default function PortalHome() {
           <div className="min-w-0 flex-1">
             <p className="text-xs tracking-wide text-brand-100/70 uppercase">Your room</p>
             <p className="mt-1 text-4xl font-semibold tracking-tight">{r.roomId}</p>
-            <p className="mt-1 text-sm text-brand-100/80">Block {block}</p>
+            <p className="mt-1 text-sm text-brand-100/80">{bed ? `Bed ${bed} · Block ${block}` : `Block ${block}`}</p>
             <div className="mt-4 space-y-1.5 text-sm">
               <p className="flex items-center gap-2 text-brand-50">
                 <CalendarClock className="size-4 shrink-0 text-brand-200" /> Paid until {formatDate(r.leaseEnd)}
@@ -91,7 +93,7 @@ export default function PortalHome() {
             <CalendarClock className="size-5 shrink-0" />
             <span className="min-w-0 flex-1 text-sm">
               <span className="font-semibold">{left < 0 ? "Your rent has expired" : describeDaysLeft(left)}</span>
-              <span className="block text-xs text-amber-900/80">Renew for {t.info ? naira(t.info.rentAmount) : "the next period"} to keep your room</span>
+              <span className="block text-xs text-amber-900/80">Renew for {t.info ? naira(tenantRent(t)) : "the next period"} to keep your {bed ? "bed" : "room"}</span>
             </span>
             <span className="flex items-center gap-1 text-sm font-semibold">
               Renew <ArrowRight className="size-4" />

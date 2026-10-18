@@ -467,6 +467,23 @@ export function updateSettings(patch: Partial<Settings>) {
   inBackground(manage("updateSettings", { settings: { ...state.settings, ...patch } }));
 }
 
+/** Runs an action and resolves to its error message, or null on success (for forms that stay open). */
+async function attempt(action: string, body: unknown): Promise<string | null> {
+  try {
+    await manage(action, body);
+    return null;
+  } catch (err) {
+    return err instanceof Error ? err.message : "Couldn't save that change. Please try again.";
+  }
+}
+
+/** Creates a room type (no id) or edits one: name, how many people, rent per room or bed. */
+export const saveRoomType = (t: { id?: string; name: string; capacity: number; price: number }) => attempt("saveRoomType", t);
+export const deleteRoomType = (id: string) => attempt("deleteRoomType", { id });
+/** "Set size" on the Rooms page: gives the selected rooms a room type. */
+export const setRoomsType = (roomIds: string[], typeId: string) => attempt("setRoomsType", { roomIds, typeId });
+export const setRentalModel = (model: "per_room" | "per_bed") => attempt("setRentalModel", { model });
+
 async function reset(mode: "demo" | "empty") {
   const token = await auth.currentUser?.getIdToken();
   const res = await fetch("/api/admin/reset", {

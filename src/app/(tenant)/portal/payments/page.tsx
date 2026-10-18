@@ -7,7 +7,7 @@ import { toast } from "@/components/toast";
 import { Button } from "@/components/ui";
 import { auth } from "@/lib/firebase";
 import { confirmWithRetry, openPaystack, postJSON } from "@/lib/paystack-client";
-import { useTenant } from "@/lib/tenant-store";
+import { tenantRent, useTenant } from "@/lib/tenant-store";
 import { addMonths, cn, daysLeft, describeDaysLeft, formatDate, naira, todayISO } from "@/lib/utils";
 
 interface RenewalResult {
@@ -21,6 +21,7 @@ export default function PaymentsPage() {
   const t = useTenant();
   const r = t.resident!;
   const info = t.info;
+  const rent = tenantRent(t);
   const [busy, setBusy] = useState<"" | "starting" | "confirming">("");
   const left = daysLeft(r);
   const today = todayISO();
@@ -79,7 +80,7 @@ export default function PaymentsPage() {
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-xs font-medium tracking-wide text-heading-6 uppercase">Next rent</p>
-            <p className="mt-1 text-3xl font-semibold tracking-tight text-grey-950">{info ? naira(info.rentAmount) : "—"}</p>
+            <p className="mt-1 text-3xl font-semibold tracking-tight text-grey-950">{info ? naira(rent) : "—"}</p>
             <p className="mt-1 text-sm text-heading-6">
               Covers {formatDate(nextStart)} – {formatDate(nextEnd)}
             </p>
@@ -109,7 +110,7 @@ export default function PaymentsPage() {
             </>
           ) : (
             <>
-              <Lock className="size-4" /> {busy === "starting" ? "Opening payment…" : left > 30 ? `Renew early · ${info ? naira(info.rentAmount) : ""}` : `Pay ${info ? naira(info.rentAmount) : ""}`}
+              <Lock className="size-4" /> {busy === "starting" ? "Opening payment…" : left > 30 ? `Renew early · ${info ? naira(rent) : ""}` : `Pay ${info ? naira(rent) : ""}`}
             </>
           )}
         </Button>
