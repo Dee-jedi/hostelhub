@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
 import { signOut, useSession } from "@/lib/auth";
-import { startTenantSync, unreadCount, useTenant } from "@/lib/tenant-store";
+import { restartTenantSync, startTenantSync, unreadCount, useTenant } from "@/lib/tenant-store";
 import type { Booking } from "@/lib/types";
 import { cn, isOpenTicket } from "@/lib/utils";
 import { Avatar } from "./ui";
@@ -157,13 +157,27 @@ export function TenantShell({ children }: { children: ReactNode }) {
     else if (user && role === "tenant") startTenantSync(user.uid);
   }, [user, role, router]);
 
+  // If the login itself never comes back, the data watchdog never starts; report that too
+  useEffect(() => {
+    if (user !== undefined) return;
+    const timer = setTimeout(() => console.error("[portal] login state still not restored after 15s"), 15_000);
+    return () => clearTimeout(timer);
+  }, [user]);
+
   const housed = t.status === "ready" && t.resident?.status === "active";
 
   return (
     <div className="min-h-dvh bg-grey-10 print:bg-white">
       <Header withTabs={housed} />
       {t.status === "error" ? (
-        <Centered>Couldn&apos;t load your portal. Check your connection and refresh.</Centered>
+        <Centered>
+          <div className="text-center">
+            <p>Couldn&apos;t load your portal. Check your connection.</p>
+            <button onClick={restartTenantSync} className="mt-2 font-medium text-brand-700 hover:underline">
+              Try again
+            </button>
+          </div>
+        </Centered>
       ) : t.status !== "ready" ? (
         <Centered>
           <span className="flex items-center gap-3">

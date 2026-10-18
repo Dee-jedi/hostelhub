@@ -47,6 +47,9 @@ export function useTenant(): TenantData {
 
 const newest = <T,>(key: keyof T) => (a: T, b: T) => String(b[key]).localeCompare(String(a[key]));
 
+const LOAD_TIMEOUT_MS = 20_000;
+let watchdog: ReturnType<typeof setTimeout> | undefined;
+
 export function startTenantSync(uid: string) {
   if (data.uid === uid && unsubscribers.length) return;
   stopTenantSync();
@@ -61,6 +64,12 @@ export function startTenantSync(uid: string) {
     console.error(err);
     if (data.status !== "ready") set({ status: "error" });
   };
+  // Never spin forever: after a while, say which data didn't arrive and offer a retry
+  watchdog = setTimeout(() => {
+    if (!pending.size) return;
+    console.error(`[portal] still loading after ${LOAD_TIMEOUT_MS / 1000}s; waiting for: ${[...pending].join(", ")}`);
+    set({ status: "error" });
+  }, LOAD_TIMEOUT_MS);
 
   getDoc(doc(db, "public/booking"))
     .then((snap) => arrived("info", { info: snap.exists() ? (snap.data() as PublicBookingDoc).info : null }))
@@ -91,7 +100,15 @@ export function startTenantSync(uid: string) {
   ];
 }
 
+/** Starts loading again from scratch, e.g. from the "Try again" button. */
+export function restartTenantSync() {
+  const uid = data.uid;
+  stopTenantSync();
+  if (uid) startTenantSync(uid);
+}
+
 export function stopTenantSync() {
+  clearTimeout(watchdog);
   unsubscribers.forEach((u) => u());
   unsubscribers = [];
   data = EMPTY;
