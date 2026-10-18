@@ -5,6 +5,7 @@
  *   npm run migrate -- --staging --dry-run     show what would be written
  *   npm run migrate -- --staging               migrate the staging database into hostels/mowarid
  *   npm run migrate -- --staging --force       replace an existing hostels/mowarid
+ *   npm run migrate -- --live                  migrate the LIVE database
  *   --hostel <id>                              another hostel id (default: mowarid)
  *
  * Also marks every current tenant's login as a tenant of the hostel and the demo staff login
@@ -13,6 +14,8 @@
 process.loadEnvFile(".env.local");
 const args = process.argv.slice(2);
 if (args.includes("--staging")) process.env.NEXT_PUBLIC_FIRESTORE_DATABASE = "staging";
+// .env.local points local development at staging; --live targets the live database explicitly
+if (args.includes("--live")) process.env.NEXT_PUBLIC_FIRESTORE_DATABASE = "(default)";
 const hostelId = args.includes("--hostel") ? args[args.indexOf("--hostel") + 1] : "mowarid";
 const dryRun = args.includes("--dry-run");
 const force = args.includes("--force");

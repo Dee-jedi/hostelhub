@@ -1,12 +1,15 @@
 /**
  * One-time setup and demo reset: publishes firestore.rules, loads the demo hostel into
  * Firestore and creates the logins. Run with `npm run seed` (or `npm run seed -- --empty`).
- * For the staging database: `npm run seed -- --staging` (its rules are deployed from firebase.json).
+ * Which database: `--staging` or `--live` (otherwise NEXT_PUBLIC_FIRESTORE_DATABASE from .env.local).
+ * Staging's rules are deployed from firebase.json.
  */
 import { readFileSync } from "node:fs";
 
 process.loadEnvFile(".env.local");
 if (process.argv.includes("--staging")) process.env.NEXT_PUBLIC_FIRESTORE_DATABASE = "staging";
+// .env.local points local development at staging; --live targets the live database explicitly
+if (process.argv.includes("--live")) process.env.NEXT_PUBLIC_FIRESTORE_DATABASE = "(default)";
 
 const { getSecurityRules } = await import("firebase-admin/security-rules");
 const { seedFirestore, ADMIN_EMAIL, ADMIN_DEFAULT_PASSWORD, DEMO_PASSWORD } = await import("../src/lib/server/seed-firestore");
