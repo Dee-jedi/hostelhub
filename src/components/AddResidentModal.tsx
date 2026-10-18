@@ -65,17 +65,17 @@ export function AddResidentModal({
   const [method, setMethod] = useState<PaymentMethod>("Transfer");
   const [reference, setReference] = useState("");
   const [start, setStart] = useState(todayISO());
+  const [saving, setSaving] = useState(false);
 
-  const submit = () => {
+  const submit = async () => {
     const err = validateStudent(info);
     if (err) return toast(err, "info");
     if (!roomId) return toast("Select a room", "info");
-    if (bookingId) {
-      resolveBooking(bookingId, roomId, info);
-    } else {
-      const payment = paid ? { amount: Number(amount.replace(/[^\d]/g, "")) || 0, method, reference } : undefined;
-      addResident(info, roomId, payment, start);
-    }
+    setSaving(true);
+    const payment = paid ? { amount: Number(amount.replace(/[^\d]/g, "")) || 0, method, reference } : undefined;
+    const saved = bookingId ? await resolveBooking(bookingId, roomId, info) : await addResident(info, roomId, payment, start);
+    setSaving(false);
+    if (!saved) return;
     toast(`${info.fullName} added to room ${roomId}`);
     onClose();
   };
@@ -92,7 +92,9 @@ export function AddResidentModal({
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={submit}>{bookingId ? "Allocate room" : "Save tenant"}</Button>
+          <Button onClick={submit} disabled={saving}>
+            {saving ? "Saving…" : bookingId ? "Allocate room" : "Save tenant"}
+          </Button>
         </>
       }
     >

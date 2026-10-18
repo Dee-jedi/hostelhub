@@ -347,12 +347,17 @@ export interface PaymentInput {
   note?: string;
 }
 
-export function addResident(info: StudentInfo, roomId: string | null, payment?: PaymentInput, leaseStart = todayISO(), id = uid("res_")) {
-  placeResident(info, roomId, payment, leaseStart, id);
-  return id;
+/** Resolves to the new tenant's id once saved, or null if it couldn't be (a toast says so). */
+export async function addResident(info: StudentInfo, roomId: string | null, payment?: PaymentInput, leaseStart = todayISO(), id = uid("res_")) {
+  return (await placeResident(info, roomId, payment, leaseStart, id)) ? id : null;
 }
 
-/** Adds a tenant, with their first payment if there is one. `alsoWrite` joins the same transaction. */
+/**
+ * Adds a tenant, with their first payment if there is one. `alsoWrite` joins the same transaction.
+ * Without a payment it's a normal write, queued in the browser if offline, so it resolves at once.
+ * With one it waits for the server: a transaction isn't queued, so the screen must not claim
+ * success (or let staff close the tab) before it lands.
+ */
 function placeResident(
   info: StudentInfo,
   roomId: string | null,
@@ -360,7 +365,7 @@ function placeResident(
   leaseStart: string,
   id: string,
   alsoWrite?: (tx: Transaction) => void,
-) {
+): Promise<boolean> {
   const leaseEnd = addMonths(leaseStart, state.settings.leaseMonths);
   const resident: Resident = {
     ...info,
@@ -379,7 +384,7 @@ function placeResident(
       b.set(doc(db, "residents", id), resident);
       if (rooms) b.update(PUBLIC(), rooms);
     });
-    return Promise.resolve();
+    return Promise.resolve(true);
   }
   // The payment (and the listing) shows up once the transaction lands, with its real receipt number
   return commitWithReceipt((tx, receiptNo) => {
@@ -401,11 +406,12 @@ function placeResident(
     if (rooms) tx.update(PUBLIC(), rooms);
     alsoWrite?.(tx);
   }).then(
-    () => {},
+    () => true,
     (err) => {
       // Transactions aren't applied locally first, so undo the optimistic tenant by hand
       setState((s) => ({ ...s, residents: s.residents.filter((r) => r.id !== id) }));
       saveFailed(err);
+      return false;
     },
   );
 }
@@ -538,15 +544,15 @@ export function runAutomatedReminders(channel: Channel = "SMS") {
  * For a booking that was paid but couldn't be placed automatically: puts the tenant in the room
  * staff chose, using their login id so their portal finds them, and records the online payment.
  */
-export function resolveBooking(bookingId: string, roomId: string, info: StudentInfo) {
+export async function resolveBooking(bookingId: string, roomId: string, info: StudentInfo) {
   const booking = state.bookings.find((b) => b.id === bookingId);
   if (!booking) return null;
   const residentId = booking.uid;
   const patch = { status: "resolved" as const, residentId, roomId };
   const payment: PaymentInput = { amount: booking.amount, method: "Online", reference: booking.id, note: "Paystack" };
   // One transaction, so a booking is never marked resolved without its tenant and receipt
-  placeResident(info, roomId, payment, todayISO(), residentId, (tx) => tx.update(doc(db, "bookings", bookingId), patch));
-  return residentId;
+  const saved = await placeResident(info, roomId, payment, todayISO(), residentId, (tx) => tx.update(doc(db, "bookings", bookingId), patch));
+  return saved ? residentId : null;
 }
 
 export function bookingToStudent(b: Booking): StudentInfo {
