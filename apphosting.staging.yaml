@@ -1,0 +1,11 @@
+# Overrides for the staging backend (its environment name must be "staging" in the
+# App Hosting console). Merged on top of apphosting.yaml.
+
+runConfig:
+  # Staging only ever has us on it
+  maxInstances: 2
+
+env:
+  # A separate Firestore database in the same project, so staging never touches live data
+  - variable: NEXT_PUBLIC_FIRESTORE_DATABASE
+    value: staging

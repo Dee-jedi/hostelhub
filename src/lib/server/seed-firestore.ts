@@ -4,6 +4,7 @@ import { getStorage } from "firebase-admin/storage";
 import { createDemoState, createEmptyState } from "../seed";
 import type { HostelState, PublicBookingDoc } from "../types";
 import { publicInfo, publicRooms } from "../utils";
+import { IS_LIVE_DATABASE } from "../env";
 import { adminAuth, adminDb } from "./admin";
 
 export const ADMIN_EMAIL = "admin@hostelhub.app";
@@ -21,10 +22,12 @@ export async function seedFirestore(mode: "demo" | "empty" = "demo") {
 
   await Promise.all([
     ...[...COLLECTIONS, "renewals"].map((c) => adminDb.recursiveDelete(adminDb.collection(c))),
-    // Passport photos belong to tenant logins, which are recreated below
-    getStorage()
-      .bucket(process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET)
-      .deleteFiles({ prefix: "passports/" }),
+    // Passport photos belong to tenant logins, which are recreated below. Storage is shared with
+    // staging, so only the live reset clears it.
+    IS_LIVE_DATABASE &&
+      getStorage()
+        .bucket(process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET)
+        .deleteFiles({ prefix: "passports/" }),
   ]);
 
   const writer = adminDb.bulkWriter();
@@ -45,15 +48,20 @@ function maxReceipt(state: HostelState) {
   return state.payments.reduce((m, p) => Math.max(m, Number(p.receiptNo.replace(/\D/g, "")) || 0), 1000);
 }
 
-/** Deletes every non-staff login, then imports one per current tenant with the demo password. */
+/**
+ * Deletes every non-staff login, then imports one per current tenant with the demo password.
+ * Logins are shared with staging, so a staging reset only imports (same ids and emails as live,
+ * so it refreshes them) and never deletes anyone.
+ */
 async function recreateTenantLogins(state: HostelState) {
   const stale: string[] = [];
   let page: string | undefined;
-  do {
-    const res = await adminAuth.listUsers(1000, page);
-    for (const u of res.users) if (u.customClaims?.role !== "admin") stale.push(u.uid);
-    page = res.pageToken;
-  } while (page);
+  if (IS_LIVE_DATABASE)
+    do {
+      const res = await adminAuth.listUsers(1000, page);
+      for (const u of res.users) if (u.customClaims?.role !== "admin") stale.push(u.uid);
+      page = res.pageToken;
+    } while (page);
   for (let i = 0; i < stale.length; i += 1000) await adminAuth.deleteUsers(stale.slice(i, i + 1000));
 
   const key = randomBytes(32);

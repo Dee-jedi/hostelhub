@@ -1,3 +1,5 @@
+import { FIRESTORE_DATABASE } from "@/lib/env";
+
 /**
  * Deployment check: which settings are present (yes/no only, never the values) and whether the
  * server can reach Firebase. Open /api/health after deploying to spot a missing variable.
@@ -22,5 +24,5 @@ export async function GET() {
   } catch (err) {
     firebase = err instanceof Error ? err.message : "failed";
   }
-  return Response.json({ ok: firebase === "ok" && Object.values(config).every(Boolean), firebase, config });
+  return Response.json({ ok: firebase === "ok" && Object.values(config).every(Boolean), database: FIRESTORE_DATABASE, firebase, config });
 }

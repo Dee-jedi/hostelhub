@@ -11,6 +11,7 @@ import {
   persistentMultipleTabManager,
   type Firestore,
 } from "firebase/firestore";
+import { FIRESTORE_DATABASE } from "./env";
 
 const config = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -32,13 +33,17 @@ export const storage = getStorage(app);
  */
 function firestore(): Firestore {
   try {
-    return initializeFirestore(app, {
-      ignoreUndefinedProperties: true,
-      localCache:
-        typeof window === "undefined" ? memoryLocalCache() : persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
-    });
+    return initializeFirestore(
+      app,
+      {
+        ignoreUndefinedProperties: true,
+        localCache:
+          typeof window === "undefined" ? memoryLocalCache() : persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+      },
+      FIRESTORE_DATABASE,
+    );
   } catch {
-    return getFirestore(app); // already initialized (dev hot reload)
+    return getFirestore(app, FIRESTORE_DATABASE); // already initialized (dev hot reload)
   }
 }
 export const db = firestore();

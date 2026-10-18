@@ -1,0 +1,7 @@
+{
+  "firestore": [
+    { "database": "(default)", "rules": "firestore.rules" },
+    { "database": "staging", "rules": "firestore.rules" }
+  ],
+  "storage": { "rules": "storage.rules" }
+}

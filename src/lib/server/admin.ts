@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { cert, getApp, getApps, initializeApp, type ServiceAccount } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
+import { FIRESTORE_DATABASE } from "../env";
 
 /*
  * Server-only Firebase Admin SDK. Never import this from a client component.
@@ -51,7 +52,7 @@ function init() {
 
 const app = getApps().length ? getApp() : init();
 
-export const adminDb = getFirestore(app);
+export const adminDb = getFirestore(app, FIRESTORE_DATABASE);
 try {
   // Optional fields (e.g. a resident's movedOutDate) are often undefined
   adminDb.settings({ ignoreUndefinedProperties: true });
