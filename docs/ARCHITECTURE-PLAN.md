@@ -227,7 +227,7 @@ That makes the browser a thin client and makes the rules simple ("tenants read t
 7. **Rules:** sex policy, online booking on or off, photo and matric required, renewal priority window.
 8. **Team:** invite other managers by email (optional).
 9. **Existing tenants:** CSV import with a column-mapping screen, or add them one by one.
-10. **Go live:** the free trial starts, with its countdown banner. The hostel gets its booking address `{slug}.<domain>` (the slug is picked in step 2 and checked to be unique), a printable QR poster (plus optional per-room door QRs), and a checklist. Paying the subscription happens from the banner, before or when the trial ends.
+10. **Go live:** the free trial starts, with its countdown banner. The hostel gets its booking address `{slug}.<domain>` (the slug is picked in step 2 and checked to be unique), a printable QR poster, and a checklist. Paying the subscription happens from the banner, before or when the trial ends.
 
 Each step saves as a draft, so the owner can stop and come back later. The hostel stays `draft` until they press **Go live**.
 
