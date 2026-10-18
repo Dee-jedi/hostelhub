@@ -12,7 +12,7 @@ import type { Resident, RentStatus, Room } from "@/lib/types";
 import { openResident, openRoom, useUI } from "@/lib/ui-store";
 import { academicLine, cn, describeDaysLeft, daysLeft, isPerBed, naira, occupantsByRoom, peopleInRoom, rentStatus, roomTypeOf } from "@/lib/utils";
 
-type Filter = "all" | "occupied" | "vacant" | "expiring" | "expired" | "maintenance";
+type Filter = "all" | "occupied" | "full" | "vacant" | "empty" | "expiring" | "expired" | "maintenance";
 
 type TileState = "active" | "expiring" | "expired" | "vacant" | "partial" | "maintenance";
 
@@ -200,6 +200,9 @@ export default function RoomsPage() {
     if (f === "all") return true;
     if (f === "maintenance") return r.underMaintenance;
     if (f === "occupied") return people.length > 0;
+    // Per-bed rooms: full = every bed taken, empty = nobody yet
+    if (f === "full") return !r.underMaintenance && people.length > 0 && freeIn(r) === 0;
+    if (f === "empty") return !r.underMaintenance && people.length === 0;
     if (f === "vacant") return freeIn(r) > 0;
     return people.some((p) => rentStatus(p) === f);
   };
@@ -280,8 +283,16 @@ export default function RoomsPage() {
           onChange={setFilter}
           tabs={[
             { value: "all", label: "All", count: count("all") },
-            { value: "occupied", label: "Occupied", count: count("occupied") },
-            { value: "vacant", label: perBed ? "Free beds" : "Vacant", count: count("vacant") },
+            ...(perBed
+              ? [
+                  { value: "full" as const, label: "Full", count: count("full") },
+                  { value: "vacant" as const, label: "With free beds", count: count("vacant") },
+                  { value: "empty" as const, label: "Empty", count: count("empty") },
+                ]
+              : [
+                  { value: "occupied" as const, label: "Occupied", count: count("occupied") },
+                  { value: "vacant" as const, label: "Vacant", count: count("vacant") },
+                ]),
             { value: "expiring", label: "Expiring", count: count("expiring") },
             { value: "expired", label: "Expired", count: count("expired") },
             { value: "maintenance", label: "Maintenance", count: count("maintenance") },
