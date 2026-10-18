@@ -10,6 +10,7 @@ import { KIND } from "@/components/RequestStatus";
 import { RoomPicker } from "@/components/RoomPicker";
 import { toast } from "@/components/toast";
 import { Button, Field, Input, Textarea } from "@/components/ui";
+import { listingPath } from "@/lib/current-hostel";
 import { db } from "@/lib/firebase";
 import { createRequest, useTenant } from "@/lib/tenant-store";
 import type { PublicBookingDoc, RequestKind, TicketCategory } from "@/lib/types";
@@ -115,7 +116,7 @@ export default function NewRequestPage() {
   // Room changes need live availability: one document, one read per change
   useEffect(() => {
     if (kind !== "room_change") return;
-    return onSnapshot(doc(db, "public/booking"), (snap) => {
+    return onSnapshot(doc(db, listingPath()), (snap) => {
       setPub(snap.data() as PublicBookingDoc);
       setNow(Date.now());
     });

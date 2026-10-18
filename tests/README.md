@@ -4,7 +4,7 @@
 |---|---|---|
 | `npm run test:unit` | Pure logic (hostel from address, access claims) | Nothing |
 | `npm run test:rules` | The multi-hostel Firestore rules, on the **staging** database, with throwaway logins and hostels it cleans up | `.env.local` and the service account file |
-| `npm run test:api` | The server command layer (`/api/me`, `/api/platform/access`) on a running site (`HH_BASE`, default staging) | Same |
+| `npm run test:api` | The server command layer (`/api/me`, `/api/platform/access`) and every manager action (`/api/manage/*`, checked in the database, then the demo is reset) on a running site (`HH_BASE`, default staging) | Same |
 | `npm run test:e2e` / `test:smoke` | The whole app in a browser (below) | Staff login |
 
 ## Browser tests

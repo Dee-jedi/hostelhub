@@ -1,10 +1,12 @@
 import { FIRESTORE_DATABASE } from "@/lib/env";
+import { requestHost, resolveHost } from "@/lib/hostel-host";
 
 /**
  * Deployment check: which settings are present (yes/no only, never the values) and whether the
  * server can reach Firebase. Open /api/health after deploying to spot a missing variable.
  */
-export async function GET() {
+export async function GET(req: Request) {
+  const hostel = resolveHost(requestHost(req));
   const has = (name: string) => !!process.env[name]?.trim();
   const config = {
     PAYSTACK_SECRET_KEY: has("PAYSTACK_SECRET_KEY"),
@@ -20,9 +22,9 @@ export async function GET() {
   let firebase = "ok";
   try {
     const { adminDb } = await import("@/lib/server/admin");
-    await adminDb.doc("public/booking").get();
+    await adminDb.doc(`listings/${hostel.kind === "hostel" ? hostel.slug : "-"}`).get();
   } catch (err) {
     firebase = err instanceof Error ? err.message : "failed";
   }
-  return Response.json({ ok: firebase === "ok" && Object.values(config).every(Boolean), database: FIRESTORE_DATABASE, firebase, config });
+  return Response.json({ ok: firebase === "ok" && Object.values(config).every(Boolean), database: FIRESTORE_DATABASE, hostel, firebase, config });
 }

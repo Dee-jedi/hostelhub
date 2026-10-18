@@ -38,8 +38,8 @@ export default function DashboardPage() {
             <Button
               variant="secondary"
               className={headerBtn}
-              onClick={() => {
-                const n = runAutomatedReminders();
+              onClick={async () => {
+                const n = await runAutomatedReminders();
                 toast(n ? `Sent ${n} automated reminder${n === 1 ? "" : "s"}` : "Everyone due has already been reminded", n ? "success" : "info");
               }}
             >

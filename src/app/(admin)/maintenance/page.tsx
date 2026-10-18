@@ -36,8 +36,8 @@ function RequestDrawer({ ticket, resident, onClose }: { ticket: Ticket; resident
     toast(status ? `Marked ${statusLabel[status].toLowerCase()}. The tenant has been notified.` : "Reply sent");
   };
 
-  const approve = () => {
-    const err = approveRoomChange(ticket.id, text);
+  const approve = async () => {
+    const err = await approveRoomChange(ticket.id, text);
     if (err) return toast(err, "info");
     setText("");
     toast(`${resident?.fullName.split(" ")[0] ?? "Tenant"} moved to room ${ticket.requestedRoomId}`);

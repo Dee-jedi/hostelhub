@@ -1,27 +1,33 @@
 import { createHmac, randomBytes } from "node:crypto";
 import type { UserImportRecord } from "firebase-admin/auth";
 import { getStorage } from "firebase-admin/storage";
+import { DEFAULT_HOSTEL, IS_LIVE_DATABASE } from "../env";
+import { documentsOf, fromLegacy } from "../migrate/from-legacy";
 import { createDemoState, createEmptyState } from "../seed";
-import type { HostelState, PublicBookingDoc } from "../types";
-import { publicInfo, publicRooms } from "../utils";
-import { IS_LIVE_DATABASE } from "../env";
+import type { HostelState } from "../types";
 import { adminAuth, adminDb } from "./admin";
+import { setHostelRole, setTenantOf } from "./claims";
 
 export const ADMIN_EMAIL = "admin@hostelhub.app";
 export const ADMIN_DEFAULT_PASSWORD = "admin1234";
 export const DEMO_PASSWORD = "demo1234";
 
-const COLLECTIONS = ["residents", "payments", "messages", "tickets", "bookings"] as const;
+/** The single-hostel collections this replaced; a reset clears them so nothing stale lingers. */
+const LEGACY_COLLECTIONS = ["residents", "payments", "messages", "tickets", "bookings", "renewals", "config"] as const;
 
 /**
- * Replaces all hostel data with the demo hostel (or an empty one) and recreates tenant logins.
- * The staff account is kept. Used by `npm run seed` and the "Reset demo data" button.
+ * Replaces one hostel's data with the demo hostel (or an empty one) in the multi-hostel model,
+ * and recreates its tenant logins. Staff logins are kept. Used by `npm run seed` and the
+ * "Reset demo data" button.
  */
-export async function seedFirestore(mode: "demo" | "empty" = "demo") {
+export async function seedFirestore(mode: "demo" | "empty" = "demo", hostelId = DEFAULT_HOSTEL || "mowarid") {
   const state = mode === "demo" ? createDemoState() : createEmptyState();
 
   await Promise.all([
-    ...[...COLLECTIONS, "renewals"].map((c) => adminDb.recursiveDelete(adminDb.collection(c))),
+    adminDb.recursiveDelete(adminDb.doc(`hostels/${hostelId}`)),
+    adminDb.doc(`listings/${hostelId}`).delete(),
+    ...LEGACY_COLLECTIONS.map((c) => adminDb.recursiveDelete(adminDb.collection(c))),
+    adminDb.doc("public/booking").delete(),
     // Passport photos belong to tenant logins, which are recreated below. Storage is shared with
     // staging, so only the live reset clears it.
     IS_LIVE_DATABASE &&
@@ -30,58 +36,66 @@ export async function seedFirestore(mode: "demo" | "empty" = "demo") {
         .deleteFiles({ prefix: "passports/" }),
   ]);
 
+  const logins = demoLogins(state);
+  const docs = fromLegacy({ hostelId, state, receiptSeq: maxReceipt(state), loginUids: new Set(logins.map((u) => u.uid)) });
   const writer = adminDb.bulkWriter();
-  const put = (path: string, data: object) => void writer.set(adminDb.doc(path), data);
-
-  put("config/settings", state.settings);
-  put("config/meta", { sentReminderKeys: [], receiptSeq: maxReceipt(state) });
-  const pub: PublicBookingDoc = { info: publicInfo(state.settings), rooms: publicRooms(state), holds: {} };
-  put("public/booking", pub);
-  for (const c of COLLECTIONS) for (const item of state[c]) put(`${c}/${item.id}`, item);
+  for (const [path, data] of documentsOf(docs)) void writer.set(adminDb.doc(path), data);
   await writer.close();
 
-  await recreateTenantLogins(state);
-  await ensureAdmin();
+  await recreateTenantLogins(logins, hostelId);
+  await ensureStaff(hostelId);
 }
 
 function maxReceipt(state: HostelState) {
   return state.payments.reduce((m, p) => Math.max(m, Number(p.receiptNo.replace(/\D/g, "")) || 0), 1000);
 }
 
+/** One login per current demo tenant, with the demo password. Their resident id is their uid. */
+function demoLogins(state: HostelState) {
+  return state.residents.filter((r) => r.status === "active" && r.email).map((r) => ({ uid: r.id, email: r.email, displayName: r.fullName }));
+}
+
+/** Staff logins (any hostel, the platform, or the old single-hostel flag) are never deleted. */
+function isStaff(claims: Record<string, unknown> | undefined) {
+  return !!claims && (claims.role === "admin" || claims.p === "admin" || (typeof claims.h === "object" && claims.h !== null && Object.keys(claims.h).length > 0));
+}
+
 /**
- * Deletes every non-staff login, then imports one per current tenant with the demo password.
+ * Deletes every non-staff login, then imports one per demo tenant as a tenant of the hostel.
  * Logins are shared with staging, so a staging reset only imports (same ids and emails as live,
  * so it refreshes them) and never deletes anyone.
  */
-async function recreateTenantLogins(state: HostelState) {
+async function recreateTenantLogins(logins: ReturnType<typeof demoLogins>, hostelId: string) {
   const stale: string[] = [];
   let page: string | undefined;
   if (IS_LIVE_DATABASE)
     do {
       const res = await adminAuth.listUsers(1000, page);
-      for (const u of res.users) if (u.customClaims?.role !== "admin") stale.push(u.uid);
+      for (const u of res.users) if (!isStaff(u.customClaims)) stale.push(u.uid);
       page = res.pageToken;
     } while (page);
   for (let i = 0; i < stale.length; i += 1000) await adminAuth.deleteUsers(stale.slice(i, i + 1000));
 
   const key = randomBytes(32);
-  const users: UserImportRecord[] = state.residents
-    .filter((r) => r.status === "active" && r.email)
-    .map((r) => ({
-      uid: r.id,
-      email: r.email,
-      emailVerified: true,
-      displayName: r.fullName,
-      passwordHash: createHmac("sha256", key).update(DEMO_PASSWORD).digest(),
-    }));
+  const users: UserImportRecord[] = logins.map((u) => ({
+    ...u,
+    emailVerified: true,
+    passwordHash: createHmac("sha256", key).update(DEMO_PASSWORD).digest(),
+    customClaims: { t: { [hostelId]: true } },
+  }));
+  const failed: string[] = [];
   for (let i = 0; i < users.length; i += 1000) {
     const res = await adminAuth.importUsers(users.slice(i, i + 1000), { hash: { algorithm: "HMAC_SHA256", key } });
-    if (res.failureCount) console.warn("Some demo logins failed to import:", res.errors.map((e) => e.error.message));
+    for (const e of res.errors) failed.push(users[i + e.index].uid);
   }
+  // Logins that already existed (staging reset) keep their other claims; just mark them as tenants
+  for (const uid of failed) await setTenantOf(uid, hostelId, true).catch((err) => console.warn(`Couldn't mark ${uid} as a tenant:`, err.message));
 }
 
-async function ensureAdmin() {
+async function ensureStaff(hostelId: string) {
   let user = await adminAuth.getUserByEmail(ADMIN_EMAIL).catch(() => null);
   if (!user) user = await adminAuth.createUser({ email: ADMIN_EMAIL, password: ADMIN_DEFAULT_PASSWORD, displayName: "Hostel Manager", emailVerified: true });
-  if (user.customClaims?.role !== "admin") await adminAuth.setCustomUserClaims(user.uid, { role: "admin" });
+  // Keep the old single-hostel flag while the live app still reads it
+  if (user.customClaims?.role !== "admin") await adminAuth.setCustomUserClaims(user.uid, { ...user.customClaims, role: "admin" });
+  await setHostelRole(user.uid, hostelId, "manager");
 }

@@ -3,7 +3,11 @@
 import { collection, doc, getDoc, onSnapshot, query, setDoc, where } from "firebase/firestore";
 import { getDownloadURL, ref as storageRef, uploadBytes } from "firebase/storage";
 import { useSyncExternalStore } from "react";
-import { db, storage } from "./firebase";
+import { accessFrom, isTenantOf } from "./access";
+import { currentHostelId, hostelPath, listingPath } from "./current-hostel";
+import { auth, db, storage } from "./firebase";
+import { currentTenancy, messageOf, paymentOf, residentOf, ticketOf } from "./migrate/to-legacy";
+import type { HostelMessage, HostelPayment, HostelRequest, HostelResident, Listing, Tenancy } from "./model";
 import type { Booking, Message, Payment, PublicBookingDoc, RequestKind, Resident, Ticket, TicketCategory } from "./types";
 
 /*
@@ -49,55 +53,108 @@ const newest = <T,>(key: keyof T) => (a: T, b: T) => String(b[key]).localeCompar
 
 const LOAD_TIMEOUT_MS = 20_000;
 let watchdog: ReturnType<typeof setTimeout> | undefined;
+/** Ignores late answers from a previous login after a restart or sign-out */
+let sessionId = 0;
 
 export function startTenantSync(uid: string) {
-  if (data.uid === uid && unsubscribers.length) return;
+  if (data.uid === uid && (unsubscribers.length || data.status === "loading")) return;
   stopTenantSync();
   set({ ...EMPTY, status: "loading", uid });
+  const session = ++sessionId;
 
   const pending = new Set(["resident", "payments", "notices", "requests", "booking", "info"]);
   const arrived = (key: string, patch: Partial<TenantData>) => {
+    if (session !== sessionId) return;
     pending.delete(key);
     set({ ...patch, ...(pending.size ? {} : { status: "ready" }) });
   };
   const failed = (err: unknown) => {
     console.error(err);
-    if (data.status !== "ready") set({ status: "error" });
+    if (session === sessionId && data.status !== "ready") set({ status: "error" });
   };
   // Never spin forever: after a while, say which data didn't arrive and offer a retry
   watchdog = setTimeout(() => {
-    if (!pending.size) return;
+    if (!pending.size || session !== sessionId) return;
     console.error(`[portal] still loading after ${LOAD_TIMEOUT_MS / 1000}s; waiting for: ${[...pending].join(", ")}`);
     set({ status: "error" });
   }, LOAD_TIMEOUT_MS);
 
-  getDoc(doc(db, "public/booking"))
-    .then((snap) => arrived("info", { info: snap.exists() ? (snap.data() as PublicBookingDoc).info : null }))
+  const hostelId = currentHostelId();
+  if (!hostelId) return failed(new Error("This address isn't a hostel"));
+  const col = (name: string) => collection(db, hostelPath(name));
+  const mine = (name: string) => query(col(name), where("uid", "==", uid));
+
+  getDoc(doc(db, listingPath()))
+    .then((snap) => arrived("info", { info: snap.exists() ? ((snap.data() as Listing).info as unknown as PublicBookingDoc["info"]) : null }))
     .catch(failed);
 
-  unsubscribers = [
-    onSnapshot(doc(db, "residents", uid), (snap) => arrived("resident", { resident: snap.exists() ? ({ ...snap.data(), id: snap.id } as Resident) : null }), failed),
-    onSnapshot(
-      query(collection(db, "payments"), where("residentId", "==", uid)),
-      (snap) => arrived("payments", { payments: snap.docs.map((d) => ({ ...(d.data() as Payment), id: d.id })).sort(newest("date")) }),
-      failed,
-    ),
-    onSnapshot(
-      query(collection(db, "messages"), where("recipientIds", "array-contains", uid)),
-      (snap) => arrived("notices", { notices: snap.docs.map((d) => ({ ...(d.data() as Message), id: d.id })).sort(newest("sentAt")) }),
-      failed,
-    ),
-    onSnapshot(
-      query(collection(db, "tickets"), where("residentId", "==", uid)),
-      (snap) => arrived("requests", { requests: snap.docs.map((d) => ({ ...(d.data() as Ticket), id: d.id })).sort(newest("createdAt")) }),
-      failed,
-    ),
-    onSnapshot(
-      query(collection(db, "bookings"), where("uid", "==", uid)),
-      (snap) => arrived("booking", { booking: snap.docs.map((d) => d.data() as Booking).sort(newest("createdAt"))[0] ?? null }),
-      failed,
-    ),
-  ];
+  // Someone who paid but has no room yet isn't a tenant: they only see their booking
+  const booking = onSnapshot(
+    mine("bookings"),
+    (snap) => arrived("booking", { booking: snap.docs.map((d) => d.data() as Booking).sort(newest("createdAt"))[0] ?? null }),
+    failed,
+  );
+  unsubscribers = [booking];
+
+  isTenantHere(hostelId).then((tenant) => {
+    if (session !== sessionId) return;
+    if (!tenant) {
+      for (const key of ["resident", "payments", "notices", "requests"]) arrived(key, {});
+      return;
+    }
+    // The person and their stays together make the portal's resident record
+    let person: HostelResident | null | undefined;
+    let stays: Tenancy[] | undefined;
+    const residentReady = () => {
+      if (person === undefined || stays === undefined) return;
+      arrived("resident", { resident: person ? residentOf(person, currentTenancy(stays)) : null });
+    };
+    unsubscribers.push(
+      onSnapshot(
+        mine("residents"),
+        (snap) => {
+          const d = snap.docs[0];
+          person = d ? ({ ...(d.data() as HostelResident), id: d.id }) : null;
+          residentReady();
+        },
+        failed,
+      ),
+      onSnapshot(
+        mine("tenancies"),
+        (snap) => {
+          stays = snap.docs.map((d) => ({ ...(d.data() as Tenancy), id: d.id }));
+          residentReady();
+        },
+        failed,
+      ),
+      onSnapshot(
+        mine("payments"),
+        (snap) => arrived("payments", { payments: snap.docs.map((d) => paymentOf({ ...(d.data() as HostelPayment), id: d.id })).sort(newest("date")) }),
+        failed,
+      ),
+      onSnapshot(
+        query(col("messages"), where("recipientUids", "array-contains", uid)),
+        (snap) => arrived("notices", { notices: snap.docs.map((d) => messageOf({ ...(d.data() as HostelMessage), id: d.id })).sort(newest("sentAt")) }),
+        failed,
+      ),
+      onSnapshot(
+        mine("requests"),
+        (snap) => arrived("requests", { requests: snap.docs.map((d) => ticketOf({ ...(d.data() as HostelRequest), id: d.id })).sort(newest("createdAt")) }),
+        failed,
+      ),
+    );
+  }, failed);
+}
+
+/**
+ * Whether this login is a tenant of the hostel. A tenant who just paid gets that access on the
+ * server a moment earlier, so refresh the login once before deciding.
+ */
+async function isTenantHere(hostelId: string) {
+  const user = auth.currentUser;
+  if (!user) return false;
+  if (isTenantOf(accessFrom((await user.getIdTokenResult()).claims), hostelId)) return true;
+  return isTenantOf(accessFrom((await user.getIdTokenResult(true)).claims), hostelId);
 }
 
 /** Starts loading again from scratch, e.g. from the "Try again" button. */
@@ -108,6 +165,7 @@ export function restartTenantSync() {
 }
 
 export function stopTenantSync() {
+  sessionId++;
   clearTimeout(watchdog);
   unsubscribers.forEach((u) => u());
   unsubscribers = [];
@@ -128,15 +186,16 @@ export async function createRequest(input: {
 }) {
   const r = data.resident;
   if (!r?.roomId) throw new Error("You need a room to send requests");
-  const ref = doc(collection(db, "tickets"));
+  const ref = doc(collection(db, hostelPath("requests")));
   let photoUrl: string | undefined;
   if (input.photo) {
     const file = storageRef(storage, `requests/${r.id}/${ref.id}.jpg`);
     await uploadBytes(file, input.photo, { contentType: "image/jpeg" });
     photoUrl = await getDownloadURL(file);
   }
-  const ticket: Ticket = {
+  const ticket: HostelRequest = {
     id: ref.id,
+    uid: auth.currentUser?.uid ?? null,
     kind: input.kind,
     roomId: r.roomId,
     residentId: r.id,

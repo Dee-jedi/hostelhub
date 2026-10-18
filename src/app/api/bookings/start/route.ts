@@ -1,8 +1,11 @@
 import { verifyRequest } from "@/lib/server/admin";
 import { BookingError, startBooking, validateBookingInfo } from "@/lib/server/bookings";
+import { hostelOfRequest } from "@/lib/server/hostel-data";
 import type { StudentInfo } from "@/lib/types";
 
 export async function POST(req: Request) {
+  const hostelId = hostelOfRequest(req);
+  if (!hostelId) return Response.json({ error: "This address isn't a hostel's booking page." }, { status: 404 });
   const user = await verifyRequest(req);
   if (!user?.email) return Response.json({ error: "Please sign in again." }, { status: 401 });
 
@@ -16,6 +19,7 @@ export async function POST(req: Request) {
 
   try {
     const result = await startBooking({
+      hostelId,
       uid: user.uid,
       email: user.email,
       info: body.info,

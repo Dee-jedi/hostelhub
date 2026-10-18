@@ -4,6 +4,8 @@ import { FirebaseError } from "firebase/app";
 import { onIdTokenChanged, signOut as fbSignOut, type User } from "firebase/auth";
 import { useSyncExternalStore } from "react";
 import { clearIndexedDbPersistence, terminate } from "firebase/firestore";
+import { accessFrom, isManagerOf, isPlatformAdmin } from "./access";
+import { currentHostelId } from "./current-hostel";
 import { auth, db } from "./firebase";
 import { stopHostelSync } from "./store";
 import { stopTenantSync } from "./tenant-store";
@@ -22,7 +24,11 @@ function start() {
   if (started) return;
   started = true;
   onIdTokenChanged(auth, async (user) => {
-    const role = user ? ((await user.getIdTokenResult()).claims.role === "admin" ? "admin" : "tenant") : null;
+    // Staff means: manager of the hostel this address belongs to, or the platform admin
+    const access = user ? accessFrom((await user.getIdTokenResult()).claims) : null;
+    const hostelId = currentHostelId();
+    const staff = !!access && (isPlatformAdmin(access) || (!!hostelId && isManagerOf(access, hostelId)));
+    const role = user ? (staff ? "admin" : "tenant") : null;
     session = { user, role };
     listeners.forEach((l) => l());
   });

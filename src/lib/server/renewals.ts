@@ -1,8 +1,10 @@
 import { randomBytes } from "node:crypto";
-import type { Message, Payment, Resident, Settings } from "../types";
+import { FieldValue } from "firebase-admin/firestore";
+import type { HostelMessage, HostelPayment, HostelResident, HostelRoom, Tenancy } from "../model";
 import { addMonths, todayISO } from "../utils";
 import { adminDb } from "./admin";
 import { BookingError } from "./bookings";
+import { hostelRefs, newId, readReceiptCounter, readTerms } from "./hostel-data";
 import { initializeTransaction, verifyTransaction } from "./paystack";
 
 /*
@@ -14,6 +16,7 @@ import { initializeTransaction, verifyTransaction } from "./paystack";
 export interface Renewal {
   id: string;
   uid: string;
+  tenancyId: string;
   amount: number;
   status: "pending" | "paid" | "needs_attention";
   createdAt: string;
@@ -23,31 +26,34 @@ export interface Renewal {
   issue?: string;
 }
 
-const renewalRef = (id: string) => adminDb.doc(`renewals/${id}`);
-const residentRef = (id: string) => adminDb.doc(`residents/${id}`);
-const settingsRef = () => adminDb.doc("config/settings");
-const metaRef = () => adminDb.doc("config/meta");
+async function activeTenancyOf(h: string, uid: string) {
+  const snap = await hostelRefs(h).col("tenancies").where("uid", "==", uid).where("status", "==", "active").limit(1).get();
+  return snap.empty ? null : ({ ...(snap.docs[0].data() as Tenancy), id: snap.docs[0].id } as Tenancy);
+}
 
-export async function startRenewal(input: { uid: string; email: string; origin: string }) {
-  const [residentSnap, settingsSnap] = await Promise.all([residentRef(input.uid).get(), settingsRef().get()]);
-  const resident = residentSnap.data() as Resident | undefined;
-  if (!resident || resident.status !== "active") throw new BookingError("Only current tenants can renew. Contact the hostel manager.");
-  const amount = (settingsSnap.data() as Settings).rentAmount;
+export async function startRenewal(input: { hostelId: string; uid: string; email: string; origin: string }) {
+  const h = input.hostelId;
+  const r = hostelRefs(h);
+  const tenancy = await activeTenancyOf(h, input.uid);
+  if (!tenancy) throw new BookingError("Only current tenants can renew. Contact the hostel manager.");
+  const room = tenancy.roomId ? ((await r.doc("rooms", tenancy.roomId).get()).data() as HostelRoom | undefined) : undefined;
+  const { type } = await adminDb.runTransaction((tx) => readTerms(tx, h, room ?? null));
+  const amount = type.price;
   const reference = `RN-${Date.now().toString(36).toUpperCase()}${randomBytes(2).toString("hex").toUpperCase()}`;
 
-  const renewal: Renewal = { id: reference, uid: input.uid, amount, status: "pending", createdAt: new Date().toISOString() };
-  await renewalRef(reference).set(renewal);
+  const renewal: Renewal = { id: reference, uid: input.uid, tenancyId: tenancy.id, amount, status: "pending", createdAt: new Date().toISOString() };
+  await r.doc("renewals", reference).set(renewal);
   try {
     const trx = await initializeTransaction({
       email: input.email,
       amount,
       reference,
       callbackUrl: `${input.origin}/portal/payments`,
-      metadata: { renewalId: reference, uid: input.uid, roomId: resident.roomId },
+      metadata: { hostelId: h, renewalId: reference, uid: input.uid, roomId: tenancy.roomId },
     });
     return { reference, accessCode: trx.access_code, amount };
   } catch (err) {
-    await renewalRef(reference).delete();
+    await r.doc("renewals", reference).delete();
     throw err;
   }
 }
@@ -59,70 +65,66 @@ export interface RenewalResult {
   leaseEnd?: string;
 }
 
-export async function finalizeRenewal(reference: string): Promise<RenewalResult> {
-  const first = await renewalRef(reference).get();
+export async function finalizeRenewal(hostelId: string, reference: string): Promise<RenewalResult> {
+  const h = hostelId;
+  const r = hostelRefs(h);
+  const first = await r.doc("renewals", reference).get();
   if (!first.exists) throw new BookingError("Payment not found.");
   const pending = first.data() as Renewal;
-  if (pending.status !== "pending") return summarize(reference);
+  if (pending.status !== "pending") return summarize(h, reference);
 
   const trx = await verifyTransaction(reference);
   if (trx.status !== "success") return { status: trx.status === "abandoned" || trx.status === "ongoing" ? "pending" : "failed" };
   if (trx.currency !== "NGN" || trx.amount < Math.round(pending.amount * 100)) {
-    await renewalRef(reference).update({ status: "needs_attention", paidAt: new Date().toISOString(), issue: `Amount mismatch: received ₦${trx.amount / 100}` });
-    return summarize(reference);
+    await r.doc("renewals", reference).update({ status: "needs_attention", paidAt: new Date().toISOString(), issue: `Amount mismatch: received ₦${trx.amount / 100}` });
+    return summarize(h, reference);
   }
 
   await adminDb.runTransaction(async (tx) => {
-    const [renewalSnap, residentSnap, settingsSnap, metaSnap] = await tx.getAll(renewalRef(reference), residentRef(pending.uid), settingsRef(), metaRef());
+    const [renewalSnap, tenancySnap] = await tx.getAll(r.doc("renewals", reference), r.doc("tenancies", pending.tenancyId));
     const renewal = renewalSnap.data() as Renewal;
     if (renewal.status !== "pending") return;
-    const resident = residentSnap.data() as Resident | undefined;
+    const tenancy = tenancySnap.data() as Tenancy | undefined;
+    const roomSnap = tenancy?.roomId ? await tx.get(r.doc("rooms", tenancy.roomId)) : null;
+    const residentSnap = tenancy ? await tx.get(r.doc("residents", tenancy.residentId)) : null;
+    const { months } = await readTerms(tx, h, (roomSnap?.data() as HostelRoom | undefined) ?? null);
+    const receipt = await readReceiptCounter(tx, h);
     const paidAt = trx.paid_at ?? new Date().toISOString();
-    if (!resident || resident.status !== "active") {
-      tx.update(renewalRef(reference), { status: "needs_attention", paidAt, issue: "Tenant is no longer active" });
+    if (!tenancy || tenancy.status !== "active") {
+      tx.update(r.doc("renewals", reference), { status: "needs_attention", paidAt, issue: "Tenant is no longer active" });
       return;
     }
-    const settings = settingsSnap.data() as Settings;
+    const resident = residentSnap?.data() as HostelResident;
     const today = todayISO();
     // Paying early extends from the current end date; paying late starts from today
-    const periodStart = resident.leaseEnd >= today ? resident.leaseEnd : today;
-    const periodEnd = addMonths(periodStart, settings.leaseMonths);
-    const seq = ((metaSnap.data()?.receiptSeq as number | undefined) ?? 1000) + 1;
-    const receiptNo = `RCP-${seq}`;
-    const payment: Payment = {
-      id: `pay_${reference}`,
-      receiptNo,
-      residentId: pending.uid,
-      roomId: resident.roomId ?? undefined,
-      amount: trx.amount / 100,
-      method: "Online",
-      reference,
-      date: today,
-      periodStart,
-      periodEnd,
-      note: `Renewal · Paystack · ${trx.channel}`,
+    const periodStart = tenancy.leaseEnd >= today ? tenancy.leaseEnd : today;
+    const periodEnd = addMonths(periodStart, months);
+    const payment: HostelPayment = {
+      id: `pay_${reference}`, receiptNo: receipt.receiptNo, residentId: tenancy.residentId, roomId: tenancy.roomId ?? undefined,
+      amount: trx.amount / 100, method: "Online", reference, date: today, periodStart, periodEnd, note: `Renewal · Paystack · ${trx.channel}`,
+      uid: pending.uid, tenancyId: pending.tenancyId,
     };
-    const notice: Omit<Message, "id"> = {
-      kind: "notice",
-      channel: "Email",
-      recipientIds: [pending.uid],
-      body: `Thank you, ${resident.fullName.split(" ")[0]}! Your rent renewal of ₦${(trx.amount / 100).toLocaleString("en-NG")} is confirmed. Room ${resident.roomId} is now yours until ${periodEnd}. Receipt ${receiptNo}.`,
-      sentAt: new Date().toISOString(),
-      automated: true,
+    const notice: HostelMessage = {
+      id: newId("msg_"), kind: "notice", channel: "Email", recipientIds: [tenancy.residentId], recipientUids: [pending.uid],
+      body: `Thank you, ${resident.fullName.split(" ")[0]}! Your rent renewal of ₦${(trx.amount / 100).toLocaleString("en-NG")} is confirmed. Room ${tenancy.roomId} is now yours until ${periodEnd}. Receipt ${receipt.receiptNo}.`,
+      sentAt: new Date().toISOString(), automated: true,
     };
-    tx.set(adminDb.doc(`payments/${payment.id}`), payment);
-    tx.update(residentRef(pending.uid), { leaseStart: periodStart, leaseEnd: periodEnd });
-    tx.set(adminDb.collection("messages").doc(), notice);
-    tx.set(metaRef(), { receiptSeq: seq }, { merge: true });
-    tx.update(renewalRef(reference), { status: "paid", paidAt, receiptNo, paymentId: payment.id });
+    tx.set(r.doc("payments", payment.id), payment);
+    tx.update(r.doc("tenancies", pending.tenancyId), { leaseStart: periodStart, leaseEnd: periodEnd });
+    tx.set(r.doc("messages", notice.id), notice);
+    receipt.claim();
+    tx.update(r.doc("renewals", reference), { status: "paid", paidAt, receiptNo: receipt.receiptNo, paymentId: payment.id });
+    tx.set(r.col("audit").doc(), { action: "renewal.paid", at: FieldValue.serverTimestamp(), by: { uid: pending.uid, email: resident.email ?? null, role: null }, details: { reference, receiptNo: receipt.receiptNo } });
   });
 
-  return summarize(reference);
+  return summarize(h, reference);
 }
 
-async function summarize(reference: string): Promise<RenewalResult> {
-  const r = (await renewalRef(reference).get()).data() as Renewal;
-  if (r.status !== "paid") return { status: r.status };
-  const resident = (await residentRef(r.uid).get()).data() as Resident;
-  return { status: "paid", receiptNo: r.receiptNo, paymentId: r.paymentId, leaseEnd: resident.leaseEnd };
+async function summarize(h: string, reference: string): Promise<RenewalResult> {
+  const r = hostelRefs(h);
+  const renewal = (await r.doc("renewals", reference).get()).data() as Renewal;
+  if (renewal.status !== "paid") return { status: renewal.status };
+  // Renewals from before the move to hostels/{id} have no tenancy link
+  const tenancy = renewal.tenancyId ? ((await r.doc("tenancies", renewal.tenancyId).get()).data() as Tenancy | undefined) : undefined;
+  return { status: "paid", receiptNo: renewal.receiptNo, paymentId: renewal.paymentId, leaseEnd: tenancy?.leaseEnd };
 }

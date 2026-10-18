@@ -14,6 +14,7 @@ import { EMPTY_STUDENT, StudentForm, validateStudent } from "@/components/Studen
 import { toast } from "@/components/toast";
 import { Button, Field, Input, PasswordInput } from "@/components/ui";
 import { authMessage } from "@/lib/auth";
+import { listingPath } from "@/lib/current-hostel";
 import { auth, db, storage } from "@/lib/firebase";
 import type { PublicBookingDoc, StudentInfo } from "@/lib/types";
 import { addMonths, cn, formatDate, isBookable, naira, todayISO } from "@/lib/utils";
@@ -123,7 +124,7 @@ export default function BookPage() {
   useEffect(() => {
     if (result) return;
     const unsubscribe = onSnapshot(
-      doc(db, "public/booking"),
+      doc(db, listingPath()),
       (snap) => {
         if (!snap.exists()) return setLoadError(true);
         const data = snap.data() as PublicBookingDoc;

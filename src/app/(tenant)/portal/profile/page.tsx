@@ -7,6 +7,7 @@ import { useState, type ReactNode } from "react";
 import { toast } from "@/components/toast";
 import { Avatar, Button, Field, Input, PasswordInput, Select } from "@/components/ui";
 import { authMessage, signOut } from "@/lib/auth";
+import { hostelPath } from "@/lib/current-hostel";
 import { auth, db } from "@/lib/firebase";
 import { resolveFaculty } from "@/lib/academics";
 import { useTenant } from "@/lib/tenant-store";
@@ -50,7 +51,7 @@ function EditButton({ onClick }: { onClick: () => void }) {
 
 /** Saves only the fields a tenant is allowed to change (see firestore.rules). */
 async function saveOwn(id: string, patch: Partial<Pick<Resident, "phone" | "homeAddress" | "nextOfKinName" | "nextOfKinPhone" | "nextOfKinRelationship">>) {
-  await updateDoc(doc(db, "residents", id), patch);
+  await updateDoc(doc(db, hostelPath(`residents/${id}`)), patch);
 }
 
 function ContactSection({ r }: { r: Resident }) {

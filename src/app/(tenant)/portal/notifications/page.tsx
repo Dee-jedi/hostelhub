@@ -4,6 +4,7 @@ import { doc, updateDoc } from "firebase/firestore";
 import { Bell, BellOff, CalendarClock, ChevronRight, ClipboardList } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { hostelPath } from "@/lib/current-hostel";
 import { db } from "@/lib/firebase";
 import { personalise, tenantNotifications, useTenant, type TenantNotification } from "@/lib/tenant-store";
 import { cn, formatDateTime } from "@/lib/utils";
@@ -25,7 +26,7 @@ export default function NotificationsPage() {
   const newest = list[0]?.at ?? "";
   useEffect(() => {
     if (newest && newest > (r.notificationsSeenAt ?? "")) {
-      updateDoc(doc(db, "residents", r.id), { notificationsSeenAt: new Date().toISOString() }).catch(console.error);
+      updateDoc(doc(db, hostelPath(`residents/${r.id}`)), { notificationsSeenAt: new Date().toISOString() }).catch(console.error);
     }
   }, [newest, r.id, r.notificationsSeenAt]);
 
