@@ -46,7 +46,12 @@ export function resolveHost(raw: string | null | undefined, cfg = { platformDoma
   return cfg.defaultHostel && isValidSlug(cfg.defaultHostel) ? { kind: "hostel", slug: cfg.defaultHostel, via: "default" } : { kind: "unknown" };
 }
 
-/** The host a server request was made to. App Hosting passes the public address in X-Forwarded-Host. */
+/**
+ * The host a server request was made to. App Hosting passes the public address in X-Forwarded-Host,
+ * but it also passes through a value the caller sets (verified on staging), so the hostel this
+ * gives is only "which hostel's pages to show". It is never proof of access: every check goes
+ * through the login's claims (see server/command.ts).
+ */
 export function requestHost(req: Request) {
   return req.headers.get("x-forwarded-host") ?? req.headers.get("host") ?? new URL(req.url).host;
 }
