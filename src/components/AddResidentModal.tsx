@@ -24,6 +24,13 @@ export function RoomSelect({
   const blocks = [...new Set(rooms.map((r) => r.block))].sort((a, b) =>
     a === preferredBlock ? -1 : b === preferredBlock ? 1 : a.localeCompare(b),
   );
+  // When the hostel is full, say so instead of opening an empty list
+  if (!rooms.length)
+    return (
+      <Select value="" disabled>
+        <option value="">No vacant rooms right now</option>
+      </Select>
+    );
   return (
     <Select value={value} onChange={(e) => onChange(e.target.value)}>
       <option value="">Select a vacant room</option>
