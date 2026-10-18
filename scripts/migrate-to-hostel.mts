@@ -25,7 +25,7 @@ const { adminAuth, adminDb } = await import("../src/lib/server/admin");
 const { setHostelRole, setTenantOf } = await import("../src/lib/server/claims");
 const { isValidSlug } = await import("../src/lib/hostel-host");
 const { documentsOf, fromLegacy } = await import("../src/lib/migrate/from-legacy");
-const { toLegacy } = await import("../src/lib/migrate/to-legacy");
+const { toLegacy, withoutSpaceFields } = await import("../src/lib/migrate/to-legacy");
 const { buildRooms, createEmptyState } = await import("../src/lib/seed");
 const { ADMIN_EMAIL } = await import("../src/lib/server/seed-firestore");
 type HostelState = import("../src/lib/types").HostelState;
@@ -132,7 +132,7 @@ function compare(a: unknown, b: unknown, path: string) {
   if (a !== b) differences.push(`${path}: ${JSON.stringify(a)} → ${JSON.stringify(b)}`);
 }
 const plain = (x: unknown) => JSON.parse(JSON.stringify(x));
-compare(plain(state), plain(toLegacy(view)), "state");
+compare(plain(state), plain(withoutSpaceFields(toLegacy(view))), "state");
 if (differences.length) {
   console.error("✗ Read-back differs from the source data (the old collections are untouched):\n  " + differences.join("\n  "));
   process.exit(1);

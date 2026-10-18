@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { createDemoState } from "../seed";
 import type { HostelState } from "../types";
 import { documentsOf, fromLegacy, tenancyIdFor } from "./from-legacy";
-import { toLegacy } from "./to-legacy";
+import { toLegacy, withoutSpaceFields } from "./to-legacy";
 
 const state = createDemoState();
 const logins = new Set(state.residents.filter((r) => r.status === "active" && r.email).map((r) => r.id));
@@ -19,7 +19,7 @@ function normalize(s: HostelState) {
 
 test("the demo hostel survives the move unchanged (old → new → old)", () => {
   const back = toLegacy({ ...docs, sentReminderKeys: docs.counters.reminders.sentKeys });
-  assert.deepEqual(normalize(back), normalize(state));
+  assert.deepEqual(normalize(withoutSpaceFields(back)), normalize(state));
 });
 
 test("Mowarid becomes one per-room type with the hostel's rent and size", () => {

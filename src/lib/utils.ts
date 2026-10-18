@@ -1,3 +1,5 @@
+import type { RoomType } from "./model";
+import { bookableSpaces, spaceIdsOf } from "./spaces";
 import type { HostelState, PublicBookingDoc, PublicRoom, PublicRoomStatus, RentStatus, Resident, Room, Settings, StudentInfo } from "./types";
 
 export function cn(...classes: (string | false | null | undefined)[]) {
@@ -140,10 +142,50 @@ export function peopleInRoom(tenant: Resident | undefined) {
   return tenant ? 1 + tenant.occupants.length : 0;
 }
 
-/** Rooms with no tenant that aren't under maintenance. */
+/** A room's type (size, per room or per bed, price). Falls back to the single-hostel settings. */
+export function roomTypeOf(state: Pick<HostelState, "settings" | "roomTypes">, room: Pick<Room, "typeId"> | undefined): RoomType {
+  const t = state.roomTypes?.find((x) => x.id === room?.typeId) ?? state.roomTypes?.[0];
+  if (t) return t;
+  const s = state.settings;
+  return { id: "standard", name: "Standard", capacity: Math.min(4, Math.max(1, s.maxOccupants)) as RoomType["capacity"], pricingMode: "per_room", price: s.rentAmount };
+}
+
+export const isPerBed = (state: Pick<HostelState, "rentalModel">) => state.rentalModel === "per_bed";
+
+/** Everyone renting a space in each room (one per room for per-room rooms, one per bed otherwise). */
+export function occupantsByRoom(state: Pick<HostelState, "residents">) {
+  const map = new Map<string, Resident[]>();
+  for (const r of state.residents) {
+    if (r.status !== "active" || !r.roomId) continue;
+    map.set(r.roomId, [...(map.get(r.roomId) ?? []), r]);
+  }
+  return map;
+}
+
+/** The spaces in a room that are taken, given who's in it. */
+export function takenSpaces(room: Pick<Room, "id">, type: RoomType, occupants: Resident[]) {
+  if (type.pricingMode === "per_room") return new Set(occupants.length ? [room.id] : []);
+  return new Set(occupants.map((r) => r.spaceId).filter((s): s is string => !!s));
+}
+
+/** Free spaces in a room (none while it's under maintenance). */
+export function freeSpaces(state: Pick<HostelState, "settings" | "roomTypes" | "residents">, room: Room, occupants = occupantsByRoom(state).get(room.id) ?? []) {
+  if (room.underMaintenance) return [];
+  const type = roomTypeOf(state, room);
+  const taken = takenSpaces(room, type, occupants);
+  return spaceIdsOf(room.id, type).filter((s) => !taken.has(s));
+}
+
+/** Rooms with at least one free space that aren't under maintenance. */
 export function availableRooms(state: HostelState, excludeRoomId?: string | null) {
-  const tenants = tenantsByRoom(state);
-  return state.rooms.filter((room: Room) => !room.underMaintenance && room.id !== excludeRoomId && !tenants.has(room.id));
+  const occupants = occupantsByRoom(state);
+  return state.rooms.filter((room: Room) => room.id !== excludeRoomId && freeSpaces(state, room, occupants.get(room.id) ?? []).length > 0);
+}
+
+/** One space's rent for a tenant: their room's type, or the hostel's default type. */
+export function rentFor(state: HostelState, resident: Pick<Resident, "roomId"> | null | undefined) {
+  const room = resident?.roomId ? state.rooms.find((r) => r.id === resident.roomId) : undefined;
+  return roomTypeOf(state, room).price;
 }
 
 // ---------- Messaging ----------
@@ -253,10 +295,7 @@ export function publicInfo(settings: Settings): PublicBookingDoc["info"] {
   };
 }
 
-/** A room can be booked if it's vacant and nobody else is mid-checkout on it. */
-export function isBookable(doc: PublicBookingDoc, roomId: string, now = Date.now(), uid?: string) {
-  const room = doc.rooms[roomId];
-  if (!room || room.status !== "vacant") return false;
-  const hold = doc.holds?.[roomId];
-  return !hold || hold.until <= now || (!!uid && hold.uid === uid);
+/** A room can be booked if it has a free space (the room, or a bed) nobody else is mid-checkout on. */
+export function isBookable(doc: Pick<PublicBookingDoc, "rooms" | "holds">, roomId: string, now = Date.now(), uid?: string) {
+  return bookableSpaces(roomId, doc.rooms[roomId], doc.holds, now, uid).length > 0;
 }

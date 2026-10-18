@@ -88,6 +88,8 @@ export function fromLegacy(input: LegacyInput): HostelDocs {
     currency: "NGN",
     timezone: "Africa/Lagos",
     status: "live",
+    rentalModel: "per_room",
+    defaultTypeId: DEFAULT_TYPE_ID,
     reminderDays: s.reminderDays,
     defaultPeriodId: DEFAULT_PERIOD_ID,
     createdAt: now,

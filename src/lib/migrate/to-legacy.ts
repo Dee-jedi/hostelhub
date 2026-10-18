@@ -26,7 +26,7 @@ export interface HostelView {
 
 export function settingsOf(v: Pick<HostelView, "hostel" | "blocks" | "roomTypes" | "rooms" | "rentPeriods">): Settings {
   const h = v.hostel;
-  const type = v.roomTypes.find((t) => t.id === DEFAULT_TYPE_ID) ?? v.roomTypes[0];
+  const type = v.roomTypes.find((t) => t.id === (h.defaultTypeId ?? DEFAULT_TYPE_ID)) ?? v.roomTypes[0];
   const period = v.rentPeriods.find((p) => p.id === h.defaultPeriodId) ?? v.rentPeriods[0];
   const blocks = [...v.blocks].sort((a, b) => a.order - b.order);
   const roomsPerBlock = Math.max(0, ...v.rooms.map((r) => r.number));
@@ -53,6 +53,7 @@ export function roomOf(r: HostelRoom, blockName: (id: string) => string): Room {
     id: r.id,
     block: blockName(r.blockId),
     number: r.number,
+    typeId: r.typeId,
     underMaintenance: !!r.maintenance,
     ...(r.maintenance?.note ? { note: r.maintenance.note } : {}),
   };
@@ -70,6 +71,7 @@ export function residentOf(p: HostelResident, tenancy: Tenancy | undefined): Res
     ...person,
     occupants: tenancy?.occupants ?? [],
     roomId: active ? tenancy.roomId : null,
+    spaceId: active ? tenancy.spaceId : null,
     status: active ? "active" : "moved_out",
     checkInDate: tenancy?.checkInDate ?? p.createdAt.slice(0, 10),
     leaseStart: tenancy?.leaseStart ?? p.createdAt.slice(0, 10),
@@ -90,6 +92,8 @@ export function toLegacy(v: HostelView): HostelState {
   return {
     version: STATE_VERSION,
     settings: settingsOf(v),
+    roomTypes: [...v.roomTypes].sort((a, b) => a.capacity - b.capacity || a.price - b.price),
+    rentalModel: v.hostel.rentalModel ?? "per_room",
     rooms: v.rooms.map((r) => roomOf(r, (id) => blockName.get(id) ?? id)),
     residents: v.residents.map((p) => residentOf(p, currentTenancy(byResident.get(p.id) ?? []))),
     payments: v.payments.map(paymentOf),
@@ -98,4 +102,13 @@ export function toLegacy(v: HostelView): HostelState {
     tickets: v.requests.map(ticketOf),
     sentReminderKeys: v.sentReminderKeys,
   };
+}
+
+/** The fields toLegacy adds for multi-hostel screens, which the single-hostel data never had. */
+export function withoutSpaceFields(s: HostelState): HostelState {
+  return {
+    ...omit(s, ["roomTypes", "rentalModel"]),
+    rooms: s.rooms.map((r) => omit(r, ["typeId"])),
+    residents: s.residents.map((r) => omit(r, ["spaceId"])),
+  } as HostelState;
 }

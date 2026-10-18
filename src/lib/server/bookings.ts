@@ -1,11 +1,12 @@
 import { randomBytes } from "node:crypto";
 import { FieldValue } from "firebase-admin/firestore";
 import type { HostelBooking, HostelMessage, HostelPayment, HostelResident, HostelRoom, Listing, Tenancy } from "../model";
-import type { PublicBookingDoc, StudentInfo } from "../types";
-import { addMonths, isBookable, todayISO, toStudentInfo } from "../utils";
+import type { StudentInfo } from "../types";
+import { bookableSpaces, spaceIdsOf } from "../spaces";
+import { addMonths, todayISO, toStudentInfo } from "../utils";
 import { adminDb } from "./admin";
 import { setTenantOf } from "./claims";
-import { hostelRefs, listingStatus, newId, readReceiptCounter, readTerms } from "./hostel-data";
+import { hostelRefs, listingUpdate, newId, plus, readOccupancy, readReceiptCounter, readTerms } from "./hostel-data";
 import { initializeTransaction, verifyTransaction } from "./paystack";
 
 /** How long a room stays reserved for someone at checkout. */
@@ -43,6 +44,7 @@ export async function startBooking(input: { hostelId: string; uid: string; email
   const reference = newReference();
   const now = Date.now();
   let amount = 0;
+  let chosenSpace = input.roomId;
 
   await adminDb.runTransaction(async (tx) => {
     const [listingSnap, roomSnap] = await tx.getAll(r.listing, r.doc("rooms", input.roomId));
@@ -53,15 +55,18 @@ export async function startBooking(input: { hostelId: string; uid: string; email
     if (!already.empty) throw new BookingError("You already have a room. Log in to your portal instead.");
 
     const listing = listingSnap.data() as Listing;
-    if (!room || !isBookable(listing as unknown as PublicBookingDoc, input.roomId, now, input.uid)) throw new BookingError(`Room ${input.roomId} was just taken. Please pick another room.`);
+    // The whole room, or the first free bed nobody else is paying for (students pick rooms, not beds)
+    const spaceId = room ? bookableSpaces(input.roomId, listing.rooms[input.roomId], listing.holds, now, input.uid)[0] : undefined;
+    if (!room || !spaceId) throw new BookingError(`Room ${input.roomId} was just taken. Please pick another room.`);
     amount = type.price;
+    chosenSpace = spaceId;
 
     // One hold per person, and sweep expired holds while we're here
     const updates: Record<string, unknown> = {};
-    for (const [roomId, hold] of Object.entries(listing.holds ?? {})) {
-      if (hold.until <= now || (hold.uid === input.uid && roomId !== input.roomId)) updates[`holds.${roomId}`] = FieldValue.delete();
+    for (const [held, hold] of Object.entries(listing.holds ?? {})) {
+      if (hold.until <= now || (hold.uid === input.uid && held !== spaceId)) updates[`holds.${held}`] = FieldValue.delete();
     }
-    updates[`holds.${input.roomId}`] = { until: now + HOLD_MINUTES * 60_000, bookingId: reference, uid: input.uid };
+    updates[`holds.${spaceId}`] = { until: now + HOLD_MINUTES * 60_000, bookingId: reference, uid: input.uid };
     tx.update(r.listing, updates);
 
     const booking: HostelBooking = {
@@ -69,7 +74,7 @@ export async function startBooking(input: { hostelId: string; uid: string; email
       id: reference,
       uid: input.uid,
       roomId: input.roomId,
-      spaceId: input.roomId,
+      spaceId: chosenSpace,
       amount,
       status: "pending",
       createdAt: new Date(now).toISOString(),
@@ -84,21 +89,21 @@ export async function startBooking(input: { hostelId: string; uid: string; email
       amount,
       reference,
       callbackUrl: `${input.origin}/book`,
-      metadata: { hostelId: h, bookingId: reference, roomId: input.roomId, uid: input.uid },
+      metadata: { hostelId: h, bookingId: reference, roomId: input.roomId, spaceId: chosenSpace, uid: input.uid },
     });
     return { reference, accessCode: trx.access_code, amount };
   } catch (err) {
-    await releaseHold(h, input.roomId, reference);
+    await releaseHold(h, chosenSpace, reference);
     await r.doc("bookings", reference).delete();
     throw err;
   }
 }
 
-async function releaseHold(h: string, roomId: string, reference: string) {
+async function releaseHold(h: string, spaceId: string, reference: string) {
   const r = hostelRefs(h);
   await adminDb.runTransaction(async (tx) => {
-    const hold = ((await tx.get(r.listing)).data() as Listing | undefined)?.holds?.[roomId];
-    if (hold?.bookingId === reference) tx.update(r.listing, { [`holds.${roomId}`]: FieldValue.delete() });
+    const hold = ((await tx.get(r.listing)).data() as Listing | undefined)?.holds?.[spaceId];
+    if (hold?.bookingId === reference) tx.update(r.listing, { [`holds.${spaceId}`]: FieldValue.delete() });
   });
 }
 
@@ -134,27 +139,34 @@ export async function finalizeBooking(hostelId: string, reference: string): Prom
   }
 
   const placed = await adminDb.runTransaction(async (tx) => {
-    const [bookingSnap, listingSnap, roomSnap] = await tx.getAll(r.doc("bookings", reference), r.listing, r.doc("rooms", pending.roomId));
+    const [bookingSnap, listingSnap] = await tx.getAll(r.doc("bookings", reference), r.listing);
     const booking = bookingSnap.data() as HostelBooking;
     if (booking.status !== "pending") return false; // another caller finished first
-    const occupant = await tx.get(r.col("tenancies").where("roomId", "==", booking.roomId).where("status", "==", "active").limit(1));
+    const occ = await readOccupancy(tx, h, booking.roomId);
     const existing = await tx.get(r.col("tenancies").where("uid", "==", booking.uid).where("status", "==", "active").limit(1));
-    const { hostel, months } = await readTerms(tx, h, (roomSnap.data() as HostelRoom | undefined) ?? null);
+    const { hostel, months } = await readTerms(tx, h, occ.room);
     const receipt = await readReceiptCounter(tx, h);
 
     const listing = listingSnap.data() as Listing;
     const paidAt = trx.paid_at ?? new Date().toISOString();
-    const hold = listing.holds?.[booking.roomId];
-    const room = roomSnap.data() as HostelRoom | undefined;
-    const roomFree = !!room && !room.maintenance && occupant.empty && (!hold || hold.bookingId === reference || hold.until <= Date.now());
+    const held = booking.spaceId ?? booking.roomId;
+    const checkedAt = Date.now();
+    const freeForUs = (space: string) => {
+      if (occ.occupied.has(space)) return false;
+      const hold = listing.holds?.[space];
+      return !hold || hold.bookingId === reference || hold.until <= checkedAt;
+    };
+    // Their held bed, or (per-bed rooms) any other free bed in the same room
+    const spaceId = occ.room.maintenance ? undefined : freeForUs(held) ? held : spaceIdsOf(booking.roomId, occ.type).find(freeForUs);
+    const clearHold = listing.holds?.[held]?.bookingId === reference ? { [`holds.${held}`]: FieldValue.delete() } : {};
 
-    if (!roomFree || !existing.empty) {
+    if (!spaceId || !existing.empty) {
       tx.update(r.doc("bookings", reference), {
         status: "needs_attention",
         paidAt,
         issue: !existing.empty ? "Already has an active room" : `Room ${booking.roomId} was taken before payment completed`,
       });
-      if (hold?.bookingId === reference) tx.update(r.listing, { [`holds.${booking.roomId}`]: FieldValue.delete() });
+      if (Object.keys(clearHold).length) tx.update(r.listing, clearHold);
       return false;
     }
 
@@ -164,7 +176,7 @@ export async function finalizeBooking(hostelId: string, reference: string): Prom
     const tenancyId = newId("t_");
     const resident: HostelResident = { ...person(booking), id: booking.uid, uid: booking.uid, createdAt: now };
     const tenancy: Tenancy = {
-      id: tenancyId, residentId: booking.uid, uid: booking.uid, roomId: booking.roomId, spaceId: booking.spaceId ?? booking.roomId,
+      id: tenancyId, residentId: booking.uid, uid: booking.uid, roomId: booking.roomId, spaceId,
       periodId: hostel.defaultPeriodId, status: "active", checkInDate: leaseStart, leaseStart, leaseEnd, occupants: booking.occupants ?? [], createdAt: now,
     };
     const payment: HostelPayment = {
@@ -183,8 +195,8 @@ export async function finalizeBooking(hostelId: string, reference: string): Prom
     tx.set(r.doc("payments", payment.id), payment);
     tx.set(r.doc("messages", welcome.id), welcome);
     receipt.claim();
-    tx.update(r.listing, { ...listingStatus(booking.roomId, "occupied"), [`holds.${booking.roomId}`]: FieldValue.delete() });
-    tx.update(r.doc("bookings", reference), { status: "paid", paidAt, residentId: booking.uid, receiptNo: receipt.receiptNo });
+    tx.update(r.listing, { ...listingUpdate(occ.room, occ.type, plus(occ.occupied, spaceId)), ...clearHold });
+    tx.update(r.doc("bookings", reference), { status: "paid", paidAt, residentId: booking.uid, receiptNo: receipt.receiptNo, spaceId });
     tx.set(r.col("audit").doc(), { action: "booking.paid", at: FieldValue.serverTimestamp(), by: { uid: booking.uid, email: booking.email, role: null }, details: { reference, roomId: booking.roomId, receiptNo: receipt.receiptNo } });
     return true;
   });

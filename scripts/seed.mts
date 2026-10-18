@@ -25,7 +25,11 @@ if (IS_LIVE_DATABASE) {
 }
 
 const mode = process.argv.includes("--empty") ? "empty" : "demo";
-await seedFirestore(mode);
+const hostelArg = process.argv.indexOf("--hostel");
+// --hostel unity seeds the per-bed demo hostel; the default is the default hostel (Mowarid)
+const hostel = hostelArg > 0 ? process.argv[hostelArg + 1] : undefined;
+if (hostel) console.log(`Hostel: ${hostel}`);
+await seedFirestore(mode, hostel);
 console.log(`✓ ${mode === "demo" ? "Demo hostel" : "Empty hostel"} loaded`);
 console.log(`  Staff login:  ${ADMIN_EMAIL} / ${ADMIN_DEFAULT_PASSWORD} (if newly created)`);
 if (mode === "demo") console.log(`  Tenant logins: any resident's email / ${DEMO_PASSWORD}`);

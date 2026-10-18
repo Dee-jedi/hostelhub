@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
-import { FieldValue, type DocumentReference, type Transaction } from "firebase-admin/firestore";
+import type { DocumentReference, Transaction } from "firebase-admin/firestore";
 import type { Hostel, HostelRoom, Listing, RentPeriod, RoomType, Tenancy } from "../model";
+import { listingRoomEntry, spaceIdsOf } from "../spaces";
 import { DEFAULT_TYPE_ID } from "../migrate/from-legacy";
 import { requestHost, resolveHost } from "../hostel-host";
 import { adminDb } from "./admin";
@@ -73,31 +74,51 @@ export async function currentTenancyOf(tx: Transaction, h: string, residentId: s
   return all.find((t) => t.status === "active") ?? all.sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0] ?? null;
 }
 
-/**
- * Checks a room can take someone now, reading the room, its occupancy and the public listing
- * (for checkout holds). `exceptResidentId` lets a tenant "move" into the room they're in;
- * `holdOwnerUid` lets a booking's own hold through.
- */
-export async function assertRoomFree(tx: Transaction, h: string, roomId: string, opts: { exceptResidentId?: string; holdOwnerUid?: string } = {}) {
+/** A room, its type, and the spaces taken by active tenancies. Reads only. */
+export async function readOccupancy(tx: Transaction, h: string, roomId: string) {
   const r = hostelRefs(h);
-  const [roomSnap, listingSnap] = await tx.getAll(r.doc("rooms", roomId), r.listing);
+  const roomSnap = await tx.get(r.doc("rooms", roomId));
   if (!roomSnap.exists) throw new CommandError(`Room ${roomId} doesn't exist.`, 404);
   const room = { ...(roomSnap.data() as HostelRoom), id: roomSnap.id };
-  if (room.maintenance) throw new CommandError(`Room ${roomId} is under maintenance.`, 409);
-  const tenant = await activeTenancyIn(tx, h, roomId);
-  if (tenant && tenant.residentId !== opts.exceptResidentId) throw new CommandError(`Room ${roomId} is already occupied.`, 409);
-  const hold = (listingSnap.data() as Listing | undefined)?.holds?.[roomId];
-  if (hold && hold.until > Date.now() && hold.uid !== opts.holdOwnerUid) throw new CommandError(`Someone is paying for room ${roomId} right now.`, 409);
-  return room;
+  const type = (await tx.get(r.doc("roomTypes", room.typeId))).data() as RoomType | undefined;
+  if (!type) throw new CommandError(`Room ${roomId} has no room type.`, 409);
+  const stays = (await tx.get(r.col("tenancies").where("roomId", "==", roomId).where("status", "==", "active"))).docs.map((d) => ({ ...(d.data() as Tenancy), id: d.id }));
+  const occupied = new Set(type.pricingMode === "per_room" ? (stays.length ? [roomId] : []) : stays.map((t) => t.spaceId).filter((x): x is string => !!x));
+  return { room, type, stays, occupied };
 }
 
-/** Listing fields for a room's public status. */
-export function listingStatus(roomId: string, status: Listing["rooms"][string]["status"], note?: string) {
-  return {
-    [`rooms.${roomId}.status`]: status,
-    [`rooms.${roomId}.note`]: note ?? FieldValue.delete(),
-  };
+/**
+ * Finds a free space in a room for someone and returns it (reads only): the whole room for a
+ * per-room type, otherwise the first free bed (or `preferSpaceId` if that bed is free).
+ * `exceptResidentId`: a tenant already in this room doesn't block it. `holdOwnerUid`: that
+ * login's own checkout hold doesn't block them.
+ */
+export async function claimSpace(tx: Transaction, h: string, roomId: string, opts: { exceptResidentId?: string; holdOwnerUid?: string; preferSpaceId?: string | null } = {}) {
+  const occ = await readOccupancy(tx, h, roomId);
+  const listing = (await tx.get(hostelRefs(h).listing)).data() as Listing | undefined;
+  if (occ.room.maintenance) throw new CommandError(`Room ${roomId} is under maintenance.`, 409);
+  const mine = opts.exceptResidentId ? occ.stays.find((t) => t.residentId === opts.exceptResidentId)?.spaceId : undefined;
+  const now = Date.now();
+  const free = spaceIdsOf(roomId, occ.type).filter((s) => {
+    if (occ.occupied.has(s) && s !== mine) return false;
+    const hold = listing?.holds?.[s];
+    return !hold || hold.until <= now || hold.uid === opts.holdOwnerUid;
+  });
+  if (!free.length) {
+    const held = spaceIdsOf(roomId, occ.type).some((s) => !occ.occupied.has(s));
+    throw new CommandError(held ? `Someone is paying for room ${roomId} right now.` : `Room ${roomId} is already ${occ.type.pricingMode === "per_bed" ? "full" : "occupied"}.`, 409);
+  }
+  const spaceId = opts.preferSpaceId && free.includes(opts.preferSpaceId) ? opts.preferSpaceId : free[0];
+  return { ...occ, spaceId };
 }
+
+/** The listing update for a room after a change, given which of its spaces end up taken. */
+export function listingUpdate(room: HostelRoom, type: RoomType, occupied: Set<string>) {
+  return { [`rooms.${room.id}`]: listingRoomEntry(room, room.blockId, type, occupied) };
+}
+
+export const plus = (set: Set<string>, id: string) => new Set([...set, id]);
+export const minus = (set: Set<string>, id: string | null | undefined) => new Set([...set].filter((x) => x !== id));
 
 /** The hostel a public request (booking page, Paystack callback) is for, from its address. */
 export function hostelOfRequest(req: Request): string | null {

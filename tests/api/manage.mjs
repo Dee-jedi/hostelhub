@@ -166,7 +166,11 @@ await check("place a paid booking that needed a room", async () => {
   return r.json.receiptNo;
 });
 
-await check("settings: rent and a new block reach the room type, rooms and listing", async () => {
+await check("room type rent reaches the listing; a new block in settings gets rooms of the default type", async () => {
+  const type = await get("roomTypes/standard");
+  assert.equal((await act("saveRoomType", { id: "standard", name: type.name, capacity: type.capacity, price: 400000 })).status, 200);
+  assert.equal((await get("roomTypes/standard")).price, 400000);
+  assert.equal((await db.doc(`listings/${H}`).get()).data().info.rentAmount, 400000);
   const hostel = await get("");
   const settings = {
     hostelName: hostel.name, address: hostel.address, managerName: hostel.manager.name, managerPhone: hostel.manager.phone,
@@ -175,20 +179,19 @@ await check("settings: rent and a new block reach the room type, rooms and listi
     reminderDays: hostel.reminderDays, bankName: hostel.bank.bankName, accountName: hostel.bank.accountName, accountNumber: hostel.bank.accountNumber, whatsappGroupLink: hostel.whatsappGroupLink,
   };
   assert.equal((await act("updateSettings", { settings })).status, 200);
-  assert.equal((await get("roomTypes/standard")).price, 400000);
-  assert.equal((await db.doc(`listings/${H}`).get()).data().info.rentAmount, 400000);
-  assert.ok(await get("rooms/Z15"), "block Z rooms created");
+  assert.equal((await get("rooms/Z15")).typeId, "standard", "block Z rooms created with the default type");
   assert.equal((await listingRoom("Z1")).status, "vacant");
   // Removing an occupied block is refused
   const blocked = await act("updateSettings", { settings: { ...settings, blocks: [{ name: "Z" }] } });
   assert.equal(blocked.status, 409);
-  assert.equal((await act("updateSettings", { settings: { ...settings, rentAmount: 350000, blocks: settings.blocks.slice(0, 8) } })).status, 200);
+  assert.equal((await act("updateSettings", { settings: { ...settings, blocks: settings.blocks.slice(0, 8) } })).status, 200);
   assert.equal(await get("rooms/Z1"), undefined, "block Z removed again");
+  assert.equal((await act("saveRoomType", { id: "standard", name: type.name, capacity: type.capacity, price: type.price })).status, 200);
 });
 
 await check("every change above left an audit entry by this manager", async () => {
   const audit = (await db.collection(`hostels/${H}/audit`).where("by.uid", "==", managerUid).get()).docs.map((d) => d.data().action);
-  for (const a of ["tenant.edited", "tenant.moved", "room.maintenance_on", "tenant.moved_out", "payment.recorded", "reminders.sent", "message.sent", "booking.placed", "settings.updated"]) assert.ok(audit.includes(a), `missing ${a}`);
+  for (const a of ["tenant.edited", "tenant.moved", "room.maintenance_on", "tenant.moved_out", "payment.recorded", "reminders.sent", "message.sent", "booking.placed", "settings.updated", "roomType.updated"]) assert.ok(audit.includes(a), `missing ${a}`);
   return `${audit.length} entries`;
 });
 

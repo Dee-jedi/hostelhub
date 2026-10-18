@@ -7,6 +7,7 @@
  * per room, or one bed when priced per bed. Spaces aren't stored: a space id is the room id
  * (per room) or `${roomId}-${bed}` (per bed: A, B, C, D).
  */
+import type { Hold, ListingRoom } from "./spaces";
 import type { Booking, Message, Payment, StudentInfo, Ticket } from "./types";
 
 export type PricingMode = "per_room" | "per_bed";
@@ -24,6 +25,10 @@ export interface Hostel {
   currency: "NGN";
   timezone: string;
   status: "draft" | "live" | "suspended";
+  /** Whole rooms or single beds, for the whole hostel (each room type carries the same value) */
+  rentalModel?: PricingMode;
+  /** The room type new rooms get (e.g. when a block is added) */
+  defaultTypeId?: string;
   /** Days before the end of a paid period when reminders go out */
   reminderDays: number[];
   /** The rent period new tenancies use unless another is chosen */
@@ -143,8 +148,9 @@ export interface Listing {
     leaseMonths: number;
     maxOccupants: number;
   };
-  rooms: Record<string, { block: string; number: number; label: string; typeId: string; status: "vacant" | "occupied" | "maintenance"; note?: string }>;
-  holds: Record<string, { until: number; bookingId: string; uid: string }>;
+  /** Keyed by room id. Holds are keyed by space id (the room id, or `${roomId}-A`… for beds). */
+  rooms: Record<string, ListingRoom>;
+  holds: Record<string, Hold>;
 }
 
 /** hostels/{h}/counters/receipts */
@@ -155,10 +161,4 @@ export interface ReceiptCounter {
 /** hostels/{h}/counters/reminders: which automated reminders already went out */
 export interface ReminderLog {
   sentKeys: string[];
-}
-
-/** For a per-room type the room is the space; for per-bed, one space per bed. */
-export function spaceIds(room: Pick<HostelRoom, "id">, type: Pick<RoomType, "capacity" | "pricingMode">) {
-  if (type.pricingMode === "per_room") return [room.id];
-  return Array.from({ length: type.capacity }, (_, i) => `${room.id}-${String.fromCharCode(65 + i)}`);
 }

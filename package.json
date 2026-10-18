@@ -15,7 +15,7 @@
     "test:smoke": "node tests/e2e/smoke.mjs",
     "test:unit": "tsx --test \"src/**/*.test.ts\"",
     "test:rules": "node tests/rules/staging-rules.mjs",
-    "test:api": "node tests/api/commands.mjs && node tests/api/manage.mjs",
+    "test:api": "node tests/api/commands.mjs && node tests/api/manage.mjs && node tests/api/beds.mjs",
     "migrate": "tsx scripts/migrate-to-hostel.mts"
   },
   "dependencies": {

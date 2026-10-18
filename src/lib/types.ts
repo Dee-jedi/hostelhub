@@ -1,3 +1,5 @@
+import type { PricingMode, RoomType } from "./model";
+
 export type Sex = "Male" | "Female";
 export type PaymentMethod = "Transfer" | "Cash" | "POS" | "Online";
 export type Channel = "SMS" | "WhatsApp" | "Email";
@@ -30,6 +32,8 @@ export interface Room {
   id: string; // e.g. "H15"
   block: string;
   number: number;
+  /** Its room type (size, per room or per bed, price); see HostelState.roomTypes */
+  typeId?: string;
   underMaintenance: boolean;
   note?: string;
 }
@@ -70,6 +74,8 @@ export interface StudentInfo {
 export interface Resident extends StudentInfo {
   id: string;
   roomId: string | null;
+  /** The space they rent: the room id itself, or `${roomId}-A`… for a bed in a per-bed room */
+  spaceId?: string | null;
   status: "active" | "moved_out";
   checkInDate: string; // ISO date (YYYY-MM-DD)
   leaseStart: string;
@@ -130,6 +136,10 @@ export interface PublicRoom {
   block: string;
   number: number;
   status: PublicRoomStatus;
+  label?: string;
+  typeId?: string;
+  /** Per-bed rooms only: each bed's status */
+  beds?: Record<string, "vacant" | "occupied">;
   note?: string;
 }
 
@@ -155,6 +165,8 @@ export interface PublicBookingDoc {
     whatsappGroupLink: string;
     managerName: string;
     managerPhone: string;
+    /** Room sizes and prices (multi-hostel listings) */
+    roomTypes?: Pick<RoomType, "id" | "name" | "capacity" | "pricingMode" | "price">[];
   };
   rooms: Record<string, PublicRoom>;
   holds: Record<string, RoomHold>;
@@ -197,6 +209,10 @@ export interface Ticket {
 export interface HostelState {
   version: number;
   settings: Settings;
+  /** Room sizes and prices (multi-hostel); when absent, settings' rent and max occupants apply */
+  roomTypes?: RoomType[];
+  /** Whether this hostel rents whole rooms or single beds */
+  rentalModel?: PricingMode;
   rooms: Room[];
   residents: Resident[];
   payments: Payment[];
