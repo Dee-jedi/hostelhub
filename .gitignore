@@ -49,3 +49,6 @@ tests/e2e/shots/
 
 # Playwright MCP screenshots and traces
 /.playwright-mcp/
+
+# Firebase CLI logs
+firebase-debug*.log

@@ -1,0 +1,132 @@
+"use client";
+
+import { Check, Link2, QrCode } from "lucide-react";
+import { useState } from "react";
+import { PLATFORM_HOST } from "@/lib/platform";
+import { cn } from "@/lib/utils";
+import { BookingScreen, DashboardMock, DEMO_HOSTEL, Phone } from "./Mockups";
+
+const STEPS = [
+  {
+    title: "Tell us about your hostel",
+    body: "Your hostel's name, your rooms and what each one costs. Plain questions, one at a time. Most hostels finish in an afternoon.",
+  },
+  {
+    title: "Share your booking link",
+    body: "You get your own address and a QR poster for the gate. Send the link to agents, post it on WhatsApp, print the poster.",
+  },
+  {
+    title: "Students book and pay",
+    body: "They pick a free room on a live map, fill their form and pay online. The rent goes straight to your bank, and the room is theirs.",
+  },
+  {
+    title: "Run it from your dashboard",
+    body: "Every room, every tenant and every payment in one place, on your phone or laptop. You see who owes before they forget.",
+  },
+];
+
+function SetupCard() {
+  return (
+    <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-[0_24px_60px_-20px_rgba(11,35,34,0.3)] ring-1 ring-black/5">
+      <p className="text-xs font-medium text-brand-700">Step 3 of 8</p>
+      <p className="mt-1 text-lg font-semibold text-grey-950">How many people share a room?</p>
+      <div className="mt-4 grid grid-cols-3 gap-2">
+        {[2, 3, 4].map((n) => (
+          <span key={n} className={cn("flex h-16 flex-col items-center justify-center rounded-2xl border text-sm font-semibold", n === 2 ? "border-brand-600 bg-brand-50 text-brand-800" : "border-grey-100 text-heading-4")}>
+            {n}
+            <span className="text-[11px] font-normal text-heading-6">people</span>
+          </span>
+        ))}
+      </div>
+      <p className="mt-5 text-sm font-medium text-grey-950">Rent per room, per session</p>
+      <div className="mt-2 flex h-12 items-center rounded-2xl bg-grey-50 px-4 text-lg font-semibold tabular-nums text-grey-950">₦350,000</div>
+      <div className="mt-5 flex h-11 items-center justify-center rounded-2xl bg-brand-950 text-sm font-semibold text-white">Continue</div>
+    </div>
+  );
+}
+
+function ShareCard() {
+  return (
+    <div className="w-full max-w-sm space-y-3">
+      <div className="flex items-center gap-3 rounded-2xl bg-white p-4 shadow-[0_24px_60px_-20px_rgba(11,35,34,0.3)] ring-1 ring-black/5">
+        <span className="flex size-10 items-center justify-center rounded-xl bg-brand-50 text-brand-700">
+          <Link2 className="size-5" />
+        </span>
+        <div className="min-w-0">
+          <p className="text-xs text-heading-6">Your booking page</p>
+          <p className="truncate text-[15px] font-semibold text-grey-950">sunrise.{PLATFORM_HOST}</p>
+        </div>
+      </div>
+      <div className="rounded-3xl bg-brand-950 p-6 text-center text-white shadow-[0_24px_60px_-20px_rgba(11,35,34,0.5)]">
+        <p className="text-xs tracking-[0.2em] text-brand-300 uppercase">Rooms available</p>
+        <p className="mt-2 text-2xl font-semibold">{DEMO_HOSTEL}</p>
+        <div className="mx-auto mt-4 flex size-28 items-center justify-center rounded-2xl bg-white">
+          <QrCode className="size-20 text-brand-950" strokeWidth={1.25} />
+        </div>
+        <p className="mt-4 text-sm text-brand-100/80">Scan to pick your room and pay</p>
+      </div>
+    </div>
+  );
+}
+
+const VISUALS = [
+  <SetupCard key="setup" />,
+  <ShareCard key="share" />,
+  <Phone key="book" className="w-60">
+    <BookingScreen />
+  </Phone>,
+  <DashboardMock key="dash" className="w-full max-w-xl" />,
+];
+
+/** Four steps; picking one shows what that step looks like. */
+export function HowItWorks() {
+  const [step, setStep] = useState(0);
+  return (
+    <div className="grid items-center gap-10 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:gap-16">
+      <ol className="space-y-2">
+        {STEPS.map((s, i) => {
+          const active = i === step;
+          return (
+            <li key={s.title}>
+              <button
+                type="button"
+                onClick={() => setStep(i)}
+                aria-pressed={active}
+                className={cn(
+                  "group flex w-full gap-4 rounded-3xl p-5 text-left transition-all",
+                  active ? "bg-white shadow-[0_16px_40px_-20px_rgba(11,35,34,0.25)] ring-1 ring-black/5" : "hover:bg-white/60",
+                )}
+              >
+                <span
+                  className={cn(
+                    "flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold transition-colors",
+                    active ? "bg-brand-950 text-white" : i < step ? "bg-brand-100 text-brand-800" : "bg-grey-100 text-heading-5",
+                  )}
+                >
+                  {i < step ? <Check className="size-4" /> : i + 1}
+                </span>
+                <span>
+                  <span className={cn("block text-lg font-semibold tracking-tight", active ? "text-grey-950" : "text-heading-4")}>{s.title}</span>
+                  <span className={cn("grid transition-all duration-300", active ? "mt-1.5 grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0 lg:grid-rows-[0fr]")}>
+                    <span className="overflow-hidden text-[15px] leading-relaxed text-heading-5">{s.body}</span>
+                  </span>
+                </span>
+              </button>
+              {/* Phones: the picture sits under its step, where the tap happened */}
+              {active && (
+                <div className="mt-3 flex justify-center rounded-[2rem] bg-[radial-gradient(circle_at_30%_20%,var(--color-brand-100),transparent_65%)] px-4 py-8 motion-safe:animate-[pop-in_0.35s_ease-out] lg:hidden">
+                  {VISUALS[i]}
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+      <div className="hidden min-h-[420px] items-center justify-center rounded-[2rem] lg:flex bg-[radial-gradient(circle_at_30%_20%,var(--color-brand-100),transparent_60%),radial-gradient(circle_at_80%_90%,var(--color-brand-50),transparent_55%)] p-6 sm:p-10">
+        <div key={step} className="flex w-full justify-center motion-safe:animate-[pop-in_0.35s_ease-out]">
+          {VISUALS[step]}
+        </div>
+      </div>
+    </div>
+  );
+}
