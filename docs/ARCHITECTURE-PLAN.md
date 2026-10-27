@@ -220,14 +220,14 @@ That makes the browser a thin client and makes the rules simple ("tenants read t
 1. **Sign up:** email and password, verify email, and create the organization.
 2. **Hostel basics:** name (shown on the dashboard, booking page, portal and receipts), address, manager name and phone, logo, currency and timezone.
 3. **How you charge:** per room or per bed, with a preview of how the dashboard and booking page will look for each. Then **which room sizes you have**: ☑ 2-person ☑ 3-person ☑ 4-person (any mix; 4 is the maximum). Each ticked size becomes a room type.
-4. **Rent:** a rent for each room size (per room or per bed, as chosen), the "pass Paystack's fee to students" switch, and the current session's dates. Deposit, fees and part payments are optional and can be changed later.
+4. **Rent:** a rent for each room size (per room or per bed, as chosen), and the current session's dates. A plain note explains the student's service fee at checkout (§10.6). Deposit, fees and part payments are optional and can be changed later.
 5. **Layout:** add blocks (and floors), then **generate rooms** ("Block A, rooms 1–15, 2-person") with editable labels, and change any single room's size afterwards.
    - **Live quote:** shown as rooms are added, banded per room size. For example: "40 two-person rooms × ₦4,000 + 30 three-person rooms × ₦2,500 = ₦235,000 per session. Free for 60 days."
 6. **Payments:** bank details become a Paystack subaccount (the account name is verified through Paystack). Offline methods accepted.
 7. **Rules:** sex policy, online booking on or off, photo and matric required, renewal priority window.
 8. **Team:** invite other managers by email (optional).
 9. **Existing tenants:** CSV import with a column-mapping screen, or add them one by one.
-10. **Go live:** the free trial starts, with its countdown banner. The hostel gets its booking address `{slug}.<domain>` (the slug is picked in step 2 and checked to be unique), a printable QR poster, and a checklist. Paying the subscription happens from the banner, before or when the trial ends.
+10. **Go live:** real payments switch on. The hostel gets its booking address `{slug}.<domain>` (the slug is picked in step 2 and checked to be unique), a printable QR poster, and a checklist. Before this, the booking page takes Paystack test payments only (§10.6).
 
 Each step saves as a draft, so the owner can stop and come back later. The hostel stays `draft` until they press **Go live**.
 
@@ -280,7 +280,7 @@ Staff start move-out, tick the checklist (keys returned, damages noted), and the
 ### Made (2026-10-18)
 
 1. **Each hostel gets a subdomain:** `mowarid.<domain>`, `hostel2.<domain>`.
-   - **Hosting:** App Hosting supports wildcard domains (`*.<domain>`), so one deployment serves every hostel.
+   - **Hosting:** one deployment serves every hostel. Whether App Hosting accepts a wildcard custom domain (`*.<domain>`) must be verified before buying the domain; if not, add each hostel's domain through the API at Go live, or put Cloudflare in front.
    - **Routing:** the app reads the request's host (`X-Forwarded-Host`) and looks up the hostel by its `slug`. Unknown or reserved subdomains (`www`, `app`, `admin`, `api`) go to the platform pages.
    - **Platform pages:** the bare domain hosts the marketing page, owner sign-up and login.
    - **DNS:** needs a wildcard record. If the registrar can't do that, use Cloudflare DNS (free).
@@ -291,34 +291,18 @@ Staff start move-out, tick the checklist (keys returned, damages noted), and the
    - **Onboarding:** the hostel enters the current session's start and end once.
    - **Near the end:** the system proposes the next session (same length, starting where this one ends). The manager taps Confirm or adjusts the dates. A reminder repeats until it's confirmed.
    - **Strikes and delays:** an **Extend session** action moves the end date of the session and all its active tenancies, and tells tenants.
-5. **Onboarding asks for the model up front:** per room or per bed, and the room size (2, 3 or 4 per room; 4 is the maximum we support). For per-room hostels the size is the occupant limit; for per-bed hostels it's the number of beds. Then the rent per space, which is what students see. A **"Pass Paystack's fee to students"** switch adds the processing fee (up to ₦2,000) at checkout.
+5. **Onboarding asks for the model up front:** per room or per bed, and the room size (2, 3 or 4 per room; 4 is the maximum we support). For per-room hostels the size is the occupant limit; for per-bed hostels it's the number of beds. Then the rent per space, which is what students see (plus the service fee at checkout, §10.6).
 
-### Leaning towards (not final)
+### Made (2026-10-28)
 
-6. **How HostelHub earns money:** a **subscription per lettable space per session**, paid by the owner. The fee per space comes from the rent per space:
-
-   | Rent per space per session | Fee per space |
-   |---|---|
-   | Below ₦150k | ₦1,500 |
-   | ₦150k – ₦349k | ₦2,500 |
-   | ₦350k – ₦599k | ₦4,000 |
-   | ₦600k – ₦999k | ₦6,000 |
-   | ₦1M and above | ₦10,000 |
-
-   Examples: Mowarid has 120 rooms × ₦4,000 = ₦480k per session. A per-bed hostel with 200 beds at ₦120k pays 200 × ₦1,500 = ₦300k.
-   - **Fairness:** per-bed hostels fall into lower bands automatically, because beds rent for less.
-   - **Mixed hostels:** each room type is banded on its own rent.
-   - **Spaces added mid-session** are billed for the remainder at the next renewal.
-
-   **Trial:**
-   - **Length:** free for 60 days from Go live, with a countdown banner showing the end date. (If a hostel signs up mid-session and the trial would end before students start booking, the platform admin can extend it by hand.)
-   - **When it ends:** staff screens become read-only with "Subscribe to continue". The booking page keeps working for a 7-day grace period. Data is never deleted for non-payment.
-   - **Optional:** 10% off for paying before the trial ends.
-   - **Paying:** owners pay through Paystack to the platform account, or by bank transfer confirmed by the platform admin.
-   - **Why not a % of online rent:** a percentage is lost whenever a hostel steers students to bank transfer, and instalments multiply Paystack fees. A subscription is predictable and doesn't depend on how students pay.
-   - **Rent still goes online:** students can still pay rent through Paystack, straight to the hostel's subaccount with a 0% platform split. The hostel can pass Paystack's fee (capped at ₦2,000) on to the student.
-   - **Offline proof flow:** add "student uploads transfer proof, staff approve" for hostels that collect offline.
-   - **Changes to §7 and §8.1:** the payout setup no longer needs a platform split, and onboarding gains a "choose plan / pay subscription" step.
+6. **How HostelHub earns money: a service fee on online payments, paid by the student.** Free for hostels.
+   - **Online booking or renewal:** the student pays rent + a **2% service fee (minimum ₦2,500)**, shown as its own line at checkout. Paystack's split sends the full rent to the hostel's subaccount and the fee to HostelHub; HostelHub bears Paystack's charge (1.5% + ₦100, capped at ₦2,000). Example: ₦350,000 rent → student pays ₦357,000, hostel gets ₦350,000, HostelHub keeps ₦7,000 − ₦2,000 = ₦5,000. The rate, minimum and caps are settings, not code.
+   - **Tenants added by hand:** free when imported **before Go live** (existing tenants; capped at the hostel's capacity, and free only until their current lease ends). After Go live, each tenant added or renewed by hand carries a small flat fee per session (around ₦1,500), billed to the manager. Online is then the cheapest route for the manager, so it isn't a loophole. Hand-added tenants are flagged; the platform admin sees each hostel's online vs by-hand split.
+   - **Setup mode can't run a hostel:** before Go live the booking page takes Paystack test payments only and the student portal is off, with a time limit to Go live (e.g. 30 days).
+   - **Trying it:** `demo.<domain>` is a fictional hostel anyone can click through; a manager can also book their own draft hostel with a Paystack test card and watch it reach the dashboard.
+   - **Marketing says "free for hostels"**; the student fee is disclosed at checkout and in the manager's onboarding and terms, not on the landing page.
+   - **Country:** Nigeria (₦) only at launch. Hostels carry `country`/`currency` so other Paystack countries (Ghana, Kenya, South Africa, Côte d'Ivoire) can be added later; each needs its own HostelHub Paystack business there.
+   - **Replaces** the per-space subscription considered on 2026-10-18 (dropped: a manager-paid bill is the main barrier to trying the product, and the hand-add fee covers the bypass worry that motivated it).
 7. **Platform domain:** `hostelhub.africa`, if available with that exact spelling (matches the brand), else rebrand to match `hostelshub.ng`. Avoid `.name.ng`.
 
 ### Still open
