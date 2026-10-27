@@ -30,10 +30,11 @@ function RequestDrawer({ ticket, resident, onClose }: { ticket: Ticket; resident
   const roomChange = kindOf(ticket) === "room_change";
   const unavailable = roomChange && ticket.requestedRoomId ? roomUnavailableReason(ticket.requestedRoomId, resident?.id) : null;
 
-  const act = (status?: Ticket["status"], message?: string) => {
-    updateTicket(ticket.id, { status, text: text || message });
+  const act = async (status?: Ticket["status"], message?: string) => {
+    const err = await updateTicket(ticket.id, { status, text: text || message });
+    if (err) return toast(err, "info");
     setText("");
-    toast(status ? `Marked ${statusLabel[status].toLowerCase()}. The tenant has been notified.` : "Reply sent");
+    toast(status ? `Marked ${statusLabel[status].toLowerCase()}. The tenant can see it in their portal.` : "Reply sent");
   };
 
   const approve = async () => {
@@ -181,9 +182,10 @@ export default function RequestsInboxPage() {
     markTicketSeen(t.id);
   };
 
-  const create = () => {
+  const create = async () => {
     if (!roomId || !title.trim()) return toast("Pick a room and describe the issue", "info");
-    addTicket({ roomId, residentId: null, title: title.trim(), category });
+    const err = await addTicket({ roomId, residentId: null, title: title.trim(), category });
+    if (err) return toast(err, "info");
     toast("Repair logged");
     setCreating(false);
     setTitle("");

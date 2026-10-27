@@ -245,7 +245,7 @@ export function StudentForm({
             <option>Female</option>
           </Select>
         </Field>
-        <Field label="Phone number" required hint="WhatsApp number preferred — reminders are sent here">
+        <Field label="Phone number" required hint="WhatsApp number preferred">
           <Input value={value.phone} onChange={(e) => set("phone", e.target.value)} placeholder="08031234567" inputMode="tel" autoComplete="tel" />
         </Field>
         {!hideEmail && (

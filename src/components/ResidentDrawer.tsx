@@ -34,6 +34,8 @@ export function ResidentDrawer({ residentId, onClose }: { residentId: string | n
   const [newRoom, setNewRoom] = useState("");
   const [confirmMoveOut, setConfirmMoveOut] = useState(false);
   const [receipt, setReceipt] = useState<Payment | null>(null);
+  /** An edit, room move or move-out waiting for the server */
+  const [busy, setBusy] = useState(false);
   const allMessages = useHistoryLoaded("messages");
 
   // Long-standing tenants have receipts older than the staff app loads by default
@@ -51,13 +53,21 @@ export function ResidentDrawer({ residentId, onClose }: { residentId: string | n
   const active = resident.status === "active";
   const msgCount = s.messages.filter((m) => m.recipientIds.includes(resident.id)).length;
 
+  /** Runs a change, then reports it; the form or dialog stays open if the server refuses. */
+  const run = async (change: Promise<string | null>, done: string, close: () => void) => {
+    setBusy(true);
+    const error = await change;
+    setBusy(false);
+    if (error) return toast(error, "info");
+    close();
+    toast(done);
+  };
+
   const saveEdit = () => {
     if (!editing) return;
     const err = validateStudent(editing);
     if (err) return toast(err, "info");
-    updateResident(resident.id, editing);
-    setEditing(null);
-    toast("Resident details updated");
+    run(updateResident(resident.id, editing), "Resident details updated", () => setEditing(null));
   };
 
   return (
@@ -70,7 +80,9 @@ export function ResidentDrawer({ residentId, onClose }: { residentId: string | n
               <Button variant="secondary" onClick={() => setEditing(null)}>
                 Cancel
               </Button>
-              <Button onClick={saveEdit}>Save changes</Button>
+              <Button onClick={saveEdit} disabled={busy}>
+                {busy ? "Saving…" : "Save changes"}
+              </Button>
             </div>
           </div>
         ) : (
@@ -276,15 +288,15 @@ export function ResidentDrawer({ residentId, onClose }: { residentId: string | n
               Cancel
             </Button>
             <Button
-              disabled={!newRoom}
-              onClick={() => {
-                updateResident(resident.id, { roomId: newRoom });
-                toast(`${resident.fullName} moved to ${newRoom}`);
-                setMoving(false);
-                setNewRoom("");
-              }}
+              disabled={!newRoom || busy}
+              onClick={() =>
+                run(updateResident(resident.id, { roomId: newRoom }), `${resident.fullName} moved to ${newRoom}`, () => {
+                  setMoving(false);
+                  setNewRoom("");
+                })
+              }
             >
-              Move resident
+              {busy ? "Moving…" : "Move resident"}
             </Button>
           </>
         }
@@ -306,13 +318,10 @@ export function ResidentDrawer({ residentId, onClose }: { residentId: string | n
             </Button>
             <Button
               variant="danger"
-              onClick={() => {
-                moveOut(resident.id);
-                setConfirmMoveOut(false);
-                toast(`${resident.fullName} marked as moved out`);
-              }}
+              disabled={busy}
+              onClick={() => run(moveOut(resident.id), `${resident.fullName} marked as moved out`, () => setConfirmMoveOut(false))}
             >
-              Confirm move-out
+              {busy ? "Saving…" : "Confirm move-out"}
             </Button>
           </>
         }

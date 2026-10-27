@@ -380,8 +380,9 @@ export default function RoomsPage() {
               <Button
                 variant="secondary"
                 disabled={inRoom.length > 0 && !room.underMaintenance}
-                onClick={() => {
-                  setRoomMaintenance(room.id, !room.underMaintenance, note || "Under repair");
+                onClick={async () => {
+                  const err = await setRoomMaintenance(room.id, !room.underMaintenance, note || "Under repair");
+                  if (err) return toast(err, "info");
                   toast(room.underMaintenance ? `${room.id} is available again` : `${room.id} marked under maintenance`);
                   setNote("");
                 }}

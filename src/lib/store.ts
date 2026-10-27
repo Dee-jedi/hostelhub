@@ -351,13 +351,14 @@ export async function addResident(info: StudentInfo, roomId: string | null, paym
   }
 }
 
-export function updateResident(id: string, patch: Partial<Resident>) {
-  inBackground(manage("updateTenant", { residentId: id, patch }));
-}
+/*
+ * Actions below resolve to the server's error message, or null once it's saved, so screens say
+ * "done" only when it is (the server may refuse, e.g. a room taken a moment ago).
+ */
 
-export function moveOut(id: string) {
-  inBackground(manage("moveOut", { residentId: id }));
-}
+export const updateResident = (id: string, patch: Partial<Resident>) => attempt("updateTenant", { residentId: id, patch });
+
+export const moveOut = (id: string) => attempt("moveOut", { residentId: id });
 
 /**
  * Records a rent payment and extends the lease by one rent period. Resolves once it's saved
@@ -372,9 +373,7 @@ export async function recordPayment(residentId: string, input: PaymentInput, ext
   }
 }
 
-export function sendMessage(msg: { kind: Message["kind"]; channel: Channel; recipientIds: string[]; body: string }) {
-  inBackground(manage("sendMessage", msg));
-}
+export const sendMessage = (msg: { kind: Message["kind"]; channel: Channel; recipientIds: string[]; body: string }) => attempt("sendMessage", msg);
 
 /**
  * Sends reminders to residents who have crossed a reminder threshold (e.g. 30, 14, 7, 1 days
@@ -407,13 +406,10 @@ export function bookingToStudent(b: Booking): StudentInfo {
   return toStudentInfo(b);
 }
 
-export function addTicket(t: { roomId: string; residentId: string | null; title: string; category: TicketCategory }) {
-  inBackground(manage("logRepair", { roomId: t.roomId, title: t.title, category: t.category }));
-}
+export const addTicket = (t: { roomId: string; residentId: string | null; title: string; category: TicketCategory }) =>
+  attempt("logRepair", { roomId: t.roomId, title: t.title, category: t.category });
 
-export function setTicketStatus(id: string, status: Ticket["status"]) {
-  updateTicket(id, { status });
-}
+export const setTicketStatus = (id: string, status: Ticket["status"]) => updateTicket(id, { status });
 
 const requestDoc = (id: string) => doc(db, hostelPath(`requests/${id}`));
 
@@ -425,22 +421,26 @@ export function markTicketSeen(id: string) {
 }
 
 /** A staff reply and/or status change. Every one is kept on the request so the tenant sees the history. */
-export function updateTicket(id: string, change: { status?: Ticket["status"]; text?: string }) {
+export async function updateTicket(id: string, change: { status?: Ticket["status"]; text?: string }): Promise<string | null> {
   const t = state.tickets.find((x) => x.id === id);
-  if (!t) return;
+  if (!t) return "This request no longer exists";
   const now = new Date().toISOString();
   const status = change.status && change.status !== t.status ? change.status : undefined;
   const text = change.text?.trim();
-  if (!status && !text) return;
+  if (!status && !text) return null;
   const update: TicketUpdate = { at: now, by: "staff", ...(text ? { text } : {}), ...(status ? { status } : {}) };
   const closed = status === "resolved" || status === "declined";
-  inBackground(
-    updateDoc(requestDoc(id), {
+  try {
+    await updateDoc(requestDoc(id), {
       updates: arrayUnion(update),
       seenAt: t.seenAt ?? now,
       ...(status ? { status, resolvedAt: closed ? now : deleteField() } : {}),
-    }),
-  );
+    });
+    return null;
+  } catch (err) {
+    console.error(err);
+    return "Couldn't save that. Check your connection and try again.";
+  }
 }
 
 /** Why a room can't take someone right now, or null if it can. */
@@ -469,9 +469,8 @@ export async function approveRoomChange(id: string, note?: string): Promise<stri
   }
 }
 
-export function setRoomMaintenance(roomId: string, underMaintenance: boolean, note?: string) {
-  inBackground(manage("setMaintenance", { roomId, on: underMaintenance, note }));
-}
+export const setRoomMaintenance = (roomId: string, underMaintenance: boolean, note?: string) =>
+  attempt("setMaintenance", { roomId, on: underMaintenance, note });
 
 /**
  * Saves the settings form. When the new layout would delete rooms, nothing is saved and the

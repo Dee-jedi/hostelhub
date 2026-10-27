@@ -24,12 +24,16 @@ export function ComposeModal({
   const [channel, setChannel] = useState<Channel>("SMS");
   const [body, setBody] = useState(TEMPLATES.find((t) => t.id === defaultTemplate)?.body ?? "");
   const [sent, setSent] = useState(false);
+  const [sending, setSending] = useState(false);
   const preview = recipients[0] ? fillTemplate(body, recipients[0], s) : body;
 
-  const send = () => {
+  const send = async () => {
     if (!body.trim()) return toast("Write a message first", "info");
-    sendMessage({ kind, channel, recipientIds: recipients.map((r) => r.id), body });
-    toast(`Message queued for ${recipients.length} resident${recipients.length === 1 ? "" : "s"}`);
+    setSending(true);
+    const err = await sendMessage({ kind, channel, recipientIds: recipients.map((r) => r.id), body });
+    setSending(false);
+    if (err) return toast(err, "info");
+    toast(`Message sent to ${recipients.length} resident${recipients.length === 1 ? "" : "s"}`);
     setSent(true);
   };
 
@@ -40,11 +44,11 @@ export function ComposeModal({
         onClose={onClose}
         size="lg"
         title="Message sent"
-        description="Logged to message history. Use the WhatsApp buttons to send personally from your phone."
+        description="It's in each tenant's portal notifications and your message history."
         footer={<Button onClick={onClose}>Done</Button>}
       >
         <div className="mb-4 rounded-lg bg-amber-50 p-3 text-xs text-amber-900">
-          Demo mode: bulk SMS is simulated. In production this goes out through an SMS gateway (e.g. Termii) or the WhatsApp Business API automatically.
+          No SMS or WhatsApp message was sent. Tenants without a portal login won&apos;t see it: use the WhatsApp buttons to send it from your phone.
         </div>
         <ul className="divide-y divide-slate-100">
           {recipients.map((r) => (
@@ -83,8 +87,8 @@ export function ComposeModal({
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={send} disabled={recipients.length === 0}>
-            <Send className="size-4" /> Send to {recipients.length}
+          <Button onClick={send} disabled={recipients.length === 0 || sending}>
+            <Send className="size-4" /> {sending ? "Sending…" : `Send to ${recipients.length}`}
           </Button>
         </>
       }

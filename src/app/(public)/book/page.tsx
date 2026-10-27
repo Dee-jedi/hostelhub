@@ -366,7 +366,7 @@ export default function BookPage() {
 
                 <FormCard icon={KeyRound} title="Create your tenant login" description="You'll use this to log in to your portal for receipts, repairs and renewals.">
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <Field label="Email" required className="sm:col-span-2" hint="Your receipt is sent here">
+                    <Field label="Email" required className="sm:col-span-2" hint="You log in with this, and a password reset link comes here. Use one you can open.">
                       <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" placeholder="you@example.com" />
                     </Field>
                     <Field label="Password" required hint="At least 6 characters">
