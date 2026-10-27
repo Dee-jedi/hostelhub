@@ -5,6 +5,7 @@ import { useState } from "react";
 import { RoomTypesPanel } from "@/components/RoomTypesPanel";
 import { toast } from "@/components/toast";
 import { BtnLabel, Button, headerBtn, Panel, Field, Input, Modal, PageHeader } from "@/components/ui";
+import { IS_LIVE_DATABASE } from "@/lib/env";
 import { getState, resetDemoData, startFresh, updateSettings, useHostel } from "@/lib/store";
 import type { Settings } from "@/lib/types";
 
@@ -128,17 +129,26 @@ export default function SettingsPage() {
           </div>
         </Panel>
 
-        <Panel className="lg:col-span-2" title="Data" description="Stored securely in the cloud. Resetting affects everyone using this hostel's account.">
+        <Panel
+          className="lg:col-span-2"
+          title="Data"
+          description={IS_LIVE_DATABASE ? "Stored securely in the cloud." : "Test site. Resetting affects everyone using this hostel's account."}
+        >
           <div className="flex flex-wrap gap-2 p-5">
             <Button variant="secondary" onClick={backup}>
               <Database className="size-4" /> Download backup
             </Button>
-            <Button variant="secondary" onClick={() => setConfirm("reset")}>
-              <RotateCcw className="size-4" /> Reset demo data
-            </Button>
-            <Button variant="danger" onClick={() => setConfirm("fresh")}>
-              <Trash2 className="size-4" /> Start with empty hostel
-            </Button>
+            {/* Live hostels hold real tenants and payments; resetting is a test-site tool */}
+            {!IS_LIVE_DATABASE && (
+              <>
+                <Button variant="secondary" onClick={() => setConfirm("reset")}>
+                  <RotateCcw className="size-4" /> Reset demo data
+                </Button>
+                <Button variant="danger" onClick={() => setConfirm("fresh")}>
+                  <Trash2 className="size-4" /> Start with empty hostel
+                </Button>
+              </>
+            )}
           </div>
         </Panel>
       </div>

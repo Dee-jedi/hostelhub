@@ -10,7 +10,6 @@ import { adminAuth, adminDb } from "./admin";
 import { setHostelRole, setTenantOf } from "./claims";
 
 export const ADMIN_EMAIL = "admin@hostelhub.app";
-export const ADMIN_DEFAULT_PASSWORD = "admin1234";
 export const DEMO_PASSWORD = "demo1234";
 /** The demo hostel that rents by the bed (see migrate/bed-demo.ts) */
 export const BED_DEMO_HOSTEL = "unity";
@@ -20,10 +19,13 @@ const LEGACY_COLLECTIONS = ["residents", "payments", "messages", "tickets", "boo
 
 /**
  * Replaces one hostel's data with the demo hostel (or an empty one) in the multi-hostel model,
- * and recreates its tenant logins. Staff logins are kept. Used by `npm run seed` and the
- * "Reset demo data" button.
+ * and recreates its tenant logins. Staff logins are kept. Used by `npm run seed` and, on staging
+ * only, the "Reset demo data" button.
+ *
+ * With `staffLogin`, also makes ADMIN_EMAIL a manager of the hostel (`npm run seed` only); a
+ * newly created one gets `SEED_ADMIN_PASSWORD` or a random password, returned so it can be shown once.
  */
-export async function seedFirestore(mode: "demo" | "empty" = "demo", hostelId = DEFAULT_HOSTEL || "mowarid") {
+export async function seedFirestore(mode: "demo" | "empty" = "demo", hostelId = DEFAULT_HOSTEL || "mowarid", { staffLogin = false } = {}) {
   const state = mode === "demo" ? createDemoState() : createEmptyState();
 
   const isDefault = hostelId === (DEFAULT_HOSTEL || "mowarid");
@@ -32,13 +34,6 @@ export async function seedFirestore(mode: "demo" | "empty" = "demo", hostelId = 
     adminDb.doc(`listings/${hostelId}`).delete(),
     // The old single-hostel data belonged to the default hostel
     ...(isDefault ? [...LEGACY_COLLECTIONS.map((c) => adminDb.recursiveDelete(adminDb.collection(c))), adminDb.doc("public/booking").delete()] : []),
-    // Passport photos belong to tenant logins, which are recreated below. Storage is shared with
-    // staging, so only the live reset clears it.
-    IS_LIVE_DATABASE &&
-      isDefault &&
-      getStorage()
-        .bucket(process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET)
-        .deleteFiles({ prefix: "passports/" }),
   ]);
 
   // The per-bed demo has its own generator; every other hostel gets the Mowarid demo (or an empty one)
@@ -50,7 +45,7 @@ export async function seedFirestore(mode: "demo" | "empty" = "demo", hostelId = 
   await writer.close();
 
   await recreateTenantLogins(logins, hostelId);
-  await ensureStaff(hostelId);
+  return staffLogin ? ensureStaff(hostelId) : null;
 }
 
 function maxReceipt(state: HostelState) {
@@ -67,17 +62,23 @@ function isStaff(claims: Record<string, unknown> | undefined) {
   return !!claims && (claims.role === "admin" || claims.p === "admin" || (typeof claims.h === "object" && claims.h !== null && Object.keys(claims.h).length > 0));
 }
 
-/** A login that is a tenant of this hostel only (or of none), so this hostel's reset may delete it. */
+/**
+ * A login that is a tenant of this hostel and no other, so this hostel's reset may delete it.
+ * Logins with no tenancy anywhere (e.g. an applicant whose payment is still being sorted out) are
+ * not ours to delete: they may belong to any hostel.
+ */
 function onlyTenantOf(claims: Record<string, unknown> | undefined, hostelId: string) {
   const t = claims?.t;
-  if (!t || typeof t !== "object") return true;
-  return Object.keys(t).every((h) => h === hostelId);
+  if (!t || typeof t !== "object") return false;
+  const hostels = Object.keys(t);
+  return hostels.length > 0 && hostels.every((h) => h === hostelId);
 }
 
 /**
- * Deletes every non-staff login that belongs only to this hostel, then imports one per demo tenant as a tenant of the hostel.
- * Logins are shared with staging, so a staging reset only imports (same ids and emails as live,
- * so it refreshes them) and never deletes anyone.
+ * Deletes every non-staff login that belongs only to this hostel, with their photos, then imports
+ * one per demo tenant as a tenant of the hostel.
+ * Logins and Storage are shared with staging, so a staging reset only imports (same ids and emails
+ * as live, so it refreshes them) and never deletes anyone.
  */
 async function recreateTenantLogins(logins: ReturnType<typeof demoLogins>, hostelId: string) {
   const stale: string[] = [];
@@ -89,6 +90,9 @@ async function recreateTenantLogins(logins: ReturnType<typeof demoLogins>, hoste
       page = res.pageToken;
     } while (page);
   for (let i = 0; i < stale.length; i += 1000) await adminAuth.deleteUsers(stale.slice(i, i + 1000));
+  // Photos are stored per login (not per hostel), so remove exactly the deleted logins' folders
+  const bucket = stale.length ? getStorage().bucket(process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET) : null;
+  for (const uid of stale) await Promise.all(["passports", "requests"].map((dir) => bucket!.deleteFiles({ prefix: `${dir}/${uid}/` })));
 
   const key = randomBytes(32);
   const users: UserImportRecord[] = logins.map((u) => ({
@@ -106,10 +110,16 @@ async function recreateTenantLogins(logins: ReturnType<typeof demoLogins>, hoste
   for (const uid of failed) await setTenantOf(uid, hostelId, true).catch((err) => console.warn(`Couldn't mark ${uid} as a tenant:`, err.message));
 }
 
-async function ensureStaff(hostelId: string) {
+/** Returns the password when the login was created just now (it can't be read back later). */
+async function ensureStaff(hostelId: string): Promise<{ email: string; newPassword: string | null }> {
   let user = await adminAuth.getUserByEmail(ADMIN_EMAIL).catch(() => null);
-  if (!user) user = await adminAuth.createUser({ email: ADMIN_EMAIL, password: ADMIN_DEFAULT_PASSWORD, displayName: "Hostel Manager", emailVerified: true });
+  let newPassword: string | null = null;
+  if (!user) {
+    newPassword = process.env.SEED_ADMIN_PASSWORD?.trim() || randomBytes(12).toString("base64url");
+    user = await adminAuth.createUser({ email: ADMIN_EMAIL, password: newPassword, displayName: "Hostel Manager", emailVerified: true });
+  }
   // Keep the old single-hostel flag while the live app still reads it
   if (user.customClaims?.role !== "admin") await adminAuth.setCustomUserClaims(user.uid, { ...user.customClaims, role: "admin" });
   await setHostelRole(user.uid, hostelId, "manager");
+  return { email: ADMIN_EMAIL, newPassword };
 }

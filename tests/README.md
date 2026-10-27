@@ -17,13 +17,13 @@ site. By default they target **staging** (`hostelhub-1`, staging database).
 ```sh
 # Full end-to-end run: booking + Paystack test payment, tenant portal, staff actions,
 # receipt numbering, then "Reset demo data" at the end.
-HH_EMAIL=admin@hostelhub.app HH_PASSWORD=admin1234 npm run test:e2e
+HH_EMAIL=admin@hostelhub.app HH_PASSWORD=<staff password> npm run test:e2e
 
 # Read-only check that every staff screen loads, desktop and phone
-HH_EMAIL=admin@hostelhub.app HH_PASSWORD=admin1234 npm run test:smoke
+HH_EMAIL=admin@hostelhub.app HH_PASSWORD=<staff password> npm run test:smoke
 
 # Three staff saving payments at the same instant must get different receipt numbers
-HH_EMAIL=admin@hostelhub.app HH_PASSWORD=admin1234 node tests/e2e/race.mjs
+HH_EMAIL=admin@hostelhub.app HH_PASSWORD=<staff password> node tests/e2e/race.mjs
 ```
 
 - `HH_BASE` sets another site, e.g. `http://localhost:3100` for a local `next start`. **Running `test:e2e` against live resets the live demo.**

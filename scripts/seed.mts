@@ -12,7 +12,7 @@ if (process.argv.includes("--staging")) process.env.NEXT_PUBLIC_FIRESTORE_DATABA
 if (process.argv.includes("--live")) process.env.NEXT_PUBLIC_FIRESTORE_DATABASE = "(default)";
 
 const { getSecurityRules } = await import("firebase-admin/security-rules");
-const { seedFirestore, ADMIN_EMAIL, ADMIN_DEFAULT_PASSWORD, DEMO_PASSWORD } = await import("../src/lib/server/seed-firestore");
+const { seedFirestore, DEMO_PASSWORD } = await import("../src/lib/server/seed-firestore");
 const { FIRESTORE_DATABASE, IS_LIVE_DATABASE } = await import("../src/lib/env");
 
 console.log(`Database: ${FIRESTORE_DATABASE}`);
@@ -29,7 +29,8 @@ const hostelArg = process.argv.indexOf("--hostel");
 // --hostel unity seeds the per-bed demo hostel; the default is the default hostel (Mowarid)
 const hostel = hostelArg > 0 ? process.argv[hostelArg + 1] : undefined;
 if (hostel) console.log(`Hostel: ${hostel}`);
-await seedFirestore(mode, hostel);
+const staff = await seedFirestore(mode, hostel, { staffLogin: true });
 console.log(`✓ ${mode === "demo" ? "Demo hostel" : "Empty hostel"} loaded`);
-console.log(`  Staff login:  ${ADMIN_EMAIL} / ${ADMIN_DEFAULT_PASSWORD} (if newly created)`);
+if (staff?.newPassword) console.log(`  Staff login created: ${staff.email} / ${staff.newPassword}  (shown once; save it now)`);
+else console.log(`  Staff login: ${staff?.email} (existing password unchanged)`);
 if (mode === "demo") console.log(`  Tenant logins: any resident's email / ${DEMO_PASSWORD}`);
