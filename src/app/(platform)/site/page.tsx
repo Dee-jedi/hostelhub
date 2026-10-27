@@ -3,9 +3,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { HowItWorks } from "@/components/site/HowItWorks";
-import { BookingScreen, DashboardMock, IdCardMock, Phone, PortalScreen } from "@/components/site/Mockups";
+import { BookingScreen, DashboardMock, DASHBOARD_SIZE, ID_CARD_SIZE, IdCardMock, Phone, PHONE_SIZE, PortalScreen, Scaled } from "@/components/site/Mockups";
 import { RoomMapDemo } from "@/components/site/RoomMapDemo";
-import { SECTIONS, Wordmark } from "@/components/site/brand";
+import { Wordmark } from "@/components/site/brand";
 import { SiteNav } from "@/components/site/SiteNav";
 import { CONTACT, PLATFORM_HOST, whatsappHref } from "@/lib/platform";
 import { cn } from "@/lib/utils";
@@ -17,10 +17,15 @@ export const metadata: Metadata = {
 
 const container = "mx-auto w-full max-w-6xl px-5 sm:px-8";
 
-/** Small numbered label above a section heading, e.g. [01] HOW IT WORKS */
+/** Small numbered label above a section heading, e.g. [01] HOW IT WORKS: a pill on wider screens, plain text on phones. */
 function Eyebrow({ n, children, dark = false }: { n: string; children: ReactNode; dark?: boolean }) {
   return (
-    <p className={cn("inline-flex items-center gap-2 rounded-full px-3 py-1 font-mono text-xs tracking-[0.14em] uppercase ring-1", dark ? "text-brand-200 ring-white/15" : "text-brand-800 ring-brand-200 bg-white")}>
+    <p
+      className={cn(
+        "inline-flex items-center gap-2 font-mono text-xs tracking-[0.14em] uppercase sm:rounded-full sm:px-3 sm:py-1 sm:ring-1",
+        dark ? "text-brand-200 sm:ring-white/15" : "text-brand-800 sm:bg-white sm:ring-brand-200",
+      )}
+    >
       <span className={dark ? "text-brand-400" : "text-brand-500"}>[{n}]</span> {children}
     </p>
   );
@@ -31,7 +36,7 @@ function PrimaryCta({ children = "Get started free", className }: { children?: R
     <Link
       href="/start"
       className={cn(
-        "inline-flex h-14 items-center justify-center gap-2 rounded-full bg-brand-950 px-7 text-base font-semibold text-white shadow-[0_12px_30px_-12px_rgba(11,35,34,0.6)] transition-colors hover:bg-brand-800",
+        "inline-flex h-14 items-center justify-center gap-2 rounded-full bg-brand-950 px-7 text-base font-semibold whitespace-nowrap text-white shadow-[0_12px_30px_-12px_rgba(11,35,34,0.6)] transition-colors hover:bg-brand-800",
         className,
       )}
     >
@@ -132,9 +137,13 @@ export default function SitePage() {
             <p className="mt-6 max-w-xl text-lg leading-relaxed text-heading-5 sm:text-xl">
               Students pick a room, fill their form and pay online. You see every room, every tenant and every naira, without paper forms or chasing rent.
             </p>
-            <div className="mt-8 flex flex-wrap items-center gap-4">
-              <PrimaryCta />
-              <a href="#how-it-works" className="inline-flex h-14 items-center rounded-full px-5 text-base font-semibold text-brand-900 ring-1 ring-brand-200 transition-colors hover:bg-white">
+            {/* Phones: stacked, both full width. Wider: side by side */}
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+              <PrimaryCta className="w-full sm:w-auto" />
+              <a
+                href="#how-it-works"
+                className="inline-flex h-14 w-full items-center justify-center rounded-full px-7 text-base font-semibold text-brand-900 ring-1 ring-brand-200 transition-colors hover:bg-white sm:w-auto"
+              >
                 See how it works
               </a>
             </div>
@@ -148,11 +157,17 @@ export default function SitePage() {
           </div>
 
           {/* The phone overlaps the dashboard's lower-left corner, never the text column */}
-          <div className="relative mx-auto w-full max-w-xl pb-24 pl-10 motion-safe:animate-[rise_0.9s_ease-out] sm:pb-28 sm:pl-16">
-            <DashboardMock className="w-full" />
-            <Phone className="absolute bottom-0 left-0 w-36 sm:w-44">
-              <BookingScreen />
-            </Phone>
+          <div className="relative mx-auto flex min-w-0 justify-end pb-16 motion-safe:animate-[rise_0.9s_ease-out] sm:pb-20 lg:pb-12">
+            <Scaled {...DASHBOARD_SIZE} className="[--s:0.4] sm:[--s:0.72] lg:[--s:0.6] xl:[--s:0.66]">
+              <DashboardMock />
+            </Scaled>
+            <div className="absolute bottom-0 left-0 sm:-left-6 lg:-left-10">
+              <Scaled {...PHONE_SIZE} className="[--s:0.36] sm:[--s:0.52] lg:[--s:0.5] xl:[--s:0.54]">
+                <Phone>
+                  <BookingScreen />
+                </Phone>
+              </Scaled>
+            </div>
           </div>
         </div>
 
@@ -270,12 +285,18 @@ export default function SitePage() {
               })}
             </ul>
           </div>
-          <div className="relative mx-auto flex w-full max-w-md items-center justify-center py-6">
+          <div className="relative mx-auto flex w-full max-w-md items-center justify-center pt-4 pb-14">
             <div className="pointer-events-none absolute size-96 rounded-full bg-brand-500/25 blur-3xl" />
-            <Phone className="relative w-56 rotate-[-4deg] sm:w-60">
-              <PortalScreen />
-            </Phone>
-            <IdCardMock className="absolute -right-2 -bottom-4 rotate-[6deg] sm:-right-8" />
+            <Scaled {...PHONE_SIZE} className="rotate-[-4deg] [--s:0.7] sm:[--s:0.8]">
+              <Phone>
+                <PortalScreen />
+              </Phone>
+            </Scaled>
+            <div className="absolute right-0 bottom-0 rotate-[6deg] sm:-right-6">
+              <Scaled {...ID_CARD_SIZE} className="[--s:0.7] sm:[--s:0.85]">
+                <IdCardMock />
+              </Scaled>
+            </div>
           </div>
         </div>
       </section>
@@ -332,17 +353,22 @@ export default function SitePage() {
             <Eyebrow n="07">Questions</Eyebrow>
             <h2 className="mt-6 text-[clamp(2.5rem,6vw,4.5rem)] leading-[0.95] font-bold tracking-[-0.045em] text-brand-950">Questions.</h2>
             <p className="mt-5 text-lg text-heading-5">Something else on your mind? Talk to a person.</p>
-            <div className="mt-6 flex flex-col gap-3 sm:flex-row lg:flex-col">
+            <div className="mt-6 flex items-center gap-2.5">
               <a
                 href={whatsappHref()}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex h-12 items-center gap-2.5 self-start rounded-full bg-[#1f7a4d] px-5 text-[15px] font-semibold text-white hover:bg-[#1a6942]"
+                className="inline-flex h-12 items-center gap-2.5 rounded-full bg-[#1f7a4d] px-5 text-[15px] font-semibold text-white hover:bg-[#1a6942]"
               >
                 <MessageCircle className="size-5" /> WhatsApp {CONTACT.whatsapp}
               </a>
-              <a href={`mailto:${CONTACT.email}`} className="inline-flex h-12 items-center gap-2.5 self-start rounded-full px-5 text-[15px] font-semibold text-brand-900 ring-1 ring-brand-200 hover:bg-white">
-                <Mail className="size-5" /> Email us
+              <a
+                href={`mailto:${CONTACT.email}`}
+                aria-label={`Email ${CONTACT.email}`}
+                title={CONTACT.email}
+                className="flex size-12 items-center justify-center rounded-full text-brand-900 ring-1 ring-brand-200 hover:bg-white"
+              >
+                <Mail className="size-5" />
               </a>
             </div>
           </div>
@@ -367,35 +393,9 @@ export default function SitePage() {
             </Link>
           </div>
 
-          <div className="mt-16 flex flex-col gap-8 border-t border-white/10 pt-10 sm:mt-20 md:flex-row md:items-start md:justify-between">
-            <div>
-              <Wordmark dark />
-              <p className="mt-3 max-w-xs text-sm leading-relaxed text-brand-100/60">Hostel management for Nigerian student hostels: bookings, rent, receipts and tenants in one place.</p>
-            </div>
-            <nav aria-label="Footer" className="flex flex-wrap gap-x-7 gap-y-3 text-[15px] font-medium text-brand-50/85">
-              {SECTIONS.map((s) => (
-                <a key={s.href} href={s.href} className="hover:text-white">
-                  {s.label}
-                </a>
-              ))}
-              <Link href="/login" className="hover:text-white">
-                Log in
-              </Link>
-            </nav>
-            <div className="space-y-2 text-[15px] text-brand-50/85">
-              <a href={whatsappHref()} target="_blank" rel="noreferrer" className="flex items-center gap-2 hover:text-white">
-                <MessageCircle className="size-4 text-brand-300" /> {CONTACT.whatsapp}
-              </a>
-              <a href={`mailto:${CONTACT.email}`} className="flex items-center gap-2 hover:text-white">
-                <Mail className="size-4 text-brand-300" /> {CONTACT.email}
-              </a>
-            </div>
-          </div>
-          <div className="flex items-center justify-between py-8 text-sm text-brand-100/45">
-            <p>© HostelHub</p>
-            <a href="#top" className="flex items-center gap-1.5 hover:text-white">
-              Back to top <ArrowUpRight className="size-4" />
-            </a>
+          <div className="mt-16 flex items-center justify-between border-t border-white/10 py-8 sm:mt-20">
+            <Wordmark dark />
+            <p className="text-sm text-brand-100/45">© HostelHub</p>
           </div>
         </div>
         {/* The giant faded wordmark */}

@@ -4,7 +4,7 @@ import { Check, Link2, QrCode } from "lucide-react";
 import { useState } from "react";
 import { PLATFORM_HOST } from "@/lib/platform";
 import { cn } from "@/lib/utils";
-import { BookingScreen, DashboardMock, DEMO_HOSTEL, Phone } from "./Mockups";
+import { BookingScreen, DashboardMock, DASHBOARD_SIZE, DEMO_HOSTEL, Phone, PHONE_SIZE, Scaled } from "./Mockups";
 
 const STEPS = [
   {
@@ -25,9 +25,11 @@ const STEPS = [
   },
 ];
 
+const cardShadow = "shadow-[0_24px_60px_-20px_rgba(11,35,34,0.3)] ring-1 ring-black/5";
+
 function SetupCard() {
   return (
-    <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-[0_24px_60px_-20px_rgba(11,35,34,0.3)] ring-1 ring-black/5">
+    <div className={cn("w-full max-w-sm rounded-3xl bg-white p-6", cardShadow)}>
       <p className="text-xs font-medium text-brand-700">Step 3 of 8</p>
       <p className="mt-1 text-lg font-semibold text-grey-950">How many people share a room?</p>
       <div className="mt-4 grid grid-cols-3 gap-2">
@@ -48,7 +50,7 @@ function SetupCard() {
 function ShareCard() {
   return (
     <div className="w-full max-w-sm space-y-3">
-      <div className="flex items-center gap-3 rounded-2xl bg-white p-4 shadow-[0_24px_60px_-20px_rgba(11,35,34,0.3)] ring-1 ring-black/5">
+      <div className={cn("flex items-center gap-3 rounded-2xl bg-white p-4", cardShadow)}>
         <span className="flex size-10 items-center justify-center rounded-xl bg-brand-50 text-brand-700">
           <Link2 className="size-5" />
         </span>
@@ -69,64 +71,84 @@ function ShareCard() {
   );
 }
 
-const VISUALS = [
-  <SetupCard key="setup" />,
-  <ShareCard key="share" />,
-  <Phone key="book" className="w-60">
-    <BookingScreen />
-  </Phone>,
-  <DashboardMock key="dash" className="w-full max-w-xl" />,
-];
+/** What each step looks like; `wide` is the desktop panel, otherwise the phone timeline. */
+function Visual({ step, wide }: { step: number; wide: boolean }) {
+  if (step === 0) return <SetupCard />;
+  if (step === 1) return <ShareCard />;
+  if (step === 2)
+    return (
+      <Scaled {...PHONE_SIZE} className={wide ? "[--s:0.78]" : "[--s:0.7]"}>
+        <Phone>
+          <BookingScreen />
+        </Phone>
+      </Scaled>
+    );
+  return (
+    <Scaled {...DASHBOARD_SIZE} className={wide ? "[--s:0.66] xl:[--s:0.72]" : "[--s:0.38] sm:[--s:0.7]"}>
+      <DashboardMock />
+    </Scaled>
+  );
+}
 
-/** Four steps; picking one shows what that step looks like. */
+/** Desktop: four steps, picking one shows what it looks like. Phones: a timeline, everything shown. */
 export function HowItWorks() {
   const [step, setStep] = useState(0);
   return (
-    <div className="grid items-center gap-10 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:gap-16">
-      <ol className="space-y-2">
-        {STEPS.map((s, i) => {
-          const active = i === step;
-          return (
-            <li key={s.title}>
-              <button
-                type="button"
-                onClick={() => setStep(i)}
-                aria-pressed={active}
-                className={cn(
-                  "group flex w-full gap-4 rounded-3xl p-5 text-left transition-all",
-                  active ? "bg-white shadow-[0_16px_40px_-20px_rgba(11,35,34,0.25)] ring-1 ring-black/5" : "hover:bg-white/60",
-                )}
-              >
-                <span
+    <>
+      <ol className="relative space-y-10 lg:hidden">
+        <span className="absolute top-2 bottom-2 left-[17px] w-px bg-brand-200" aria-hidden />
+        {STEPS.map((s, i) => (
+          <li key={s.title} className="relative pl-14">
+            <span className="absolute top-0 left-0 flex size-9 items-center justify-center rounded-full bg-brand-950 text-sm font-semibold text-white ring-4 ring-[#f6f8f7]">{i + 1}</span>
+            <h3 className="pt-1 text-xl font-semibold tracking-tight text-grey-950">{s.title}</h3>
+            <p className="mt-2 text-base leading-relaxed text-heading-5">{s.body}</p>
+            <div className="mt-5 flex justify-center">
+              <Visual step={i} wide={false} />
+            </div>
+          </li>
+        ))}
+      </ol>
+
+      <div className="hidden items-center gap-16 lg:grid lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+        <ol className="space-y-2">
+          {STEPS.map((s, i) => {
+            const active = i === step;
+            return (
+              <li key={s.title}>
+                <button
+                  type="button"
+                  onClick={() => setStep(i)}
+                  aria-pressed={active}
                   className={cn(
-                    "flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold transition-colors",
-                    active ? "bg-brand-950 text-white" : i < step ? "bg-brand-100 text-brand-800" : "bg-grey-100 text-heading-5",
+                    "flex w-full gap-4 rounded-3xl p-5 text-left transition-all outline-none focus-visible:ring-2 focus-visible:ring-brand-400",
+                    active ? "bg-white shadow-[0_16px_40px_-20px_rgba(11,35,34,0.25)] ring-1 ring-black/5" : "hover:bg-white/60",
                   )}
                 >
-                  {i < step ? <Check className="size-4" /> : i + 1}
-                </span>
-                <span>
-                  <span className={cn("block text-lg font-semibold tracking-tight", active ? "text-grey-950" : "text-heading-4")}>{s.title}</span>
-                  <span className={cn("grid transition-all duration-300", active ? "mt-1.5 grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0 lg:grid-rows-[0fr]")}>
-                    <span className="overflow-hidden text-[15px] leading-relaxed text-heading-5">{s.body}</span>
+                  <span
+                    className={cn(
+                      "flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold transition-colors",
+                      active ? "bg-brand-950 text-white" : i < step ? "bg-brand-100 text-brand-800" : "bg-grey-100 text-heading-5",
+                    )}
+                  >
+                    {i < step ? <Check className="size-4" /> : i + 1}
                   </span>
-                </span>
-              </button>
-              {/* Phones: the picture sits under its step, where the tap happened */}
-              {active && (
-                <div className="mt-3 flex justify-center rounded-[2rem] bg-[radial-gradient(circle_at_30%_20%,var(--color-brand-100),transparent_65%)] px-4 py-8 motion-safe:animate-[pop-in_0.35s_ease-out] lg:hidden">
-                  {VISUALS[i]}
-                </div>
-              )}
-            </li>
-          );
-        })}
-      </ol>
-      <div className="hidden min-h-[420px] items-center justify-center rounded-[2rem] lg:flex bg-[radial-gradient(circle_at_30%_20%,var(--color-brand-100),transparent_60%),radial-gradient(circle_at_80%_90%,var(--color-brand-50),transparent_55%)] p-6 sm:p-10">
-        <div key={step} className="flex w-full justify-center motion-safe:animate-[pop-in_0.35s_ease-out]">
-          {VISUALS[step]}
+                  <span>
+                    <span className={cn("block text-lg font-semibold tracking-tight", active ? "text-grey-950" : "text-heading-4")}>{s.title}</span>
+                    <span className={cn("grid transition-all duration-300", active ? "mt-1.5 grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0")}>
+                      <span className="overflow-hidden text-[15px] leading-relaxed text-heading-5">{s.body}</span>
+                    </span>
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ol>
+        <div className="flex min-h-[500px] items-center justify-center rounded-[2rem] bg-[radial-gradient(circle_at_30%_20%,var(--color-brand-100),transparent_60%),radial-gradient(circle_at_80%_90%,var(--color-brand-50),transparent_55%)] p-10">
+          <div key={step} className="flex w-full justify-center motion-safe:animate-[pop-in_0.35s_ease-out]">
+            <Visual step={step} wide />
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }

@@ -49,12 +49,12 @@ export function SiteNav() {
         </ul>
 
         <div className="flex items-center gap-1.5">
-          <Link href="/login" className="hidden rounded-full px-4 py-2 text-[15px] font-medium text-heading-4 hover:text-brand-900 sm:block">
+          <Link href="/login" className="hidden rounded-full px-4 py-2 text-[15px] font-medium text-heading-4 hover:text-brand-900 md:block">
             Log in
           </Link>
           <Link
             href="/start"
-            className="inline-flex h-10 items-center gap-1.5 rounded-full bg-brand-950 px-4 text-sm font-semibold text-white transition-colors hover:bg-brand-800 sm:h-12 sm:px-5 sm:text-[15px]"
+            className="hidden h-12 items-center gap-1.5 rounded-full bg-brand-950 px-5 text-[15px] font-semibold text-white transition-colors hover:bg-brand-800 md:inline-flex"
           >
             Get started <ArrowUpRight className="size-4 text-brand-300" />
           </Link>
@@ -80,6 +80,13 @@ export function SiteNav() {
           ))}
           <Link href="/login" onClick={() => setOpen(false)} className="block rounded-2xl px-4 py-3.5 text-base font-medium text-heading-2 hover:bg-brand-50">
             Log in
+          </Link>
+          <Link
+            href="/start"
+            onClick={() => setOpen(false)}
+            className="mt-2 flex h-12 items-center justify-center gap-1.5 rounded-2xl bg-brand-950 text-base font-semibold text-white hover:bg-brand-800"
+          >
+            Get started free <ArrowUpRight className="size-4 text-brand-300" />
           </Link>
         </div>
       )}
