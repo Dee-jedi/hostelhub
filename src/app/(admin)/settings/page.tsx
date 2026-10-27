@@ -16,15 +16,27 @@ export default function SettingsPage() {
   const [reminders, setReminders] = useState(s.settings.reminderDays.join(", "));
   const [confirm, setConfirm] = useState<"reset" | "fresh" | null>(null);
   const [resetting, setResetting] = useState(false);
+  const [saving, setSaving] = useState(false);
+  /** Rooms the new layout would delete, waiting for the manager to confirm */
+  const [removeRooms, setRemoveRooms] = useState<string[] | null>(null);
   const set = <K extends keyof Settings>(k: K, v: Settings[K]) => setForm((f) => ({ ...f, [k]: v }));
 
-  const save = () => {
+  const save = async (confirmRemoveRooms?: string[]) => {
     const reminderDays = reminders
       .split(/[,\s]+/)
       .map(Number)
       .filter((n) => Number.isFinite(n) && n > 0);
-    updateSettings({ ...form, reminderDays: [...new Set(reminderDays)].sort((a, b) => b - a) });
-    toast("Settings saved");
+    setSaving(true);
+    const result = await updateSettings({ ...form, reminderDays: [...new Set(reminderDays)].sort((a, b) => b - a) }, confirmRemoveRooms);
+    setSaving(false);
+    if (result.ok) {
+      setRemoveRooms(null);
+      toast("Settings saved");
+    } else if (result.removeRooms) setRemoveRooms(result.removeRooms);
+    else {
+      setRemoveRooms(null);
+      toast(result.error, "info");
+    }
   };
 
   const backup = () => {
@@ -43,9 +55,9 @@ export default function SettingsPage() {
         title="Settings"
         description="Hostel details, room types and prices, rooms and reminder schedule."
         actions={
-          <Button className={headerBtn} onClick={save}>
+          <Button className={headerBtn} onClick={() => save()} disabled={saving}>
             <Save className="size-4" />
-            <BtnLabel>Save changes</BtnLabel>
+            <BtnLabel>{saving ? "Saving…" : "Save changes"}</BtnLabel>
           </Button>
         }
       />
@@ -187,6 +199,29 @@ export default function SettingsPage() {
         }
       >
         <p className="text-sm text-slate-600">Download a backup first if you want to keep anything.</p>
+      </Modal>
+
+      <Modal
+        open={!!removeRooms}
+        onClose={() => setRemoveRooms(null)}
+        title={`Delete ${removeRooms?.length ?? 0} room${removeRooms?.length === 1 ? "" : "s"}?`}
+        description="The new blocks and rooms-per-block don't include these rooms. They're empty, but saving deletes them along with their room size and any maintenance note."
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setRemoveRooms(null)}>
+              Keep the rooms
+            </Button>
+            <Button variant="danger" disabled={saving} onClick={() => save(removeRooms ?? [])}>
+              {saving ? "Saving…" : "Delete and save"}
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm font-medium text-slate-900 tabular-nums">
+          {removeRooms?.slice(0, 40).join(", ")}
+          {(removeRooms?.length ?? 0) > 40 && ` and ${removeRooms!.length - 40} more`}
+        </p>
+        <p className="mt-3 text-sm text-slate-600">Renamed a block by mistake? Choose Keep the rooms and change the name back.</p>
       </Modal>
     </>
   );

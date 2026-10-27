@@ -1,5 +1,5 @@
 import { FieldValue } from "firebase-admin/firestore";
-import type { Hostel, HostelMessage, HostelPayment, HostelRequest, HostelResident, HostelRoom, PricingMode, RoomType, Tenancy } from "../model";
+import type { Hostel, HostelMessage, HostelPayment, HostelRequest, HostelResident, HostelRoom, Listing, PricingMode, RoomType, Tenancy } from "../model";
 import { spaceIdsOf } from "../spaces";
 import { DEFAULT_TYPE_ID } from "../migrate/from-legacy";
 import { paymentOf } from "../migrate/to-legacy";
@@ -279,6 +279,8 @@ export const approveRoomChange = command<{ requestId: string; note?: string }, {
     if (!req.requestedRoomId || !req.residentId) throw new CommandError("This request is missing its tenant or room.");
     const tenancy = await currentTenancyOf(tx, h, req.residentId);
     if (!tenancy || tenancy.status !== "active") throw new CommandError("This tenant no longer lives here.", 409);
+    // Only the tenant being moved may ask for it (the request names a resident; its sender is req.uid)
+    if (!req.uid || tenancy.uid !== req.uid) throw new CommandError("This request wasn't sent by the tenant it would move.", 403);
     const target = await claimSpace(tx, h, req.requestedRoomId, { exceptResidentId: req.residentId });
     const from = tenancy.roomId && tenancy.roomId !== req.requestedRoomId ? await readOccupancy(tx, h, tenancy.roomId) : null;
     const now = new Date().toISOString();
@@ -314,53 +316,82 @@ export const setMaintenance = command<{ roomId: string; on: boolean; note?: stri
  * Saves the hostel settings form: details, rent period length, and the block/room layout
  * (rooms added with the hostel's default room type, or removed, to match). Room sizes and
  * prices are managed separately (saveRoomType and friends).
+ *
+ * Renaming a block or lowering "rooms per block" removes rooms, so that only happens when the
+ * request lists exactly those rooms in `confirmRemoveRooms`; otherwise the reply names them
+ * (details.removeRooms) for the screen to confirm. Everything is read and written in one
+ * transaction, so a room booked meanwhile is never removed.
  */
-export const updateSettings = command<{ settings: Settings }, { ok: true }>({ access: "manager" }, async (ctx, body) => {
+export const updateSettings = command<{ settings: Settings; confirmRemoveRooms?: string[] }, { ok: true }>({ access: "manager" }, async (ctx, body) => {
   const h = ctx.hostelId!;
   const r = hostelRefs(h);
   const s = body.settings;
   if (!s?.hostelName?.trim()) throw new CommandError("Enter the hostel's name.");
-  const [hostelSnap, roomDocs, active, types] = await Promise.all([r.hostel.get(), r.col("rooms").get(), r.col("tenancies").where("status", "==", "active").get(), r.col("roomTypes").get()]);
-  const hostel = hostelSnap.data() as Hostel;
-  const defaultType = (types.docs.find((d) => d.id === (hostel.defaultTypeId ?? DEFAULT_TYPE_ID)) ?? types.docs[0])?.data() as RoomType | undefined;
-  if (!defaultType) throw new CommandError("Add a room type first.", 409);
-  const occupied = new Set(active.docs.map((d) => (d.data() as Tenancy).roomId).filter(Boolean));
-  const existing = new Map(roomDocs.docs.map((d) => [d.id, d.data() as HostelRoom]));
   const wanted = buildRooms(s);
   const wantedIds = new Set(wanted.map((x) => x.id));
-  const removing = [...existing.keys()].filter((id) => !wantedIds.has(id));
-  const blocked = removing.filter((id) => occupied.has(id));
-  if (blocked.length) throw new CommandError(`Move the tenants out of ${blocked.slice(0, 3).join(", ")}${blocked.length > 3 ? "…" : ""} before removing those rooms.`, 409);
+  let added = 0;
+  let removed = 0;
 
-  const batch = adminDb.batch();
-  batch.update(r.hostel, {
-    name: s.hostelName.trim(), address: s.address, manager: { name: s.managerName, phone: s.managerPhone },
-    bank: { bankName: s.bankName, accountName: s.accountName, accountNumber: s.accountNumber },
-    whatsappGroupLink: s.whatsappGroupLink, reminderDays: s.reminderDays,
+  await adminDb.runTransaction(async (tx) => {
+    const [hostelSnap, roomDocs, active, types, blockDocs, listingSnap] = await Promise.all([
+      tx.get(r.hostel),
+      tx.get(r.col("rooms")),
+      tx.get(r.col("tenancies").where("status", "==", "active")),
+      tx.get(r.col("roomTypes")),
+      tx.get(r.col("blocks")),
+      tx.get(r.listing),
+    ]);
+    const hostel = hostelSnap.data() as Hostel;
+    const defaultType = (types.docs.find((d) => d.id === (hostel.defaultTypeId ?? DEFAULT_TYPE_ID)) ?? types.docs[0])?.data() as RoomType | undefined;
+    if (!defaultType) throw new CommandError("Add a room type first.", 409);
+    const occupied = new Set(active.docs.map((d) => (d.data() as Tenancy).roomId).filter(Boolean));
+    const existing = new Map(roomDocs.docs.map((d) => [d.id, d.data() as HostelRoom]));
+    const removing = [...existing.keys()].filter((id) => !wantedIds.has(id)).sort(byRoom);
+    const blocked = removing.filter((id) => occupied.has(id));
+    if (blocked.length) throw new CommandError(`Move the tenants out of ${listRooms(blocked)} before removing those rooms.`, 409);
+    // Someone at checkout for one of these rooms (or one of its beds) is about to pay for it
+    const now = Date.now();
+    const holds = Object.entries((listingSnap.data() as Listing | undefined)?.holds ?? {}).filter(([, hold]) => hold.until > now);
+    const paying = removing.filter((id) => holds.some(([space]) => space === id || space.startsWith(`${id}-`)));
+    if (paying.length) throw new CommandError(`Someone is paying for ${listRooms(paying)} right now. Try again in 15 minutes.`, 409);
+    const confirmed = new Set(body.confirmRemoveRooms ?? []);
+    if (removing.length && (confirmed.size !== removing.length || removing.some((id) => !confirmed.has(id))))
+      throw new CommandError(`Saving this will delete ${removing.length} empty room${removing.length === 1 ? "" : "s"}.`, 409, { removeRooms: removing });
+
+    tx.update(r.hostel, {
+      name: s.hostelName.trim(), address: s.address, manager: { name: s.managerName, phone: s.managerPhone },
+      bank: { bankName: s.bankName, accountName: s.accountName, accountNumber: s.accountNumber },
+      whatsappGroupLink: s.whatsappGroupLink, reminderDays: s.reminderDays,
+    });
+    tx.set(r.doc("rentPeriods", hostel.defaultPeriodId), { id: hostel.defaultPeriodId, kind: "rolling", name: `${s.leaseMonths} months from move-in`, months: s.leaseMonths });
+    s.blocks.forEach((b, order) => tx.set(r.doc("blocks", b.name), { id: b.name, name: b.name, order }));
+    const listing: Record<string, unknown> = {
+      "info.hostelName": s.hostelName.trim(), "info.address": s.address, "info.managerName": s.managerName, "info.managerPhone": s.managerPhone,
+      "info.whatsappGroupLink": s.whatsappGroupLink, "info.blocks": s.blocks.map((b) => b.name), "info.leaseMonths": s.leaseMonths,
+    };
+    for (const room of wanted) {
+      if (existing.has(room.id)) continue;
+      const doc: HostelRoom = { id: room.id, label: room.id, blockId: room.block, number: room.number, typeId: defaultType.id, maintenance: null };
+      tx.set(r.doc("rooms", room.id), doc);
+      Object.assign(listing, listingUpdate(doc, defaultType, new Set()));
+      added++;
+    }
+    for (const id of removing) {
+      tx.delete(r.doc("rooms", id));
+      listing[`rooms.${id}`] = FieldValue.delete();
+    }
+    removed = removing.length;
+    const blockNames = new Set(s.blocks.map((b) => b.name));
+    for (const d of blockDocs.docs) if (!blockNames.has(d.id)) tx.delete(d.ref);
+    tx.update(r.listing, listing);
+    ctx.auditIn(tx, "settings.updated", { rooms: { added, removed, ...(removing.length ? { removedIds: removing } : {}) } });
   });
-  batch.set(r.doc("rentPeriods", hostel.defaultPeriodId), { id: hostel.defaultPeriodId, kind: "rolling", name: `${s.leaseMonths} months from move-in`, months: s.leaseMonths });
-  s.blocks.forEach((b, order) => batch.set(r.doc("blocks", b.name), { id: b.name, name: b.name, order }));
-  const listing: Record<string, unknown> = {
-    "info.hostelName": s.hostelName.trim(), "info.address": s.address, "info.managerName": s.managerName, "info.managerPhone": s.managerPhone,
-    "info.whatsappGroupLink": s.whatsappGroupLink, "info.blocks": s.blocks.map((b) => b.name), "info.leaseMonths": s.leaseMonths,
-  };
-  for (const room of wanted) {
-    if (existing.has(room.id)) continue;
-    const doc: HostelRoom = { id: room.id, label: room.id, blockId: room.block, number: room.number, typeId: defaultType.id, maintenance: null };
-    batch.set(r.doc("rooms", room.id), doc);
-    Object.assign(listing, listingUpdate(doc, defaultType, new Set()));
-  }
-  for (const id of removing) {
-    batch.delete(r.doc("rooms", id));
-    listing[`rooms.${id}`] = FieldValue.delete();
-  }
-  const blockNames = new Set(s.blocks.map((b) => b.name));
-  for (const d of (await r.col("blocks").get()).docs) if (!blockNames.has(d.id)) batch.delete(d.ref);
-  batch.update(r.listing, listing);
-  await batch.commit();
-  await ctx.audit("settings.updated", { rooms: { added: wanted.filter((x) => !existing.has(x.id)).length, removed: removing.length } });
   return { ok: true };
 });
+
+/** Natural room order: A2 before A10. */
+const byRoom = (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true });
+const listRooms = (ids: string[]) => `${ids.slice(0, 3).join(", ")}${ids.length > 3 ? ` and ${ids.length - 3} more` : ""}`;
 
 // ------------------------------------------------------------------ room types
 

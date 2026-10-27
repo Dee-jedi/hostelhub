@@ -13,11 +13,12 @@ import { adminDb, verifyRequest } from "./admin";
  *  4. records what happened in hostels/{id}/audit when the handler calls ctx.audit().
  */
 
-/** An error whose message is safe to show the user. */
+/** An error whose message is safe to show the user; `details` go to the browser alongside it. */
 export class CommandError extends Error {
   constructor(
     message: string,
     readonly status = 400,
+    readonly details?: Record<string, unknown>,
   ) {
     super(message);
   }
@@ -100,7 +101,7 @@ export function command<Body, Result>(
       const result = await handler(ctx, body);
       return Response.json(result ?? { ok: true });
     } catch (err) {
-      if (err instanceof CommandError) return Response.json({ error: err.message }, { status: err.status });
+      if (err instanceof CommandError) return Response.json({ error: err.message, ...(err.details ? { details: err.details } : {}) }, { status: err.status });
       console.error(`command ${new URL(req.url).pathname}`, err);
       return Response.json({ error: "Something went wrong. Please try again." }, { status: 500 });
     }

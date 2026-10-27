@@ -130,8 +130,10 @@ service cloud.firestore {
 
       match /requests/{id} {
         allow read: if staff(h) || ownRecord(h);
-        // A tenant opens a request for themselves; status and replies are staff-only
+        // A tenant opens a request for themselves; status and replies are staff-only. The resident
+        // it names must be their own record, or a room change could move someone else.
         allow create: if livesIn(h) && request.resource.data.uid == request.auth.uid
+          && get(/databases/$(database)/documents/hostels/$(h)/residents/$(request.resource.data.residentId)).data.uid == request.auth.uid
           && request.resource.data.status == 'open'
           && !('seenAt' in request.resource.data) && !('updates' in request.resource.data);
         // Managers reply, mark seen and change status directly (low risk, shown to the tenant)

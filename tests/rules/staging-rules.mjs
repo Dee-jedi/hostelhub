@@ -101,9 +101,13 @@ await expect("tenant", "read rooms", false, read(`hostels/${A}/rooms/r1`));
 await expect("tenant", "read the audit log", false, read(`hostels/${A}/audit/a1`));
 await expect("tenant", "update own phone", true, (db) => updateDoc(doc(db, `hostels/${A}/residents/res-t`), { phone: "08000000000" }));
 await expect("tenant", "move themselves to another room", false, (db) => updateDoc(doc(db, `hostels/${A}/residents/res-t`), { roomId: "r9" }));
-await expect("tenant", "open a request", true, (db) => setDoc(doc(db, `hostels/${A}/requests/q-new`), { uid: users.tenant.uid, status: "open", title: "Fan" }));
-await expect("tenant", "open a request already resolved", false, (db) => setDoc(doc(db, `hostels/${A}/requests/q-bad`), { uid: users.tenant.uid, status: "resolved", title: "x" }));
-await expect("tenant", "open a request as someone else", false, (db) => setDoc(doc(db, `hostels/${A}/requests/q-bad2`), { uid: users.neighbour.uid, status: "open", title: "x" }));
+await expect("tenant", "open a request", true, (db) => setDoc(doc(db, `hostels/${A}/requests/q-new`), { uid: users.tenant.uid, residentId: "res-t", status: "open", title: "Fan" }));
+await expect("tenant", "open a request already resolved", false, (db) => setDoc(doc(db, `hostels/${A}/requests/q-bad`), { uid: users.tenant.uid, residentId: "res-t", status: "resolved", title: "x" }));
+await expect("tenant", "open a request as someone else", false, (db) => setDoc(doc(db, `hostels/${A}/requests/q-bad2`), { uid: users.neighbour.uid, residentId: "res-t", status: "open", title: "x" }));
+await expect("tenant", "ask to move a neighbour to another room", false, (db) =>
+  setDoc(doc(db, `hostels/${A}/requests/q-bad3`), { uid: users.tenant.uid, residentId: "res-n", kind: "room_change", requestedRoomId: "r9", status: "open", title: "Move" }),
+);
+await expect("tenant", "open a request without naming themselves", false, (db) => setDoc(doc(db, `hostels/${A}/requests/q-bad4`), { uid: users.tenant.uid, status: "open", title: "x" }));
 await expect("tenant", "change a request's status", false, (db) => updateDoc(doc(db, `hostels/${A}/requests/q-t`), { status: "resolved" }));
 await expect("tenant", "list messages sent to them", true, list(`hostels/${A}/messages`, where("recipientUids", "array-contains", users.tenant.uid)));
 await expect("tenant", "read a record about them in a hostel they don't live in", false, read(`hostels/${B}/residents/res-b`));

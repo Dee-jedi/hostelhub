@@ -295,6 +295,16 @@ export function stopHostelSync() {
 
 // ---------------------------------------------------------------- server actions
 
+/** A refused action: `message` is safe to show; `details` is anything the server sent with it. */
+export class ActionError extends Error {
+  constructor(
+    message: string,
+    readonly details: Record<string, unknown> = {},
+  ) {
+    super(message);
+  }
+}
+
 /** Calls a manager action on the server; throws its message (safe to show) on failure. */
 async function manage<T>(action: string, body: unknown): Promise<T> {
   const token = await auth.currentUser?.getIdToken();
@@ -304,7 +314,7 @@ async function manage<T>(action: string, body: unknown): Promise<T> {
     body: JSON.stringify(body),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error ?? "Couldn't save that change. Please try again.");
+  if (!res.ok) throw new ActionError(data.error ?? "Couldn't save that change. Please try again.", data.details);
   return data as T;
 }
 
@@ -463,8 +473,21 @@ export function setRoomMaintenance(roomId: string, underMaintenance: boolean, no
   inBackground(manage("setMaintenance", { roomId, on: underMaintenance, note }));
 }
 
-export function updateSettings(patch: Partial<Settings>) {
-  inBackground(manage("updateSettings", { settings: { ...state.settings, ...patch } }));
+/**
+ * Saves the settings form. When the new layout would delete rooms, nothing is saved and the
+ * result lists them (`removeRooms`); call again with them in `confirmRemoveRooms` to go ahead.
+ */
+export async function updateSettings(
+  patch: Partial<Settings>,
+  confirmRemoveRooms?: string[],
+): Promise<{ ok: true } | { ok: false; error: string; removeRooms?: string[] }> {
+  try {
+    await manage("updateSettings", { settings: { ...state.settings, ...patch }, confirmRemoveRooms });
+    return { ok: true };
+  } catch (err) {
+    const removeRooms = err instanceof ActionError && Array.isArray(err.details.removeRooms) ? (err.details.removeRooms as string[]) : undefined;
+    return { ok: false, error: err instanceof Error ? err.message : "Couldn't save the settings. Please try again.", removeRooms };
+  }
 }
 
 /** Runs an action and resolves to its error message, or null on success (for forms that stay open). */
