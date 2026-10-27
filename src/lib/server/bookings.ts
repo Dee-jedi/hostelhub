@@ -11,6 +11,10 @@ import { initializeTransaction, verifyTransaction } from "./paystack";
 
 /** How long a room stays reserved for someone at checkout. */
 export const HOLD_MINUTES = 15;
+/** A bank transfer or USSD payment Paystack still reports as in progress after this is treated as abandoned. */
+const PROCESSING_MINUTES = 60;
+/** Paystack statuses that mean the money may still arrive. */
+const IN_PROGRESS = new Set(["ongoing", "pending", "processing", "queued"]);
 
 /** An error whose message is safe to show the student. */
 export class BookingError extends Error {}
@@ -41,6 +45,7 @@ function person(info: StudentInfo) {
 export async function startBooking(input: { hostelId: string; uid: string; email: string; info: StudentInfo; roomId: string; agent?: string; origin: string }) {
   const h = input.hostelId;
   const r = hostelRefs(h);
+  await refuseIfAlreadyPaying(h, input.uid);
   const reference = newReference();
   const now = Date.now();
   let amount = 0;
@@ -102,6 +107,32 @@ export async function startBooking(input: { hostelId: string; uid: string; email
   }
 }
 
+/**
+ * Stops a second charge when the first is slow: before a new checkout, asks Paystack about this
+ * person's earlier unpaid bookings. One that succeeded is completed now; one still in progress
+ * (bank transfer, USSD) blocks a new payment until it settles or goes stale.
+ */
+async function refuseIfAlreadyPaying(h: string, uid: string) {
+  const earlier = await hostelRefs(h).col("bookings").where("uid", "==", uid).where("status", "==", "pending").get();
+  const recentFirst = earlier.docs.map((d) => d.data() as HostelBooking).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  for (const booking of recentFirst.slice(0, 3)) {
+    const trx = await verifyTransaction(booking.id).catch(() => null); // never reached Paystack
+    if (trx?.status === "success") {
+      const done = await finalizeBooking(h, booking.id);
+      throw new BookingError(
+        done.status === "paid"
+          ? `You've already paid for room ${done.roomId} (reference ${booking.id}). Log in to your portal.`
+          : `We received your earlier payment (reference ${booking.id}). The manager will allocate your room; please don't pay again.`,
+      );
+    }
+    const ageMinutes = (Date.now() - Date.parse(booking.createdAt)) / 60_000;
+    if (trx && IN_PROGRESS.has(trx.status) && ageMinutes < PROCESSING_MINUTES)
+      throw new BookingError(
+        `Your last payment (reference ${booking.id}) is still being processed by your bank. Please don't pay again; check your portal in a few minutes.`,
+      );
+  }
+}
+
 async function releaseHold(h: string, spaceId: string, reference: string) {
   const r = hostelRefs(h);
   await adminDb.runTransaction(async (tx) => {
@@ -112,6 +143,9 @@ async function releaseHold(h: string, spaceId: string, reference: string) {
 
 export interface BookingResult {
   status: HostelBooking["status"] | "failed";
+  /** For a pending booking: whether Paystack may still complete it, or the student never paid */
+  payment?: "processing" | "not_paid";
+  reference?: string;
   roomId?: string;
   spaceId?: string;
   fullName?: string;
@@ -127,16 +161,28 @@ export interface BookingResult {
  * tenancy and payment, and marks the room occupied, all in one transaction. Safe to call
  * repeatedly (the popup callback and the webhook may both arrive); only the first does work.
  */
-export async function finalizeBooking(hostelId: string, reference: string): Promise<BookingResult> {
+export async function finalizeBooking(hostelId: string, reference: string, { forUid }: { forUid?: string } = {}): Promise<BookingResult> {
   const h = hostelId;
   const r = hostelRefs(h);
   const first = await r.doc("bookings", reference).get();
-  if (!first.exists) throw new BookingError("Booking not found.");
-  const pending = first.data() as HostelBooking;
-  if (pending.status !== "pending") return summarize(h, reference);
+  const pending = first.data() as HostelBooking | undefined;
+  // The browser may only ask about its own booking (the summary has their name and room)
+  if (!pending || (forUid !== undefined && pending.uid !== forUid)) throw new BookingError("Booking not found.");
+  if (pending.status !== "pending") {
+    // Repeat calls (verify, webhook retries) also repair access if granting it failed the first
+    // time, but only while they still live here (not after moving out)
+    if (pending.status === "paid") {
+      const living = await r.col("tenancies").where("uid", "==", pending.uid).where("status", "==", "active").limit(1).get();
+      if (!living.empty) await setTenantOf(pending.uid, h, true);
+    }
+    return summarize(h, reference);
+  }
 
   const trx = await verifyTransaction(reference);
-  if (trx.status !== "success") return { status: trx.status === "abandoned" || trx.status === "ongoing" ? "pending" : "failed" };
+  if (trx.status !== "success") {
+    if (IN_PROGRESS.has(trx.status)) return { status: "pending", payment: "processing", reference };
+    return { status: trx.status === "abandoned" ? "pending" : "failed", payment: "not_paid", reference };
+  }
   if (trx.currency !== "NGN" || trx.amount < Math.round(pending.amount * 100)) {
     await r.doc("bookings", reference).update({ status: "needs_attention", paidAt: new Date().toISOString(), issue: `Amount mismatch: received ₦${trx.amount / 100}` });
     return summarize(h, reference);
@@ -213,11 +259,12 @@ export async function finalizeBooking(hostelId: string, reference: string): Prom
 async function summarize(h: string, reference: string): Promise<BookingResult> {
   const r = hostelRefs(h);
   const booking = (await r.doc("bookings", reference).get()).data() as HostelBooking;
-  if (booking.status !== "paid") return { status: booking.status, roomId: booking.roomId, fullName: booking.fullName, amount: booking.amount };
+  if (booking.status !== "paid") return { status: booking.status, reference, roomId: booking.roomId, fullName: booking.fullName, amount: booking.amount };
   const [tenancies, listing] = await Promise.all([r.col("tenancies").where("uid", "==", booking.uid).where("status", "==", "active").limit(1).get(), r.listing.get()]);
   const t = tenancies.docs[0]?.data() as Tenancy | undefined;
   return {
     status: "paid",
+    reference,
     roomId: booking.roomId,
     spaceId: booking.spaceId,
     fullName: booking.fullName,

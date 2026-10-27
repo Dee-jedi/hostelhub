@@ -3,11 +3,13 @@
 import { BedDouble, Bell, ClipboardList, House, LogOut, UserRound, Wallet, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { signOut, useSession } from "@/lib/auth";
+import { auth } from "@/lib/firebase";
 import { restartTenantSync, startTenantSync, unreadCount, useTenant } from "@/lib/tenant-store";
 import type { Booking } from "@/lib/types";
 import { cn, isOpenTicket } from "@/lib/utils";
+import { BookingWaiting } from "./BookingWaiting";
 import { Avatar } from "./ui";
 
 const TABS: { href: string; label: string; icon: LucideIcon }[] = [
@@ -121,22 +123,96 @@ function Centered({ children }: { children: ReactNode }) {
   return <div className="flex min-h-[60dvh] items-center justify-center px-4 text-sm text-heading-6">{children}</div>;
 }
 
-function NoRoom({ booking }: { booking: Booking | null }) {
-  const paid = booking?.status === "needs_attention";
+type Check = "checking" | "processing" | "not_paid" | "received" | "error";
+
+/** Bookings whose access was already refreshed; a paid booking that still shows no room (moved out) isn't re-checked. */
+const refreshed = new Set<string>();
+
+/**
+ * Asks Paystack (through the server) what became of a booking that hasn't placed this person yet.
+ * A paid one is completed on the spot, which also restores portal access if granting it failed.
+ */
+function useBookingCheck(booking: Booking | null) {
+  const [check, setCheck] = useState<Check>("checking");
+  const [attempt, setAttempt] = useState(0);
+  const reference = booking && (booking.status === "pending" || booking.status === "paid") && !refreshed.has(booking.id) ? booking.id : null;
+
+  useEffect(() => {
+    if (!reference) return;
+    let live = true;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- show the spinner for each new check
+    setCheck("checking");
+    (async () => {
+      const res = await fetch("/api/bookings/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${await auth.currentUser?.getIdToken()}` },
+        body: JSON.stringify({ reference }),
+      });
+      const r = (await res.json()) as { status?: string; payment?: string };
+      if (!live) return;
+      if (!res.ok) return setCheck("error");
+      if (r.status === "paid" || r.status === "resolved") {
+        // Access was just granted: refresh the login so the portal can read the new records
+        refreshed.add(reference);
+        await auth.currentUser?.getIdToken(true);
+        return restartTenantSync();
+      }
+      setCheck(r.status === "needs_attention" ? "received" : r.payment === "processing" ? "processing" : "not_paid");
+    })().catch(() => live && setCheck("error"));
+    return () => {
+      live = false;
+    };
+  }, [reference, attempt]);
+
+  return { check: reference ? check : null, again: () => setAttempt((n) => n + 1) };
+}
+
+function NoRoom({ booking, managerPhone }: { booking: Booking | null; managerPhone?: string }) {
+  const { check, again } = useBookingCheck(booking);
+  const status = booking?.status === "needs_attention" ? "received" : check;
+
+  if (status === "checking") {
+    return (
+      <Centered>
+        <span className="flex items-center gap-3">
+          <span className="size-4 animate-spin rounded-full border-2 border-brand-600 border-t-transparent" /> Checking your payment…
+        </span>
+      </Centered>
+    );
+  }
+  if (status === "received" || status === "processing") {
+    return (
+      <div className="mx-auto max-w-md px-4 py-16">
+        <BookingWaiting kind={status} reference={booking?.id} managerPhone={managerPhone}>
+          {status === "processing" && (
+            <div>
+              <button onClick={again} className="mt-6 text-sm font-medium text-brand-700 hover:underline">
+                Check again
+              </button>
+            </div>
+          )}
+        </BookingWaiting>
+      </div>
+    );
+  }
   return (
     <div className="mx-auto max-w-md px-4 py-16 text-center">
       <span className="mx-auto flex size-16 items-center justify-center rounded-2xl bg-brand-50 text-brand-600">
         <BedDouble className="size-8" strokeWidth={1.5} />
       </span>
-      <h1 className="mt-5 text-xl font-semibold text-grey-950">{paid ? "Payment received, room coming" : "You don't have a room yet"}</h1>
+      <h1 className="mt-5 text-xl font-semibold text-grey-950">You don&apos;t have a room yet</h1>
       <p className="mt-2 text-sm text-heading-6">
-        {paid
-          ? "The room you picked was taken before your payment completed. The manager will allocate you another room shortly."
-          : booking?.status === "pending"
-            ? `You started booking room ${booking.roomId} but the payment wasn't completed.`
+        {status === "error"
+          ? "We couldn't check your last payment just now. If you were debited, don't pay again: try again in a minute."
+          : status === "not_paid"
+            ? `You started booking room ${booking!.roomId} but the payment wasn't completed. No money was taken.`
             : "Book a room and pay online. You'll be added automatically."}
       </p>
-      {!paid && (
+      {status === "error" ? (
+        <button onClick={again} className="mt-6 inline-flex h-11 items-center justify-center rounded-xl bg-brand-600 px-5 text-sm font-medium text-white hover:bg-brand-700">
+          Try again
+        </button>
+      ) : (
         <Link href="/book" className="mt-6 inline-flex h-11 items-center justify-center rounded-xl bg-brand-600 px-5 text-sm font-medium text-white hover:bg-brand-700">
           Book a room
         </Link>
@@ -185,7 +261,7 @@ export function TenantShell({ children }: { children: ReactNode }) {
           </span>
         </Centered>
       ) : !housed ? (
-        <NoRoom booking={t.booking} />
+        <NoRoom booking={t.booking} managerPhone={t.info?.managerPhone} />
       ) : (
         <>
           <main className="mx-auto max-w-3xl px-4 pt-5 pb-28 sm:px-6 lg:pb-12">{children}</main>

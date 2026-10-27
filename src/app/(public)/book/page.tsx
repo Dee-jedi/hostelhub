@@ -7,6 +7,7 @@ import { getDownloadURL, ref as storageRef, uploadBytes } from "firebase/storage
 import { ArrowLeft, ArrowRight, BedDouble, Check, CheckCircle2, Clock, KeyRound, Lock, MessageCircle, ReceiptText, ShieldCheck, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { BookingWaiting } from "@/components/BookingWaiting";
 import { type Passport, PhotoPicker } from "@/components/PhotoPicker";
 import { BrandLayout } from "@/components/BrandLayout";
 import { RoomPicker } from "@/components/RoomPicker";
@@ -24,6 +25,9 @@ const STEPS = ["Your details", "Pick a room", "Pay"] as const;
 
 interface Result {
   status: "paid" | "needs_attention" | "pending" | "resolved" | "failed";
+  /** For a pending booking: Paystack may still complete it, or the student never paid */
+  payment?: "processing" | "not_paid";
+  reference?: string;
   roomId?: string;
   spaceId?: string;
   fullName?: string;
@@ -47,12 +51,15 @@ async function postJSON<T>(url: string, body: unknown, token?: string): Promise<
 
 /** Asks the server to confirm with Paystack; retries briefly because confirmation can lag a few seconds. */
 async function confirmPayment(reference: string): Promise<Result> {
+  // After a Paystack redirect the login is still being restored; verify only answers its owner
+  await auth.authStateReady();
+  let last: Result = { status: "pending", payment: "processing", reference };
   for (let attempt = 0; attempt < 5; attempt++) {
-    const r = await postJSON<Result>("/api/bookings/verify", { reference });
-    if (r.status !== "pending") return r;
+    last = await postJSON<Result>("/api/bookings/verify", { reference }, await auth.currentUser?.getIdToken());
+    if (last.status !== "pending" || last.payment === "not_paid") return last;
     await new Promise((ok) => setTimeout(ok, 2500));
   }
-  return { status: "pending" };
+  return { ...last, reference };
 }
 
 /** Signs in as the tenant, creating the account on first use. Returns an ID token for the API. */
@@ -253,7 +260,7 @@ export default function BookPage() {
           </div>
         )}
         {result ? (
-          <Done result={result} />
+          <Done result={result} managerPhone={pub?.info.managerPhone} />
         ) : confirming ? (
           <section className={cn(CARD, "p-10 text-center")}>
             <span className="mx-auto block size-8 animate-spin rounded-full border-[3px] border-brand-600 border-t-transparent" />
@@ -308,7 +315,7 @@ export default function BookPage() {
                       : `Choose the room you were shown. Rent is per room, for up to ${pub.info.maxOccupants} people.`
                   }
                 >
-                  <RoomPicker doc={pub} now={now} value={roomId} onChange={setRoomId} />
+                  <RoomPicker doc={pub} now={now} value={roomId} onChange={setRoomId} uid={auth.currentUser?.uid} />
                   {chosenType && (
                     <p className="mt-3 rounded-xl bg-brand-50 px-3 py-2 text-sm text-brand-900">
                       Room {roomId} · {chosenType.name} · <span className="font-semibold">{naira(chosenType.price)}</span> per {chosenType.pricingMode === "per_bed" ? "bed" : "room"}
@@ -530,7 +537,7 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
-function Done({ result }: { result: Result }) {
+function Done({ result, managerPhone }: { result: Result; managerPhone?: string }) {
   if (result.status === "paid" || result.status === "resolved") {
     return (
       <section className={cn(CARD, "p-6 sm:p-8")}>
@@ -571,36 +578,28 @@ function Done({ result }: { result: Result }) {
     );
   }
   if (result.status === "needs_attention") {
+    return <BookingWaiting kind="received" reference={result.reference} managerPhone={managerPhone} className={cn(CARD, "p-8")} />;
+  }
+  if (result.status === "failed" || result.payment === "not_paid") {
     return (
       <section className={cn(CARD, "p-8 text-center")}>
-        <CheckCircle2 className="mx-auto size-14 text-amber-500" />
-        <h2 className="mt-4 text-xl font-medium text-grey-950">Payment received</h2>
-        <p className="mx-auto mt-2 max-w-sm text-sm text-heading-6">
-          Room {result.roomId} was taken just before your payment went through. Your money is safe: the hostel manager has been notified and will allocate you
-          another room shortly.
-        </p>
+        <Clock className="mx-auto size-14 text-heading-6" />
+        <h2 className="mt-4 text-xl font-medium text-grey-950">Payment didn&apos;t go through</h2>
+        <p className="mx-auto mt-2 max-w-sm text-sm text-heading-6">No money was taken. You can go back and try again.</p>
+        {/* Full reload to clear the form state */}
+        <a href="/book" className="mt-6 inline-block text-sm font-medium text-brand-700 hover:underline">
+          Start again
+        </a>
       </section>
     );
   }
   return (
-    <section className={cn(CARD, "p-8 text-center")}>
-      <Clock className="mx-auto size-14 text-heading-6" />
-      <h2 className="mt-4 text-xl font-medium text-grey-950">{result.status === "failed" ? "Payment didn't go through" : "Still confirming your payment"}</h2>
-      <p className="mx-auto mt-2 max-w-sm text-sm text-heading-6">
-        {result.status === "failed"
-          ? "No money was taken. You can go back and try again."
-          : "This can take a minute. If you were debited, your room will be confirmed automatically. Log in to your portal later to check."}
-      </p>
-      {result.status === "failed" ? (
-        // Full reload to clear the form state
-        <a href="/book" className="mt-6 inline-block text-sm font-medium text-brand-700 hover:underline">
-          Start again
-        </a>
-      ) : (
+    <BookingWaiting kind="processing" reference={result.reference} managerPhone={managerPhone} className={cn(CARD, "p-8")}>
+      <div>
         <Link href="/portal" className="mt-6 inline-block text-sm font-medium text-brand-700 hover:underline">
-          Go to my portal
+          Check from my portal
         </Link>
-      )}
-    </section>
+      </div>
+    </BookingWaiting>
   );
 }

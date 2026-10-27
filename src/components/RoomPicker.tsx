@@ -10,11 +10,11 @@ type TileState = "vacant" | "selected" | "held" | "occupied" | "maintenance";
 /** Which edge of the tile faces the corridor (where its door is drawn) */
 type DoorSide = "top" | "bottom" | "left" | "right";
 
-function tileState(doc: PublicBookingDoc, id: string, selected: string, now: number): TileState {
+function tileState(doc: PublicBookingDoc, id: string, selected: string, now: number, uid?: string): TileState {
   if (id === selected) return "selected";
   const room = doc.rooms[id];
   if (room.status !== "vacant") return room.status;
-  return isBookable(doc, id, now) ? "vacant" : "held";
+  return isBookable(doc, id, now, uid) ? "vacant" : "held";
 }
 
 const STRIPES = "bg-[repeating-linear-gradient(135deg,transparent_0_6px,rgba(16,16,16,0.035)_6px_12px)]";
@@ -65,19 +65,22 @@ export function RoomPicker({
   now,
   value,
   onChange,
+  uid,
 }: {
   doc: PublicBookingDoc;
   /** Current time; holds that ended before this are treated as expired */
   now: number;
   value: string;
   onChange: (roomId: string) => void;
+  /** The signed-in student: their own checkout hold (e.g. after cancelling the payment) stays pickable */
+  uid?: string;
 }) {
   const blocks = doc.info.blocks;
   const ids = Object.keys(doc.rooms);
   // Per-bed hostels count free beds; per-room hostels count free rooms
   const perBed = ids.some((id) => doc.rooms[id].beds);
-  const freeIn = (id: string) => bookableSpaces(id, doc.rooms[id], doc.holds, now).length;
-  const vacantIn = (block: string) => ids.filter((id) => doc.rooms[id].block === block).reduce((n, id) => n + (perBed ? freeIn(id) : isBookable(doc, id, now) ? 1 : 0), 0);
+  const freeIn = (id: string) => bookableSpaces(id, doc.rooms[id], doc.holds, now, uid).length;
+  const vacantIn = (block: string) => ids.filter((id) => doc.rooms[id].block === block).reduce((n, id) => n + (perBed ? freeIn(id) : isBookable(doc, id, now, uid) ? 1 : 0), 0);
   const firstWithSpace = blocks.find((b) => vacantIn(b) > 0) ?? blocks[0];
   const [block, setBlock] = useState(() => (value ? doc.rooms[value]?.block : undefined) ?? firstWithSpace);
   const rooms = ids.filter((id) => doc.rooms[id].block === block).sort((a, b) => doc.rooms[a].number - doc.rooms[b].number);
@@ -86,7 +89,7 @@ export function RoomPicker({
 
   const tile = (id: string | null, door: DoorSide, style?: CSSProperties) => {
     if (!id) return <Stairs key={`stairs-${door}`} style={style} vertical={door === "left" || door === "right"} />;
-    const st = tileState(doc, id, value, now);
+    const st = tileState(doc, id, value, now, uid);
     const clickable = st === "vacant" || st === "selected";
     return (
       <button
