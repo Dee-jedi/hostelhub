@@ -354,22 +354,26 @@ export default function SitePage() {
             <Eyebrow n="07">Questions</Eyebrow>
             <h2 className="mt-6 text-[clamp(2.5rem,6vw,4.5rem)] leading-[0.95] font-bold tracking-[-0.045em] text-brand-950">Questions.</h2>
             <p className="mt-5 text-lg text-heading-5">Something else on your mind? Talk to a person.</p>
-            <div className="mt-6 flex items-center gap-2.5">
+            <div className="mt-6 flex items-center gap-3">
               <a
                 href={whatsappHref()}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex h-12 items-center gap-2.5 rounded-full bg-[#1f7a4d] px-5 text-[15px] font-semibold text-white hover:bg-[#1a6942]"
+                className="group inline-flex h-[52px] items-center gap-2.5 rounded-full bg-[#1f7a4d] pr-6 pl-2 text-[15px] font-semibold text-white shadow-[0_12px_28px_-12px_rgba(31,122,77,0.7)] transition-all hover:-translate-y-0.5 hover:bg-[#1a6942]"
               >
-                <MessageCircle className="size-5" /> WhatsApp {CONTACT.whatsapp}
+                <span className="flex size-9 items-center justify-center rounded-full bg-white/15">
+                  <MessageCircle className="size-5" />
+                </span>
+                Chat on WhatsApp
               </a>
               <a
                 href={`mailto:${CONTACT.email}`}
-                aria-label={`Email ${CONTACT.email}`}
-                title={CONTACT.email}
-                className="flex size-12 items-center justify-center rounded-full text-brand-900 ring-1 ring-brand-200 hover:bg-white"
+                aria-label="Send us an email"
+                title="Send us an email"
+                className="group relative flex size-[52px] items-center justify-center rounded-full bg-brand-950 text-brand-300 shadow-[0_12px_28px_-10px_rgba(11,35,34,0.7)] ring-4 ring-brand-100 transition-all hover:-translate-y-0.5 hover:ring-brand-200"
               >
-                <Mail className="size-5" />
+                <Mail className="size-5 transition-transform group-hover:-rotate-12 group-hover:scale-110" />
+                <span className="absolute top-0.5 right-0.5 size-3 rounded-full bg-brand-300 ring-2 ring-brand-950" aria-hidden />
               </a>
             </div>
           </div>
