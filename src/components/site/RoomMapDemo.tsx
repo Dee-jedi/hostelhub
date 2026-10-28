@@ -62,13 +62,13 @@ export function RoomMapDemo() {
                 <Check className="size-4 text-brand-600" /> Room {picked} · ₦350,000
               </p>
               <p className="mt-0.5 flex items-center gap-1.5 text-sm text-heading-5">
-                <Clock className="size-3.5" /> Held for this student for 15 minutes while they pay
+                <Clock className="size-3.5" /> Held for them for 15 minutes while they pay
               </p>
             </div>
             <span className="rounded-full bg-brand-950 px-4 py-2 text-sm font-semibold text-white">Pay securely</span>
           </div>
         ) : (
-          <p className="text-[15px] text-heading-5">Tap a free room. Two students can never pay for the same one.</p>
+          <p className="text-[15px] text-heading-5">Tap a free room. Two people can never pay for the same one.</p>
         )}
       </div>
     </div>

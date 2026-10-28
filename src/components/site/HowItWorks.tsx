@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Link2, QrCode } from "lucide-react";
+import { Check, Link2, Plus, QrCode } from "lucide-react";
 import { useState } from "react";
 import { PLATFORM_HOST } from "@/lib/platform";
 import { cn } from "@/lib/utils";
@@ -16,7 +16,7 @@ const STEPS = [
     body: "You get your own address and a QR poster for the gate. Send the link to agents, post it on WhatsApp, print the poster.",
   },
   {
-    title: "Students book and pay",
+    title: "Tenants book and pay",
     body: "They pick a free room on a live map, fill their form and pay online. The rent goes straight to your bank, and the room is theirs.",
   },
   {
@@ -84,29 +84,65 @@ function Visual({ step, wide }: { step: number; wide: boolean }) {
       </Scaled>
     );
   return (
-    <Scaled {...DASHBOARD_SIZE} className={wide ? "[--s:0.66] xl:[--s:0.72]" : "[--s:0.38] sm:[--s:0.7]"}>
+    <Scaled {...DASHBOARD_SIZE} className={wide ? "[--s:0.5] xl:[--s:0.56]" : "[--s:0.27] sm:[--s:0.55]"}>
       <DashboardMock />
     </Scaled>
   );
 }
 
-/** Desktop: four steps, picking one shows what it looks like. Phones: a timeline, everything shown. */
+/**
+ * Desktop: four steps, picking one shows what it looks like beside them.
+ * Phones: a timeline of the same steps; tap one to open its text and picture under it.
+ */
 export function HowItWorks() {
   const [step, setStep] = useState(0);
+  const [openOnPhone, setOpenOnPhone] = useState<Set<number>>(() => new Set([0]));
+  const togglePhone = (i: number) =>
+    setOpenOnPhone((open) => {
+      const next = new Set(open);
+      if (!next.delete(i)) next.add(i);
+      return next;
+    });
+
   return (
     <>
-      <ol className="relative space-y-10 lg:hidden">
-        <span className="absolute top-2 bottom-2 left-[17px] w-px bg-brand-200" aria-hidden />
-        {STEPS.map((s, i) => (
-          <li key={s.title} className="relative pl-14">
-            <span className="absolute top-0 left-0 flex size-9 items-center justify-center rounded-full bg-brand-950 text-sm font-semibold text-white ring-4 ring-[#f6f8f7]">{i + 1}</span>
-            <h3 className="pt-1 text-xl font-semibold tracking-tight text-grey-950">{s.title}</h3>
-            <p className="mt-2 text-base leading-relaxed text-heading-5">{s.body}</p>
-            <div className="mt-5 flex justify-center">
-              <Visual step={i} wide={false} />
-            </div>
-          </li>
-        ))}
+      <ol className="space-y-3 lg:hidden">
+        {STEPS.map((s, i) => {
+          const open = openOnPhone.has(i);
+          const last = i === STEPS.length - 1;
+          return (
+            <li key={s.title} className="relative pl-14">
+              {/* The line joins this step's number to the next one's, so it ends at the last step */}
+              {!last && <span className="absolute top-10 -bottom-3 left-[17px] w-px bg-brand-200" aria-hidden />}
+              <span
+                className={cn(
+                  "absolute top-0.5 left-0 flex size-9 items-center justify-center rounded-full text-sm font-semibold transition-colors",
+                  open ? "bg-brand-950 text-white" : "bg-white text-brand-900 ring-1 ring-brand-200",
+                )}
+              >
+                {i + 1}
+              </span>
+              <button
+                type="button"
+                onClick={() => togglePhone(i)}
+                aria-expanded={open}
+                className="flex w-full items-center gap-3 py-1.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
+              >
+                <h3 className="flex-1 text-xl font-semibold tracking-tight text-grey-950">{s.title}</h3>
+                <Plus className={cn("size-5 shrink-0 text-brand-700 transition-transform", open && "rotate-45")} />
+              </button>
+              {/* Shown, not slid open: a clipping animation would cut off the pictures' shadows */}
+              {open && (
+                <div className="motion-safe:animate-[pop-in_0.3s_ease-out]">
+                  <p className="mt-1 text-base leading-relaxed text-heading-5">{s.body}</p>
+                  <div className="mt-5 flex justify-center pb-8">
+                    <Visual step={i} wide={false} />
+                  </div>
+                </div>
+              )}
+            </li>
+          );
+        })}
       </ol>
 
       <div className="hidden items-center gap-16 lg:grid lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">

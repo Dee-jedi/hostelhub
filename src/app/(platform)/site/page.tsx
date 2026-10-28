@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
   title: "HostelHub: run your hostel from your phone",
-  description: "Students book a room and pay online. You see every room, tenant and payment in one place. Free for hostels in Nigeria.",
+  description: "Tenants book a room and pay online. You see every room, tenant and payment in one place. Free for hostels, lodges and apartments.",
 };
 
 const container = "mx-auto w-full max-w-6xl px-5 sm:px-8";
@@ -48,8 +48,8 @@ function PrimaryCta({ children = "Get started free", className }: { children?: R
 // --------------------------------------------------------------------------- the problem
 
 const PAINS = [
-  ["Paper registration forms", "Who is in room B7?", "Rent expired last month", "Receipts in a notebook", "Repairs lost in WhatsApp", "Students who \"already paid\""],
-  ["Chasing rent one by one", "Agents adding their own charge", "Two students, one room", "Counting cash at the gate", "Next of kin? No idea", "Which rooms are free?"],
+  ["Paper registration forms", "Who is in room B7?", "Rent expired last month", "Receipts in a notebook", "Repairs lost in WhatsApp", "Tenants who \"already paid\""],
+  ["Chasing rent one by one", "Agents adding their own charge", "Two people, one room", "Counting cash at the gate", "Next of kin? No idea", "Which rooms are free?"],
 ];
 
 function PainRow({ items, reverse }: { items: string[]; reverse?: boolean }) {
@@ -70,12 +70,12 @@ function PainRow({ items, reverse }: { items: string[]; reverse?: boolean }) {
 
 const FEATURES = [
   { icon: BedDouble, title: "A live map of every room", body: "Free, taken, rent due or under repair, block by block. Per room or per bed, 2 to 4 people." },
-  { icon: Banknote, title: "Rent straight to your bank", body: "Students pay online by card, transfer or USSD through Paystack. HostelHub never holds your money." },
-  { icon: ReceiptText, title: "Receipts that write themselves", body: "Every payment gets a numbered receipt, for you and for the student. No more receipt booklets." },
+  { icon: Banknote, title: "Rent straight to your bank", body: "Tenants pay online by card, transfer or USSD through Paystack. HostelHub never holds your money." },
+  { icon: ReceiptText, title: "Receipts that write themselves", body: "Every payment gets a numbered receipt, for you and for the tenant. No more receipt booklets." },
   { icon: Bell, title: "Know who owes, before they forget", body: "Rent running out this month, next month or already late, each in its own list. Remind them in one tap." },
   { icon: NotebookPen, title: "A register you can trust", body: "Name, course, level, phone, next of kin and photo for every tenant. Search it, export it, print it." },
   { icon: Wrench, title: "Repairs and complaints, tracked", body: "Tenants report from their phone, with a photo. You reply, and they see the progress." },
-  { icon: IdCard, title: "Tenant ID at the gate", body: "Each tenant gets an ID with a QR code. Security scans it to see that the student really lives there." },
+  { icon: IdCard, title: "Tenant ID at the gate", body: "Each tenant gets an ID with a QR code. Security scans it to see that the person really lives there." },
   { icon: ClipboardList, title: "Room changes, approved", body: "A tenant asks to move, you approve, and the room map and records update on their own." },
 ];
 
@@ -85,12 +85,12 @@ const FAQS = [
   ["How long does it take to set up?", "Most hostels are ready in an afternoon. You answer simple questions about your hostel, rooms and prices, one screen at a time. You can stop and pick up later, and nothing goes live until you say so."],
   ["I already have tenants. Do I start again?", "No. While you set up, you add the tenants you already have, with the room they're in and when their rent runs out. They're on your dashboard from day one."],
   ["Where does the rent money go?", "Straight to your hostel's bank account, through Paystack, a licensed payment company used by thousands of Nigerian businesses. HostelHub never holds your rent."],
-  ["Can students still pay by cash or bank transfer?", "Yes. You record it on the dashboard and HostelHub gives them a receipt like any other. Online payment is just faster, because the room and the receipt happen on their own."],
-  ["Do my students need to download an app?", "No. It works in the browser on any smartphone. Students can add it to their home screen if they like, and it opens like an app."],
-  ["What if two students want the same room?", "The room map is live. When a student starts paying, the room is held for them for 15 minutes, so two people can never pay for the same room."],
+  ["Can tenants still pay by cash or bank transfer?", "Yes. You record it on the dashboard and HostelHub gives them a receipt like any other. Online payment is just faster, because the room and the receipt happen on their own."],
+  ["Do my tenants need to download an app?", "No. It works in the browser on any smartphone. They can add it to their home screen if they like, and it opens like an app."],
+  ["What if two people want the same room?", "The room map is live. When someone starts paying, the room is held for them for 15 minutes, so two people can never pay for the same room."],
   ["Does it work for hostels that rent by the bed?", "Yes. You choose per room or per bed when you set up, with rooms for 2, 3 or 4 people, and you can mix room sizes in one hostel."],
   ["Do I need a website?", `No. Your hostel gets its own address, like yourhostel.${PLATFORM_HOST}, and a QR poster to print. That's your booking page.`],
-  ["Is our data safe?", "It's stored on Google's cloud. Your staff only see your hostel, and each student only sees their own records and receipts."],
+  ["Is our data safe?", "It's stored on Google's cloud. Your staff only see your hostel, and each tenant only sees their own records and receipts."],
   ["What does it cost?", "Nothing for hostels. No setup fee and no monthly subscription."],
 ];
 
@@ -124,18 +124,18 @@ export default function SitePage() {
       <section className="relative overflow-hidden pt-28 sm:pt-36">
         <div className="pointer-events-none absolute -top-40 right-[-10%] size-[640px] rounded-full bg-brand-100/70 blur-3xl" />
         <div className="pointer-events-none absolute top-60 -left-40 size-[420px] rounded-full bg-brand-50 blur-3xl" />
-        <div className={cn(container, "relative grid items-center gap-14 lg:grid-cols-[minmax(0,1.12fr)_minmax(0,0.88fr)] lg:gap-12")}>
+        <div className={cn(container, "relative grid items-center gap-14 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.85fr)] lg:gap-20")}>
           <div className="relative z-10 motion-safe:animate-[rise_0.7s_ease-out]">
             <p className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-sm text-heading-4 ring-1 ring-black/5">
-              <span className="size-2 rounded-full bg-brand-500" /> Built for student hostels in Nigeria
+              <span className="size-2 rounded-full bg-brand-500" /> Built for your hostel
             </p>
-            <h1 className="mt-6 text-[clamp(2.75rem,5.6vw,4.6rem)] leading-[0.98] font-bold tracking-[-0.045em] text-balance text-brand-950">
+            <h1 className="mt-6 text-[clamp(2.75rem,4.9vw,4.1rem)] leading-[0.98] font-bold tracking-[-0.045em] text-balance text-brand-950">
               Run your hostel
               <br />
               <span className="text-brand-600">from your phone.</span>
             </h1>
             <p className="mt-6 max-w-xl text-lg leading-relaxed text-heading-5 sm:text-xl">
-              Students pick a room, fill their form and pay online. You see every room, every tenant and every naira, without paper forms or chasing rent.
+              Tenants pick a room, fill their form and pay online. You see every room, every tenant and every naira, without paper forms or chasing rent.
             </p>
             {/* Phones: stacked, both full width. Wider: side by side */}
             <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
@@ -148,7 +148,7 @@ export default function SitePage() {
               </a>
             </div>
             <ul className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-[15px] text-heading-5">
-              {["Free for hostels", "Rent paid to your bank", "Works on any phone"].map((t) => (
+              {["Free for hostels", "Rent paid to your bank", "No app to download"].map((t) => (
                 <li key={t} className="flex items-center gap-2">
                   <ShieldCheck className="size-4 text-brand-600" /> {t}
                 </li>
@@ -157,12 +157,13 @@ export default function SitePage() {
           </div>
 
           {/* The phone overlaps the dashboard's lower-left corner, never the text column */}
-          <div className="relative mx-auto flex min-w-0 justify-end pb-16 motion-safe:animate-[rise_0.9s_ease-out] sm:pb-20 lg:pb-12">
-            <Scaled {...DASHBOARD_SIZE} className="[--s:0.4] sm:[--s:0.72] lg:[--s:0.6] xl:[--s:0.66]">
+          {/* Wide screens: the dashboard runs past the column's right edge, keeping a clear gap from the text */}
+          <div className="relative mx-auto flex min-w-0 justify-end pb-16 motion-safe:animate-[rise_0.9s_ease-out] sm:pb-20 lg:mr-[-12%] lg:pb-12">
+            <Scaled {...DASHBOARD_SIZE} className="[--s:0.33] sm:[--s:0.58] lg:[--s:0.48] xl:[--s:0.54]">
               <DashboardMock />
             </Scaled>
-            <div className="absolute bottom-0 left-0 sm:-left-6 lg:-left-10">
-              <Scaled {...PHONE_SIZE} className="[--s:0.36] sm:[--s:0.52] lg:[--s:0.5] xl:[--s:0.54]">
+            <div className="absolute bottom-0 left-0 sm:left-4 lg:left-0">
+              <Scaled {...PHONE_SIZE} className="[--s:0.34] sm:[--s:0.5] lg:[--s:0.46] xl:[--s:0.52]">
                 <Phone>
                   <BookingScreen />
                 </Phone>
@@ -176,8 +177,8 @@ export default function SitePage() {
           <div className="grid gap-px overflow-hidden rounded-3xl bg-brand-100 ring-1 ring-brand-100 sm:grid-cols-3">
             {[
               ["₦0", "to set up, and no monthly fee"],
-              ["15 min", "hold on a room while a student pays"],
-              ["24/7", "students can book, even while you sleep"],
+              ["15 min", "hold on a room while someone pays"],
+              ["24/7", "tenants can book, even while you sleep"],
             ].map(([big, small]) => (
               <div key={big} className="bg-white px-7 py-7">
                 <p className="text-4xl font-semibold tracking-tight text-brand-950">{big}</p>
@@ -225,9 +226,9 @@ export default function SitePage() {
         <div className={cn(container, "grid items-center gap-12 lg:grid-cols-2 lg:gap-16")}>
           <div>
             <Eyebrow n="03">Try it here</Eyebrow>
-            <h2 className="mt-6 text-[clamp(2rem,4.5vw,3.5rem)] leading-[1.02] font-bold tracking-[-0.04em] text-brand-950">This is what your students see.</h2>
+            <h2 className="mt-6 text-[clamp(2rem,4.5vw,3.5rem)] leading-[1.02] font-bold tracking-[-0.04em] text-brand-950">This is what your tenants see.</h2>
             <p className="mt-5 max-w-lg text-lg leading-relaxed text-heading-5">
-              A live floor plan of your hostel. Rooms turn taken the moment someone pays, so students never pick a room that&apos;s gone, and you never have to
+              A live floor plan of your hostel. Rooms turn taken the moment someone pays, so nobody picks a room that&apos;s gone, and you never have to
               say sorry.
             </p>
           </div>
@@ -256,12 +257,12 @@ export default function SitePage() {
         </div>
       </section>
 
-      {/* For students */}
+      {/* For tenants */}
       <section className="overflow-hidden bg-brand-950 py-24 text-white sm:py-32">
         <div className={cn(container, "grid items-center gap-16 lg:grid-cols-2")}>
           <div>
             <Eyebrow n="05" dark>
-              For your students
+              For your tenants
             </Eyebrow>
             <h2 className="mt-6 text-[clamp(2.25rem,5vw,4rem)] leading-[1] font-bold tracking-[-0.04em]">
               Their room, their receipts, <span className="text-brand-300">in their pocket.</span>

@@ -1,6 +1,21 @@
-import { BedDouble, Bell, CalendarClock, LayoutDashboard, QrCode, ReceiptText, Users, Wallet, Wrench } from "lucide-react";
+import {
+  BedDouble,
+  Bell,
+  CalendarClock,
+  ClipboardList,
+  DoorOpen,
+  House,
+  MessageSquareText,
+  Plus,
+  QrCode,
+  ReceiptText,
+  Search,
+  TriangleAlert,
+  Users,
+  Wallet,
+  Wrench,
+} from "lucide-react";
 import type { CSSProperties, ReactNode } from "react";
-import { PLATFORM_HOST } from "@/lib/platform";
 import { cn } from "@/lib/utils";
 
 /*
@@ -27,94 +42,168 @@ export function Scaled({ w, h, className, style, children }: { w: number; h: num
 
 // --------------------------------------------------------------------------- dashboard
 
-type Tile = "paid" | "due" | "late" | "free" | "repair";
-const TILE: Record<Tile, string> = {
-  paid: "bg-brand-500",
-  due: "bg-amber-400",
-  late: "bg-rose-400",
-  free: "bg-white ring-1 ring-inset ring-grey-150",
-  repair: "bg-grey-150",
-};
-// A believable mix for 45 rooms: mostly paid, some due soon, a few late, a few free
-const GRID: Tile[] = "pppdppfpplpppdpprppfpppdpplpppppfpdpppprppfpp".split("").map((c) => ({ p: "paid", d: "due", l: "late", f: "free", r: "repair" })[c] as Tile);
-
-function Stat({ label, value, note, tone = "text-grey-950" }: { label: string; value: string; note: string; tone?: string }) {
+/** A framed card like the app's Panel: grey frame with a title row, white body inside. */
+function Frame({ title, note, icon: Icon, iconTone, link, children, className }: { title: string; note?: string; icon?: typeof Bell; iconTone?: string; link?: string; children: ReactNode; className?: string }) {
   return (
-    <div className="rounded-xl bg-white px-3.5 py-3 ring-1 ring-grey-100">
-      <p className="text-[11px] text-heading-6">{label}</p>
-      <p className={cn("mt-1.5 text-[22px] leading-none font-semibold tracking-tight tabular-nums", tone)}>{value}</p>
-      <p className="mt-1.5 text-[10px] text-heading-6">{note}</p>
+    <div className={cn("rounded-[14px] border border-frame-border bg-frame p-1", className)}>
+      <div className="flex items-start justify-between px-2.5 pt-1.5 pb-2">
+        <div>
+          <p className="text-[12px] font-medium text-heading-2">{title}</p>
+          {note && <p className="text-[9.5px] text-heading-6">{note}</p>}
+        </div>
+        {Icon && (
+          <span className={cn("flex size-[18px] items-center justify-center rounded-md", iconTone)}>
+            <Icon className="size-3" />
+          </span>
+        )}
+        {link && <span className="text-[11px] font-medium text-brand-700">{link}</span>}
+      </div>
+      <div className="rounded-[10px] bg-white ring-1 ring-frame-border">{children}</div>
     </div>
   );
 }
 
-export const DASHBOARD_SIZE = { w: 760, h: 400 };
+const DUE = [
+  ["KA", "Kelechi Anyanwu", "B8", "Expired 34 days ago", "bg-brand-50 text-brand-700"],
+  ["AA", "Ayo Adeyemi", "F1", "Expired 31 days ago", "bg-emerald-50 text-emerald-700"],
+  ["NA", "Ngozi Adebayo", "D9", "Expired 27 days ago", "bg-amber-50 text-amber-700"],
+  ["EC", "Emeka Chukwu", "A8", "Expired 26 days ago", "bg-sky-50 text-sky-700"],
+];
 
-/** The manager's dashboard in a browser window, drawn at 760×400. */
+export const DASHBOARD_SIZE = { w: 980, h: 590 };
+
+/** The manager's home screen as the app draws it (sidebar, stats, rent due, rent status), at 980×590. */
 export function DashboardMock() {
-  const nav = [
-    { icon: LayoutDashboard, label: "Home", active: true },
-    { icon: BedDouble, label: "Rooms" },
-    { icon: Users, label: "Tenants" },
-    { icon: CalendarClock, label: "Rent & renewals" },
-    { icon: Wallet, label: "Payments" },
-    { icon: Wrench, label: "Requests" },
+  const nav: [typeof Bell, string, string?][] = [
+    [House, "Home"],
+    [BedDouble, "Rooms"],
+    [Users, "Residents"],
+    [CalendarClock, "Rent & Renewals", "26"],
+    [Wallet, "Payments"],
   ];
+  const manage: [typeof Bell, string, string?][] = [
+    [MessageSquareText, "Messages"],
+    [ClipboardList, "Bookings"],
+    [Wrench, "Requests", "4"],
+  ];
+  const navRow = ([Icon, label, badge]: [typeof Bell, string, string?], i: number, active = false) => (
+    <p key={label} className={cn("mb-1 flex items-center gap-2.5 rounded-lg px-2.5 py-[7px] text-[12px]", active ? "bg-brand-50 font-medium text-brand-800 ring-1 ring-brand-200" : "text-heading-4")}>
+      <Icon className="size-3.5" strokeWidth={1.6} /> <span className="flex-1">{label}</span>
+      {badge && <span className={cn("rounded-full px-1.5 text-[9px] font-semibold", i === 3 ? "bg-amber-100 text-amber-800" : "bg-grey-100 text-heading-5")}>{badge}</span>}
+    </p>
+  );
   return (
-    <div className="flex h-[400px] w-[760px] flex-col overflow-hidden rounded-2xl bg-white shadow-[0_30px_80px_-20px_rgba(11,35,34,0.35)] ring-1 ring-black/10">
-      <div className="flex items-center gap-2 border-b border-grey-100 bg-grey-10 px-4 py-2.5">
-        <span className="size-3 rounded-full bg-grey-150" />
-        <span className="size-3 rounded-full bg-grey-150" />
-        <span className="size-3 rounded-full bg-grey-150" />
-        <span className="mx-auto rounded-full bg-white px-4 py-1 text-[11px] text-heading-6 ring-1 ring-grey-100">sunrise.{PLATFORM_HOST}</span>
-      </div>
-      <div className="flex min-h-0 flex-1">
-        <aside className="w-44 shrink-0 border-r border-grey-100 p-4">
-          <p className="mb-4 text-[15px] font-semibold tracking-tight text-brand-950">
-            hostel<span className="text-brand-600">hub</span>
-          </p>
-          {nav.map(({ icon: Icon, label, active }) => (
-            <p key={label} className={cn("mb-1 flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[12px]", active ? "bg-brand-50 font-medium text-brand-800" : "text-heading-5")}>
-              <Icon className="size-3.5" /> {label}
-            </p>
-          ))}
-        </aside>
-        <div className="min-w-0 flex-1 bg-grey-10 p-5">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-[11px] text-heading-6">Good morning,</p>
-              <p className="text-[17px] font-semibold text-grey-950">Mrs. Adeyemi</p>
+    <div className="flex h-[590px] w-[980px] overflow-hidden rounded-2xl bg-white shadow-[0_30px_80px_-20px_rgba(11,35,34,0.35)] ring-1 ring-black/10">
+      <aside className="flex w-[190px] shrink-0 flex-col border-r border-grey-100">
+        <p className="flex h-12 items-center border-b border-grey-100 px-4 text-[16px] font-semibold tracking-tight text-grey-950">
+          hostel<span className="text-brand-600">hub</span>
+        </p>
+        <div className="border-b border-grey-100 p-3">{nav.map((n, i) => navRow(n, i, i === 0))}</div>
+        <div className="p-3">
+          <p className="mb-1.5 px-2.5 text-[9px] font-medium tracking-wide text-heading-6">MANAGE</p>
+          {manage.map((n, i) => navRow(n, i))}
+        </div>
+        <div className="mt-auto p-3">
+          <div className="flex items-center gap-2 rounded-xl p-2 ring-1 ring-grey-100">
+            <span className="flex size-7 items-center justify-center rounded-full bg-grey-950 text-[10px] font-semibold text-white">A</span>
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] font-medium text-grey-950">Mrs. Adeyemi</p>
+              <p className="text-[9px] text-heading-6">Profile & settings</p>
             </div>
-            <span className="relative flex size-8 items-center justify-center rounded-full bg-white ring-1 ring-grey-100">
-              <Bell className="size-4 text-heading-5" />
-              <span className="absolute top-1.5 right-2 size-1.5 rounded-full bg-rose-500" />
-            </span>
+          </div>
+        </div>
+      </aside>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex h-12 items-center gap-4 border-b border-grey-100 px-5">
+          <p className="w-24 text-[13px] text-heading-5">Home</p>
+          <p className="flex h-7 flex-1 items-center gap-2 rounded-full bg-frame px-3 text-[10px] text-heading-6 ring-1 ring-frame-border">
+            <Search className="size-3" /> Search residents, rooms, phone numbers…
+          </p>
+          <span className="relative">
+            <Bell className="size-4 text-heading-5" />
+            <span className="absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-rose-500" />
+          </span>
+        </div>
+        <div className="min-h-0 flex-1 p-5">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-[16px] font-semibold text-grey-950">Welcome, Mrs. Adeyemi!</p>
+              <p className="text-[11px] text-heading-6">Here&apos;s what&apos;s happening at {DEMO_HOSTEL} today.</p>
+            </div>
+            <div className="flex gap-2">
+              <span className="flex h-8 items-center gap-1.5 rounded-lg px-3 text-[11px] font-medium text-heading-2 ring-1 ring-grey-150">
+                <Bell className="size-3" /> Run reminders
+              </span>
+              <span className="flex h-8 items-center gap-1.5 rounded-lg bg-brand-600 px-3 text-[11px] font-medium text-white">
+                <Plus className="size-3" /> Add tenant
+              </span>
+            </div>
           </div>
           <div className="mt-4 grid grid-cols-4 gap-2.5">
-            <Stat label="Occupied" value="92%" note="110 of 120 rooms" />
-            <Stat label="Free rooms" value="10" note="Booking page live" tone="text-brand-600" />
-            <Stat label="Rent due" value="14" note="This month" tone="text-amber-600" />
-            <Stat label="Collected" value="₦38.5m" note="This session" />
+            {(
+              [
+                ["Room occupancy", "93%", "110 of 118 rooms let", BedDouble, "bg-brand-100 text-brand-700"],
+                ["Vacant rooms", "8", "2 under maintenance", DoorOpen, "bg-sky-100 text-sky-700"],
+                ["Expiring this month", "2", "12 due in the next 30 days", CalendarClock, "bg-amber-100 text-amber-700"],
+                ["Expired rent", "14", "₦4,900,000 outstanding", TriangleAlert, "bg-rose-100 text-rose-600"],
+              ] as const
+            ).map(([title, value, note, icon, tone]) => (
+              <Frame key={title} title={title} icon={icon} iconTone={tone}>
+                <div className="px-3 pt-4 pb-3">
+                  <p className="text-[22px] leading-none font-medium text-grey-950 tabular-nums">{value}</p>
+                  <p className="mt-2 text-[9.5px] text-heading-5">{note}</p>
+                </div>
+              </Frame>
+            ))}
           </div>
-          <div className="mt-3 rounded-xl bg-white p-4 ring-1 ring-grey-100">
-            <div className="mb-3 flex items-center justify-between">
-              <p className="text-[13px] font-semibold text-grey-950">Block A · rooms</p>
-              <div className="flex gap-3 text-[10px] text-heading-6">
-                <span className="flex items-center gap-1.5">
-                  <i className="size-2 rounded-full bg-brand-500" /> Paid
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <i className="size-2 rounded-full bg-amber-400" /> Due soon
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <i className="size-2 rounded-full bg-rose-400" /> Late
-                </span>
-              </div>
-            </div>
-            <div className="grid grid-cols-15 gap-1.5">
-              {GRID.map((t, i) => (
-                <span key={i} className={cn("aspect-square rounded-[4px]", TILE[t])} />
+          <div className="mt-3 grid grid-cols-[1.6fr_1fr] gap-2.5">
+            <Frame title="Rent due & overdue" note="Expired first, then by expiry date" link="View all">
+              {DUE.map(([initials, name, room, when, tone]) => (
+                <div key={name} className="flex items-center gap-2.5 border-b border-grey-100 px-3 py-2 last:border-0">
+                  <span className={cn("flex size-6 items-center justify-center rounded-full text-[8px] font-semibold", tone)}>{initials}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[11px] text-grey-950">{name}</p>
+                    <p className="text-[9px] text-heading-6">Room {room}</p>
+                  </div>
+                  <p className="text-[9.5px] text-heading-6">{when}</p>
+                  <span className="rounded-md bg-rose-50 px-1.5 py-0.5 text-[9px] font-medium text-rose-600 ring-1 ring-rose-200">Expired</span>
+                </div>
               ))}
+            </Frame>
+            <div className="space-y-2.5">
+              <Frame title="Rent status" note="110 rooms let">
+                <div className="p-3">
+                  <div className="flex h-2 overflow-hidden rounded-full">
+                    <span className="w-[76%] bg-emerald-500" />
+                    <span className="w-[11%] bg-amber-400" />
+                    <span className="flex-1 bg-rose-500" />
+                  </div>
+                  {(
+                    [
+                      ["Paid up", "84", "bg-emerald-500"],
+                      ["Expiring within 30 days", "12", "bg-amber-400"],
+                      ["Expired", "14", "bg-rose-500"],
+                    ] as const
+                  ).map(([label, n, dot]) => (
+                    <p key={label} className="mt-2 flex items-center gap-2 text-[10.5px] text-heading-4">
+                      <i className={cn("size-1.5 rounded-full", dot)} /> <span className="flex-1">{label}</span> <b className="font-medium text-grey-950">{n}</b>
+                    </p>
+                  ))}
+                </div>
+              </Frame>
+              <Frame title="Needs attention">
+                {(
+                  [
+                    [ClipboardList, "New online bookings", "3", "bg-brand-50 text-brand-700 ring-brand-200"],
+                    [Wrench, "Open tenant requests", "4", "bg-amber-50 text-amber-700 ring-amber-200"],
+                  ] as const
+                ).map(([Icon, label, n, tone]) => (
+                  <p key={label} className="flex items-center gap-2 border-b border-grey-100 px-3 py-2 text-[10.5px] text-heading-2 last:border-0">
+                    <Icon className="size-3 text-heading-5" /> <span className="flex-1">{label}</span>
+                    <span className={cn("rounded-md px-1.5 text-[9px] font-medium ring-1", tone)}>{n}</span>
+                  </p>
+                ))}
+              </Frame>
             </div>
           </div>
         </div>
