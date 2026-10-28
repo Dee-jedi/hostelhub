@@ -63,25 +63,31 @@ function hostelUrl(slug: string) {
   return `${protocol}//${slug}.${PLATFORM_HOST}${port ? `:${port}` : ""}`;
 }
 
-type SlugState = { status: "idle" | "checking" | "available" | "taken" | "error"; message?: string };
+type SlugState = { status: "idle" | "checking" | "available" | "taken" | "error"; message?: string; yours?: boolean };
 
-/** Asks the server whether the address is free, a moment after typing stops. */
-function useSlugCheck(slug: string, enabled: boolean): SlugState {
+/**
+ * Asks the server whether the address is free, a moment after typing stops. Their own saved
+ * hostel's address is theirs, not "taken" (they came back to change an answer).
+ */
+function useSlugCheck(slug: string, enabled: boolean, savedId?: string): SlugState {
   const [state, setState] = useState<SlugState>({ status: "idle" });
   useEffect(() => {
     if (!enabled) return;
     const problem = BASICS_CHECKS.slug({ ...EMPTY_BASICS, slug });
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reflects the address just typed
     if (problem) return setState({ status: "taken", message: slug ? problem : undefined });
+    if (slug === savedId) return setState({ status: "available", yours: true });
     setState({ status: "checking" });
     let live = true;
     const timer = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/onboarding/hostel?slug=${encodeURIComponent(slug)}`);
-        const data = (await res.json()) as { available?: boolean; problem?: string | null; error?: string };
+        // Signed in from an earlier visit: the server can tell their own unfinished hostel apart
+        const token = await auth.currentUser?.getIdToken().catch(() => undefined);
+        const res = await fetch(`/api/onboarding/hostel?slug=${encodeURIComponent(slug)}`, token ? { headers: { Authorization: `Bearer ${token}` } } : undefined);
+        const data = (await res.json()) as { available?: boolean; yours?: boolean; problem?: string | null; error?: string };
         if (!live) return;
         if (!res.ok) setState({ status: "error", message: data.error });
-        else setState(data.available ? { status: "available" } : { status: "taken", message: data.problem ?? undefined });
+        else setState(data.available ? { status: "available", yours: data.yours } : { status: "taken", message: data.problem ?? undefined });
       } catch {
         if (live) setState({ status: "error", message: "Couldn't check that address. Check your connection." });
       }
@@ -90,7 +96,7 @@ function useSlugCheck(slug: string, enabled: boolean): SlugState {
       live = false;
       clearTimeout(timer);
     };
-  }, [slug, enabled]);
+  }, [slug, enabled, savedId]);
   return state;
 }
 
@@ -181,8 +187,8 @@ export function StartWizard() {
     setProblem(null);
     setBasics((b) => {
       const next = { ...b, ...patch };
-      // The address follows the name until they choose their own
-      if (patch.name !== undefined && !slugTouched) next.slug = suggestSlugs(next.name)[0] ?? "";
+      // The address follows the name until they choose their own (or it's saved, and fixed)
+      if (patch.name !== undefined && !slugTouched && !hostelId) next.slug = suggestSlugs(next.name)[0] ?? "";
       return next;
     });
   };
@@ -192,7 +198,7 @@ export function StartWizard() {
     setBasics((b) => ({ ...b, slug }));
   };
 
-  const slugCheck = useSlugCheck(basics.slug, step === "slug");
+  const slugCheck = useSlugCheck(basics.slug, step === "slug", hostelId);
   const index = QUESTIONS.indexOf(step);
   const go = (to: StepId) => {
     setProblem(null);
@@ -389,10 +395,17 @@ export function StartWizard() {
                 <Question title="Pick your web address" hint="This is your booking page. Share it with agents, on WhatsApp and on your poster.">
                   <div>
                     <Label htmlFor="slug">Web address</Label>
-                    <div className="flex h-14 items-center rounded-2xl border border-grey-150 bg-white pr-4 transition-colors focus-within:border-brand-500 focus-within:ring-4 focus-within:ring-brand-100">
+                    <div
+                      className={cn(
+                        "flex h-14 items-center rounded-2xl border border-grey-150 pr-4 transition-colors focus-within:border-brand-500 focus-within:ring-4 focus-within:ring-brand-100",
+                        hostelId ? "bg-grey-50" : "bg-white",
+                      )}
+                    >
                       <input
                         id="slug"
                         autoFocus
+                        // Saved hostels keep their address: it's what all their records are filed under
+                        readOnly={!!hostelId}
                         className="h-full min-w-0 flex-1 rounded-l-2xl bg-transparent pl-4 text-lg font-semibold text-grey-950 outline-none"
                         value={basics.slug}
                         onChange={(e) => chooseSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 32))}
@@ -410,13 +423,21 @@ export function StartWizard() {
                       )}
                       {slugCheck.status === "available" && (
                         <span className="flex items-center gap-2 font-medium text-brand-700">
-                          <Check className="size-4" strokeWidth={3} /> It&apos;s yours if you want it
+                          <Check className="size-4" strokeWidth={3} /> {slugCheck.yours ? "This one's already yours" : "It's yours if you want it"}
                         </span>
                       )}
                       {(slugCheck.status === "taken" || slugCheck.status === "error") && slugCheck.message && <span className="text-rose-600">{slugCheck.message}</span>}
                     </p>
                   </div>
-                  {suggestSlugs(basics.name, basics.city).filter((s) => s !== basics.slug).length > 0 && (
+                  {hostelId ? (
+                    <p className="text-[15px] leading-relaxed text-heading-5">
+                      Your hostel is saved under this address, so it can&apos;t change here. Need a different one?{" "}
+                      <a href={whatsappHref(`Hi HostelHub, I'd like to change my web address (${hostelId}).`)} target="_blank" rel="noreferrer" className="font-semibold text-brand-800 underline-offset-4 hover:underline">
+                        Message us
+                      </a>
+                      .
+                    </p>
+                  ) : suggestSlugs(basics.name, basics.city).filter((s) => s !== basics.slug).length > 0 && (
                     <div>
                       <p className="mb-2 text-sm text-heading-6">Or try</p>
                       <div className="flex flex-wrap gap-2">
