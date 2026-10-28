@@ -5,7 +5,8 @@ import { addDays, addMonths, toStudentInfo, todayISO } from "./utils";
 export const STATE_VERSION = 5;
 
 export const DEFAULT_SETTINGS: Settings = {
-  hostelName: "Mowarid Hostel",
+  // Fictional, so the public demo never looks like a real hostel (the marketing site shows the same one)
+  hostelName: "Sunrise Hostel",
   address: "Off University Road, Campus Gate",
   managerName: "Mrs. Adeyemi",
   managerPhone: "08031234567",
@@ -25,7 +26,7 @@ export const DEFAULT_SETTINGS: Settings = {
   ],
   reminderDays: [30, 14, 7, 1],
   bankName: "GTBank",
-  accountName: "Mowarid Hostel Ltd",
+  accountName: "Sunrise Hostel Ltd",
   accountNumber: "0123456789",
   whatsappGroupLink: "https://chat.whatsapp.com/your-group-invite",
 };
