@@ -11,7 +11,9 @@ export type SpaceStatus = "vacant" | "occupied";
 /** A room's public status: per-bed rooms are "vacant" while any bed is free. */
 export type RoomStatus = "vacant" | "occupied" | "maintenance";
 
-export const BED_LETTERS = ["A", "B", "C", "D"] as const;
+/** One letter per bed; a room holds up to MAX_CAPACITY people (6- and 8-man rooms exist). */
+export const BED_LETTERS = ["A", "B", "C", "D", "E", "F", "G", "H"] as const;
+export const MAX_CAPACITY = BED_LETTERS.length;
 
 export function spaceIdsOf(roomId: string, type: Pick<RoomType, "capacity" | "pricingMode">): string[] {
   if (type.pricingMode === "per_room") return [roomId];
@@ -25,7 +27,7 @@ export function bedOf(spaceId: string | null | undefined, roomId: string | null 
 }
 
 export function roomOfSpace(spaceId: string) {
-  const m = spaceId.match(/^(.*)-([A-D])$/);
+  const m = spaceId.match(/^(.*)-([A-H])$/);
   return m ? m[1] : spaceId;
 }
 

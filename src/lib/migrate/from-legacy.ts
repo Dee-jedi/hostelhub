@@ -66,7 +66,7 @@ export function omit<T extends object, K extends keyof T>(obj: T, keys: readonly
 export const DEFAULT_TYPE_ID = "standard";
 export const DEFAULT_PERIOD_ID = "rolling";
 
-const clampCapacity = (n: number): RoomCapacity => (Math.min(4, Math.max(1, Math.round(n))) as RoomCapacity);
+const clampCapacity = (n: number): RoomCapacity => (Math.min(8, Math.max(1, Math.round(n))) as RoomCapacity);
 
 export function tenancyIdFor(residentId: string) {
   return `t_${residentId}`;

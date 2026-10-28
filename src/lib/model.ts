@@ -11,8 +11,8 @@ import type { Hold, ListingRoom } from "./spaces";
 import type { Booking, Message, Payment, StudentInfo, Ticket } from "./types";
 
 export type PricingMode = "per_room" | "per_bed";
-/** How many people a room takes. 4 is the most we support. */
-export type RoomCapacity = 1 | 2 | 3 | 4;
+/** How many people a room takes. 8 is the most we support (beds A–H). */
+export type RoomCapacity = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 
 /** hostels/{hostelId} */
 export interface Hostel {

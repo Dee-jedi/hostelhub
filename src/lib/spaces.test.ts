@@ -16,6 +16,15 @@ test("a per-room room is one space; a per-bed room has one per bed", () => {
   assert.deepEqual(spaceIdsOf("B7", { ...fourPerBed, capacity: 3 }), ["B7-A", "B7-B", "B7-C"]);
 });
 
+test("8-man rooms get beds A to H, and every bed maps back to its room", () => {
+  const eight = spaceIdsOf("Ruby3", { ...fourPerBed, capacity: 8 });
+  assert.deepEqual(eight, ["Ruby3-A", "Ruby3-B", "Ruby3-C", "Ruby3-D", "Ruby3-E", "Ruby3-F", "Ruby3-G", "Ruby3-H"]);
+  assert.equal(roomOfSpace("Ruby3-H"), "Ruby3");
+  assert.equal(bedOf("Ruby3-H", "Ruby3"), "H");
+  // A room id that merely ends in a letter isn't mistaken for a bed
+  assert.equal(roomOfSpace("Annex-12"), "Annex-12");
+});
+
 test("bed letters and labels", () => {
   assert.equal(bedOf("B7-C", "B7"), "C");
   assert.equal(bedOf("B7", "B7"), null);

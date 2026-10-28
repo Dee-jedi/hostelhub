@@ -3,6 +3,7 @@
 import { BedDouble, BedSingle, Pencil, Plus, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { RoomType } from "@/lib/model";
+import { MAX_CAPACITY } from "@/lib/spaces";
 import { deleteRoomType, saveRoomType, setRentalModel, useHostel } from "@/lib/store";
 import { activeResidents, cn, naira } from "@/lib/utils";
 import { toast } from "./toast";
@@ -163,7 +164,7 @@ export function RoomTypesPanel() {
                   setDraft({ ...draft, capacity, name: draft.name === nameFor(draft.capacity) ? nameFor(capacity) : draft.name });
                 }}
               >
-                {[1, 2, 3, 4].map((n) => (
+                {Array.from({ length: MAX_CAPACITY }, (_, i) => i + 1).map((n) => (
                   <option key={n} value={n}>
                     {n} {n === 1 ? "person" : "people"}
                   </option>

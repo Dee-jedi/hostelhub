@@ -1,6 +1,6 @@
 import { FieldValue } from "firebase-admin/firestore";
 import type { Hostel, HostelMessage, HostelPayment, HostelRequest, HostelResident, HostelRoom, Listing, PricingMode, RoomType, Tenancy } from "../model";
-import { spaceIdsOf } from "../spaces";
+import { MAX_CAPACITY, spaceIdsOf } from "../spaces";
 import { DEFAULT_TYPE_ID } from "../migrate/from-legacy";
 import { paymentOf } from "../migrate/to-legacy";
 import { buildRooms } from "../seed";
@@ -434,7 +434,7 @@ function bedsOutside(stays: Tenancy[], roomId: string, capacity: number) {
 
 function validType(body: { name?: string; capacity?: number; price?: number }) {
   if (!body.name?.trim()) throw new CommandError("Give the room type a name, e.g. “2-person room”.");
-  if (!Number.isInteger(body.capacity) || body.capacity! < 1 || body.capacity! > 4) throw new CommandError("Rooms hold 1 to 4 people.");
+  if (!Number.isInteger(body.capacity) || body.capacity! < 1 || body.capacity! > MAX_CAPACITY) throw new CommandError(`Rooms hold 1 to ${MAX_CAPACITY} people.`);
   if (!(Number(body.price) > 0)) throw new CommandError("Enter the rent.");
 }
 
