@@ -305,9 +305,26 @@ Staff start move-out, tick the checklist (keys returned, damages noted), and the
    - **Replaces** the per-space subscription considered on 2026-10-18 (dropped: a manager-paid bill is the main barrier to trying the product, and the hand-add fee covers the bypass worry that motivated it).
 7. **Platform domain:** `hostelhub.africa`, if available with that exact spelling (matches the brand), else rebrand to match `hostelshub.ng`. Avoid `.name.ng`.
 
+### Made (2026-10-28): rooms, rent options and charges
+
+Research: shared rooms hold 2 to 6 or more (6- and 8-man rooms exist); the same hostel mixes shared bed spaces with single and self-contained rooms; price follows the room's class, not only its size; shared rooms are charged per bed space and single/self-contained per room; a session is roughly 9–10 months but every school sets its own dates. The manager gets full control over all of it.
+
+8. **Room classes** (stored as `roomTypes`): a manager-chosen name ("2-man", "Executive 2-man", "Self-contained"), **people per room 1–8** (beds lettered A–H), **charged per bed space or per room, set per class** (a hostel can mix both; the hostel-wide `rentalModel` goes away), and optional features (own toilet, kitchen, AC, furnished). The same size at a different price is a different class; there are no per-block price overrides.
+9. **Blocks** are any named group of rooms (Ruby, Block A, Annex, Boys' Wing), with an order, **who can stay** (male / female / anyone; the booking page only offers allowed blocks) and an optional **default class** ("Ruby = the 2-in-a-room row"). Floors are not in setup yet.
+10. **Rooms** have a **free label** ("Ruby 1", "101", "R12") and a hidden permanent id, so renaming never touches bookings, tenancies or receipts. Screens show the label and find a block's rooms by `blockId`, never by id prefix. Rooms that exist today keep their ids (`A1`), which double as their labels.
+11. **Rent options** (stored as `rentPeriods`) are defined by the manager:
+    - **Per session:** fixed start and end dates; everyone ends together. The screen shows the length ("Oct 2026 – Jul 2027, 10 months").
+    - **Per year:** 12 months from move-in.
+    - **Custom:** any number of months from move-in, or fixed dates ("6 months", "Per semester").
+    - Each class has a **price for each option**. Each option has **"students can pick this online"**; options without it are only for tenants added by hand.
+    - **Adding a tenant by hand:** any option, or **Custom** with the exact start date, end date and amount.
+12. **Extra charges:** name, amount, **once at move-in** (default) or **every time rent is paid**, and **refundable** (a caution deposit, shown on the tenant's record to return at move-out). Renewals only add the "every time" charges.
+13. **Service fee disclosure (§10.6):** the fee is 2% of what the student pays online, rent plus non-refundable charges (refundable deposits are left out), minimum ₦2,500. The manager sees it (a) under every price in the wizard ("Students pay ₦357,000: your ₦350,000 rent + ₦7,000 service fee. You receive the full ₦350,000."), with a one-time "How HostelHub stays free" note; (b) per class on the review screen; (c) as a checkbox at Go live, together with the hand-add fee.
+14. **Wizard, "Rooms & prices"**, one question per screen: room classes (ready-made cards: 2, 3, 4, 6, 8 in a room, single, self-contained) → prices per rent option → rent options and session dates → blocks (name, rooms, class or mixed, who can stay, numbering style 1/101/"Ruby 1") with generated, editable rooms → extra charges → review (rooms, bed spaces, most rent per session if full, preview with real rooms). Then Payments → Existing tenants → Go live.
+
 ### Still open
 
-8. **Do hostels price by length of stay?** For example, a cheaper semester-only stay next to the session price. The model supports it (price per rent period), but onboarding gets more complex. Default: session only.
+- **Floors** inside blocks (for posters and labels), if hostels ask.
 ### Settled since (2026-10-18)
 
 - **Mixed room sizes:** 2-, 3- and 4-person rooms sit side by side in one hostel, so the size is set **per room** (via its room type), not per block.
