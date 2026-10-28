@@ -40,26 +40,42 @@ export interface Hostel {
   location?: { street: string; city: string; state: string };
   /** Sign-up progress while `status` is "draft": the wizard resumes at `step` */
   onboarding?: { step: string; startedAt: string };
+  /** Charges on top of rent (utility, caution deposit…) */
+  charges?: ExtraCharge[];
 }
 
-/** hostels/{h}/blocks/{blockId} */
+/** Who may book rooms in a block. */
+export type BlockOccupancy = "male" | "female" | "any";
+
+/** hostels/{h}/blocks/{blockId}: any named group of rooms (Block A, Ruby, Annex, Boys' Wing) */
 export interface Block {
   id: string;
   name: string;
   order: number;
+  /** Who can stay; the booking page only offers students blocks they may book. Absent = anyone. */
+  who?: BlockOccupancy;
+  /** The class new rooms in this block get ("Ruby is the 2-in-a-room row") */
+  defaultTypeId?: string;
 }
 
-/** hostels/{h}/roomTypes/{typeId}: a room size and how it's charged */
+/** Room features shown to students. */
+export type RoomFeature = "own_toilet" | "kitchen" | "ac" | "furnished";
+
+/** hostels/{h}/roomTypes/{typeId}: a room class (size, how it's charged, price) */
 export interface RoomType {
   id: string;
   name: string;
   capacity: RoomCapacity;
+  /** Per bed space or per room, for this class (one hostel can mix both) */
   pricingMode: PricingMode;
-  /** Rent for one space (the room, or one bed) for one rent period */
+  /** Rent for one space (the room, or one bed) for the hostel's default rent option */
   price: number;
+  /** Rent for each rent option, by rent period id; `price` is the default option's entry */
+  prices?: Record<string, number>;
+  features?: RoomFeature[];
 }
 
-/** hostels/{h}/rooms/{roomId}. Room ids stay as before (e.g. "H15"). */
+/** hostels/{h}/rooms/{roomId}. Older rooms' ids double as labels ("H15"); new ones have their own label. */
 export interface HostelRoom {
   id: string;
   label: string;
@@ -69,10 +85,29 @@ export interface HostelRoom {
   maintenance: { note?: string } | null;
 }
 
-/** hostels/{h}/rentPeriods/{periodId} */
-export type RentPeriod =
+/**
+ * hostels/{h}/rentPeriods/{periodId}: a rent option. "rolling" runs `months` from move-in
+ * (per year, 6 months…); "session" has fixed dates that everyone shares.
+ */
+export type RentPeriod = (
   | { id: string; kind: "rolling"; name: string; months: number }
-  | { id: string; kind: "session"; name: string; start: string; end: string };
+  | { id: string; kind: "session"; name: string; start: string; end: string }
+) & {
+  /** Students can choose it on the booking page; otherwise it's only for tenants added by hand. Absent = yes. */
+  online?: boolean;
+  order?: number;
+};
+
+/** A charge on top of rent, kept on the hostel (hostels/{h}.charges). */
+export interface ExtraCharge {
+  id: string;
+  name: string;
+  amount: number;
+  /** "once": with the first payment only (moving in); "every": with every rent payment */
+  when: "once" | "every";
+  /** Given back at move-out (a caution deposit); not counted for the service fee */
+  refundable: boolean;
+}
 
 /** hostels/{h}/residents/{residentId}: the person, whether or not they live here now */
 export interface HostelResident extends StudentInfo {
