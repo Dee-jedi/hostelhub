@@ -53,6 +53,8 @@ export async function startBooking(input: { hostelId: string; uid: string; email
   let chosenSpace = input.roomId;
   let split: { subaccount: string; mainShareNaira: number } | undefined;
   let pricing: Pick<HostelBooking, "periodId" | "lines" | "toHostel" | "serviceFee"> = {};
+  /** Shown on Paystack's receipt and dashboard, so the payment says what it was for */
+  let receiptFields: { display_name: string; variable_name: string; value: string }[] = [];
 
   await adminDb.runTransaction(async (tx) => {
     const [listingSnap, roomSnap] = await tx.getAll(r.listing, r.doc("rooms", input.roomId));
@@ -81,6 +83,14 @@ export async function startBooking(input: { hostelId: string; uid: string; email
     if (hostel.payout && pay.fee > 0) split = { subaccount: hostel.payout.subaccountCode, mainShareNaira: pay.fee };
     chosenSpace = spaceId;
     pricing = { periodId: period.id, lines: pay.lines, toHostel: pay.toHostel, serviceFee: pay.fee };
+    const naira = (n: number) => `₦${n.toLocaleString("en-NG")}`;
+    receiptFields = [
+      { display_name: "Hostel", variable_name: "hostel", value: hostel.name },
+      { display_name: "Room", variable_name: "room", value: [room.label ?? room.id, block?.name].filter(Boolean).join(" · ") },
+      { display_name: "Stay", variable_name: "stay", value: period.name },
+      { display_name: "To the hostel", variable_name: "to_hostel", value: naira(pay.toHostel) },
+      ...(pay.fee ? [{ display_name: "HostelHub service fee", variable_name: "service_fee", value: naira(pay.fee) }] : []),
+    ];
     const sharing = (input.info.occupants ?? []).length;
     if (type.pricingMode === "per_bed" && sharing) throw new BookingError("Each bed is booked by one person. Remove the room occupants, or have each person book their own bed.");
     if (type.pricingMode === "per_room" && sharing + 1 > type.capacity) throw new BookingError(`Room ${input.roomId} takes up to ${type.capacity} people including you.`);
@@ -114,7 +124,7 @@ export async function startBooking(input: { hostelId: string; uid: string; email
       amount,
       reference,
       callbackUrl: `${input.origin}/book`,
-      metadata: { hostelId: h, bookingId: reference, roomId: input.roomId, spaceId: chosenSpace, uid: input.uid },
+      metadata: { hostelId: h, bookingId: reference, roomId: input.roomId, spaceId: chosenSpace, uid: input.uid, custom_fields: receiptFields },
       split,
     });
     return { reference, accessCode: trx.access_code, amount };
