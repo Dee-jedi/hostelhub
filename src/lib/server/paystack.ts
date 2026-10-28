@@ -54,6 +54,75 @@ export function verifyTransaction(reference: string) {
   return call<VerifiedTransaction>(`/transaction/verify/${encodeURIComponent(reference)}`);
 }
 
+// ---------------------------------------------------------------- payouts (subaccounts)
+
+/**
+ * With test keys (checked 2026-10-28): Paystack's test bank (001, account 0000000000) resolves
+ * without limit, but is refused for subaccounts; real banks resolve only 3 times a day; and
+ * Zenith (057) with 0000000000 is accepted for a subaccount. So test sites offer the test bank,
+ * and its subaccount is created against Zenith's test account.
+ */
+export const isTestMode = () => secret().startsWith("sk_test_");
+export const TEST_BANK = { name: "Paystack Test Bank", code: "001", testAccount: "0000000000", payoutBankCode: "057" };
+
+export interface Bank {
+  name: string;
+  code: string;
+}
+
+let bankCache: { at: number; banks: Bank[] } | null = null;
+
+/** Nigerian banks (and microfinance banks) that can receive payouts, cached for a day. */
+export async function listBanks(): Promise<Bank[]> {
+  if (bankCache && Date.now() - bankCache.at < 24 * 3_600_000) return bankCache.banks;
+  const data = await call<{ name: string; code: string; active: boolean; currency: string }[]>("/bank?country=nigeria&perPage=500");
+  const seen = new Set<string>();
+  const banks = data
+    .filter((b) => b.active && b.currency === "NGN" && !seen.has(b.code) && seen.add(b.code))
+    .map((b) => ({ name: b.name.trim(), code: b.code }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  bankCache = { at: Date.now(), banks };
+  return banks;
+}
+
+/** The name on a bank account, as the bank holds it. Throws when the number doesn't exist at that bank. */
+export async function resolveAccount(accountNumber: string, bankCode: string) {
+  const data = await call<{ account_number: string; account_name: string }>(`/bank/resolve?account_number=${encodeURIComponent(accountNumber)}&bank_code=${encodeURIComponent(bankCode)}`);
+  return data.account_name;
+}
+
+export interface SubaccountInput {
+  businessName: string;
+  bankCode: string;
+  accountNumber: string;
+  contactName: string;
+  contactPhone: string;
+  contactEmail?: string;
+  hostelId: string;
+}
+
+/**
+ * A hostel's payout account. Rent paid online is split at checkout: the hostel's share settles
+ * to this account; HostelHub's service fee is added per transaction (percentage_charge stays 0).
+ */
+export async function saveSubaccount(input: SubaccountInput, existingCode?: string) {
+  const body = JSON.stringify({
+    business_name: input.businessName,
+    settlement_bank: input.bankCode,
+    account_number: input.accountNumber,
+    percentage_charge: 0,
+    description: `HostelHub payouts for ${input.hostelId}`,
+    primary_contact_name: input.contactName,
+    primary_contact_phone: input.contactPhone,
+    ...(input.contactEmail ? { primary_contact_email: input.contactEmail } : {}),
+    metadata: JSON.stringify({ hostelId: input.hostelId }),
+  });
+  const data = existingCode
+    ? await call<{ subaccount_code: string }>(`/subaccount/${encodeURIComponent(existingCode)}`, { method: "PUT", body })
+    : await call<{ subaccount_code: string }>("/subaccount", { method: "POST", body });
+  return data.subaccount_code;
+}
+
 /** Paystack signs webhook bodies with HMAC-SHA512 of the raw body using the secret key. */
 export function isValidWebhook(rawBody: string, signature: string | null) {
   if (!signature) return false;

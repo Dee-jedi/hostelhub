@@ -14,6 +14,7 @@ import { auth } from "@/lib/firebase";
 import { BASICS_CHECKS, EMPTY_BASICS, normalizePhone, suggestSlugs, type HostelBasics } from "@/lib/onboarding";
 import { PLATFORM_HOST, whatsappHref } from "@/lib/platform";
 import { cn } from "@/lib/utils";
+import { PaymentsStep } from "./PaymentsStep";
 import { RoomsWizard } from "./RoomsWizard";
 import { big, Label, NavButtons, PreviewSheet, Problem, Question } from "./shell";
 
@@ -23,7 +24,7 @@ import { big, Label, NavButtons, PreviewSheet, Problem, Question } from "./shell
  * and a preview of the hostel's booking page that fills in as they type.
  */
 
-type StepId = "welcome" | "name" | "slug" | "location" | "manager" | "account" | "saved" | "rooms" | "roomsSaved";
+type StepId = "welcome" | "name" | "slug" | "location" | "manager" | "account" | "saved" | "rooms" | "roomsSaved" | "payments" | "paymentsSaved";
 const QUESTIONS: StepId[] = ["name", "slug", "location", "manager", "account"];
 
 /** The whole sign-up, so people see how far they are; only "Your hostel" exists so far. */
@@ -265,8 +266,9 @@ export function StartWizard() {
   };
 
   // Which of the four parts the progress bar is in, and how far through it
-  const section = step === "roomsSaved" ? 2 : step === "saved" || step === "rooms" ? 1 : 0;
-  const partDone = step === "rooms" ? roomsProgress : step === "saved" || step === "roomsSaved" ? 0 : (index + 1) / (QUESTIONS.length + 1);
+  const section = step === "paymentsSaved" ? 3 : step === "roomsSaved" || step === "payments" ? 2 : step === "saved" || step === "rooms" ? 1 : 0;
+  const partDone =
+    step === "rooms" ? roomsProgress : step === "payments" ? 0.5 : ["saved", "roomsSaved", "paymentsSaved"].includes(step) ? 0 : (index + 1) / (QUESTIONS.length + 1);
   const showPreview = QUESTIONS.includes(step);
 
   // Until this browser's saved answers are read, show the frame only (no flash of the welcome screen)
@@ -304,7 +306,9 @@ export function StartWizard() {
       </header>
 
       <main className={cn("mx-auto grid max-w-6xl gap-12 px-5 pt-10 pb-28 sm:px-8 sm:pt-14 lg:pb-16", showPreview && "lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-20")}>
-        {step === "rooms" && hostelId ? (
+        {step === "payments" && hostelId ? (
+          <PaymentsStep hostelId={hostelId} hostelName={basics.name || "Your hostel"} onBack={() => go("roomsSaved")} onDone={() => go("paymentsSaved")} />
+        ) : step === "rooms" && hostelId ? (
           <RoomsWizard
             hostelId={hostelId}
             hostelName={basics.name || "Your hostel"}
@@ -322,6 +326,20 @@ export function StartWizard() {
               <p className="mt-5 text-lg leading-relaxed text-heading-5">
                 A few simple questions, one at a time. Your answers save as you go, so you can stop and come back. Nothing goes live until you say so.
               </p>
+              <ol className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {[
+                  ["Your hostel", "3 min"],
+                  ["Rooms & prices", "10 min"],
+                  ["Payments", "1 min"],
+                  ["Go live", "2 min"],
+                ].map(([part, time], i) => (
+                  <li key={part} className="rounded-2xl bg-white px-4 py-3 ring-1 ring-black/5">
+                    <p className="text-xs font-medium text-brand-700">{i + 1}</p>
+                    <p className="text-[15px] font-semibold text-grey-950">{part}</p>
+                    <p className="text-sm text-heading-6">{time}</p>
+                  </li>
+                ))}
+              </ol>
               <div className="mt-8 rounded-3xl bg-white p-6 ring-1 ring-black/5">
                 <p className="font-semibold text-grey-950">Have these to hand</p>
                 <ul className="mt-4 space-y-3 text-[15px] text-heading-4">
@@ -351,7 +369,8 @@ export function StartWizard() {
             </div>
           )}
 
-          {step !== "welcome" && step !== "saved" && (
+          {/* Only part one's questions; the in-between screens ("saved"…) have their own buttons */}
+          {QUESTIONS.includes(step) && (
             <form onSubmit={next} noValidate>
               <p className="mb-4 text-sm font-medium text-brand-700">
                 Question {index + 1} of {QUESTIONS.length}
@@ -436,7 +455,7 @@ export function StartWizard() {
                     </div>
                     <div>
                       <Label htmlFor="state">State</Label>
-                      <Select id="state" value={basics.state} onChange={(e) => set({ state: e.target.value })} searchable searchPlaceholder="Search states…" className="h-14 rounded-2xl px-4 text-lg">
+                      <Select id="state" value={basics.state} onChange={(e) => set({ state: e.target.value })} searchable searchPlaceholder="Search states…" className="h-14 rounded-2xl px-4 text-lg!">
                         <option value="">Pick a state</option>
                         {STATES.map((s) => (
                           <option key={s} value={s}>
@@ -538,12 +557,39 @@ export function StartWizard() {
               <h1 className="mt-6 text-[clamp(2rem,4.5vw,3rem)] leading-[1.05] font-bold tracking-[-0.04em] text-brand-950">Rooms & prices are saved.</h1>
               <p className="mt-4 text-lg leading-relaxed text-heading-5">Two parts left: where your rent should go, then going live.</p>
               <div className="mt-8 rounded-3xl bg-white p-6 ring-1 ring-black/5">
-                <p className="text-sm font-semibold tracking-wide text-brand-700 uppercase">Next: payments</p>
-                <p className="mt-2 text-[15px] leading-relaxed text-heading-4">The bank account your rent goes to, checked with Paystack. This part of sign-up is being built now.</p>
+                <p className="text-sm font-semibold tracking-wide text-brand-700 uppercase">Next: payments · 1 minute</p>
+                <p className="mt-2 text-[15px] leading-relaxed text-heading-4">The bank account your rent goes to. Just your bank and account number: we check the name for you.</p>
               </div>
-              <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3">
+              <button type="button" onClick={() => go("payments")} className={nextButton}>
+                Set up payments <ArrowRight className="size-5 text-brand-300" />
+              </button>
+              <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-3">
                 <button type="button" onClick={() => go("rooms")} className="text-[15px] font-semibold text-brand-800 underline-offset-4 hover:underline">
                   Change rooms & prices
+                </button>
+                <a href={hostelUrl(hostelId)} className="text-[15px] font-semibold text-brand-800 underline-offset-4 hover:underline">
+                  Open {hostelId}.{PLATFORM_HOST}
+                </a>
+              </div>
+            </div>
+          )}
+
+          {step === "paymentsSaved" && hostelId && (
+            <div className="motion-safe:animate-[rise_0.4s_ease-out]">
+              <span className="flex size-14 items-center justify-center rounded-2xl bg-brand-100 text-brand-800">
+                <Check className="size-7" strokeWidth={2.5} />
+              </span>
+              <h1 className="mt-6 text-[clamp(2rem,4.5vw,3rem)] leading-[1.05] font-bold tracking-[-0.04em] text-brand-950">Payouts are set up.</h1>
+              <p className="mt-4 text-lg leading-relaxed text-heading-5">Rent paid online now has somewhere to go. One last part and you&apos;re live.</p>
+              <div className="mt-8 rounded-3xl bg-white p-6 ring-1 ring-black/5">
+                <p className="text-sm font-semibold tracking-wide text-brand-700 uppercase">Last: go live · 2 minutes</p>
+                <p className="mt-2 text-[15px] leading-relaxed text-heading-4">
+                  Add the tenants already living with you (free), try a test booking yourself, then switch on real payments. This part of sign-up is being built now.
+                </p>
+              </div>
+              <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3">
+                <button type="button" onClick={() => go("payments")} className="text-[15px] font-semibold text-brand-800 underline-offset-4 hover:underline">
+                  Change the payout account
                 </button>
                 <a href={hostelUrl(hostelId)} className="text-[15px] font-semibold text-brand-800 underline-offset-4 hover:underline">
                   Open {hostelId}.{PLATFORM_HOST}

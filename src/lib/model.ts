@@ -42,6 +42,8 @@ export interface Hostel {
   onboarding?: { step: string; startedAt: string };
   /** Charges on top of rent (utility, caution deposit…) */
   charges?: ExtraCharge[];
+  /** Where online rent settles: the hostel's Paystack subaccount (set up during sign-up) */
+  payout?: { subaccountCode: string; bankCode: string; verifiedAt: string; mode: "test" | "live" };
 }
 
 /** Who may book rooms in a block. */

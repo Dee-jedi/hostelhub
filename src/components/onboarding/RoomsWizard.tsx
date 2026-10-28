@@ -884,7 +884,7 @@ function BlockCard({
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
         <div>
           <Label htmlFor={`kind-${block.key}`}>Kind of room</Label>
-          <Select id={`kind-${block.key}`} value={block.classKey} onChange={(e) => onChange({ classKey: e.target.value })} className="h-12 rounded-2xl px-4 text-base">
+          <Select id={`kind-${block.key}`} value={block.classKey} onChange={(e) => onChange({ classKey: e.target.value })} className="h-12 rounded-2xl px-4 text-base!">
             {setup.classes.map((c) => (
               <option key={c.key} value={c.key}>
                 {c.name}
@@ -960,7 +960,7 @@ function BlockCard({
                     value={r.classKey}
                     onChange={(e) => onRooms(block.rooms.map((x, j) => (j === i ? { ...x, classKey: e.target.value } : x)))}
                     wrapperClassName="min-w-0 flex-1"
-                    className="h-11 rounded-2xl px-3 text-[15px]"
+                    className="h-11 rounded-2xl px-3 text-[15px]!"
                   >
                     {setup.classes.map((c) => (
                       <option key={c.key} value={c.key}>
