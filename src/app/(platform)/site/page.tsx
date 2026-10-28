@@ -147,9 +147,9 @@ export default function SitePage() {
                 See how it works
               </a>
             </div>
-            <ul className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-[15px] text-heading-5">
-              {["Free for hostels", "Rent paid to your bank", "No app to download"].map((t) => (
-                <li key={t} className="flex items-center gap-2">
+            <ul className="mt-8 flex flex-wrap gap-x-3 gap-y-2 text-sm text-heading-5 sm:gap-x-6 sm:text-[15px]">
+              {["Free for hostels", "Rent paid to your bank"].map((t) => (
+                <li key={t} className="flex items-center gap-1.5 whitespace-nowrap sm:gap-2">
                   <ShieldCheck className="size-4 text-brand-600" /> {t}
                 </li>
               ))}
