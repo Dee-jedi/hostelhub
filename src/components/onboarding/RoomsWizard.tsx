@@ -55,58 +55,194 @@ const perText = (pricing: PricingMode) => (pricing === "per_bed" ? "per bed spac
 
 // --------------------------------------------------------------------------- preview
 
-function RoomsPreview({ setup, hostelName, place }: { setup: RoomsSetup; hostelName: string; place: string }) {
-  const block = setup.blocks.find((b) => b.rooms.length) ?? null;
+/** Bed icons for a room's size: one per person, up to 8. */
+function Beds({ n, light }: { n: number; light?: boolean }) {
+  return (
+    <span className="flex flex-wrap gap-0.5" aria-label={`${n} ${n === 1 ? "person" : "people"}`}>
+      {Array.from({ length: n }, (_, i) => (
+        <BedDouble key={i} className={cn("size-3", light ? "text-brand-200" : "text-brand-600")} />
+      ))}
+    </span>
+  );
+}
+
+const shortDate = (iso?: string) => (iso ? new Date(`${iso}T00:00:00`).toLocaleDateString("en-GB", { month: "short", year: "numeric" }) : "");
+
+/**
+ * The booking page as students will see it, showing the part this question changes: room
+ * types, lengths of stay, prices, the room map, or the pay screen. Placeholders until filled in.
+ */
+function RoomsPreview({ setup, hostelName, place, step }: { setup: RoomsSetup; hostelName: string; place: string; step: RoomStep }) {
   const classes = new Map(setup.classes.map((c) => [c.key, c]));
+  const online = setup.options.filter((o) => o.online);
+  const option = online.find((o) => o.key === setup.defaultOptionKey) ?? online[0] ?? setup.options[0];
+  const showPrices = step !== "classes";
+
+  const header = (
+    <div className="rounded-b-[28px] bg-brand-900 px-5 pt-12 pb-5 text-white">
+      <p className="text-[15px] font-semibold tracking-tight">
+        hostel<span className="text-brand-300">hub</span>
+      </p>
+      <p className="mt-3 text-[21px] leading-tight font-semibold break-words">{hostelName}</p>
+      {place && (
+        <p className="mt-1 flex items-center gap-1 text-[12px] text-brand-100/80">
+          <MapPin className="size-3.5" /> {place}
+        </p>
+      )}
+    </div>
+  );
+
+  const empty = (text: string) => <p className="rounded-xl border border-dashed border-grey-150 bg-grey-10 px-3 py-6 text-center text-[11px] text-heading-6">{text}</p>;
+
+  // Room types (and their prices once entered)
+  const types = (
+    <div className="px-5 pt-5">
+      <p className="text-[14px] font-semibold text-grey-950">Choose a room type</p>
+      <p className="text-[11px] text-heading-6">{option ? `${option.name}${option.kind === "session" && option.start && option.end ? ` · ${shortDate(option.start)} – ${shortDate(option.end)}` : ""}` : ""}</p>
+      <div className="mt-3 space-y-2">
+        {setup.classes.length
+          ? setup.classes.slice(0, 5).map((c, i) => {
+              const price = option ? (c.prices[option.key] ?? 0) : 0;
+              return (
+                <div key={c.key} className={cn("rounded-xl border p-3", i === 0 ? "border-brand-600 bg-brand-50" : "border-grey-100")}>
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-[12px] font-semibold text-grey-950">{c.name || "Untitled"}</p>
+                    {showPrices && <p className="text-[12px] font-semibold text-grey-950 tabular-nums">{price ? naira(price) : "₦—"}</p>}
+                  </div>
+                  <div className="mt-1.5 flex items-center justify-between gap-2">
+                    <Beds n={c.capacity} />
+                    <p className="text-[9px] text-heading-6">{perText(c.pricing)}</p>
+                  </div>
+                  {c.features.length > 0 && (
+                    <p className="mt-1.5 text-[9px] text-brand-800">{c.features.map((f) => FEATURES.find((x) => x.id === f)?.label).join(" · ")}</p>
+                  )}
+                </div>
+              );
+            })
+          : empty("The kinds of room you pick appear here")}
+      </div>
+    </div>
+  );
+
+  // Lengths of stay a student can choose
+  const stays = (
+    <div className="px-5 pt-5">
+      <p className="text-[14px] font-semibold text-grey-950">How long are you staying?</p>
+      <div className="mt-3 space-y-2">
+        {online.length
+          ? online.map((o) => {
+              const len = optionLength(o);
+              return (
+                <div key={o.key} className={cn("flex items-center gap-2.5 rounded-xl border p-3", o.key === option?.key ? "border-brand-600 bg-brand-50" : "border-grey-100")}>
+                  <span className={cn("size-3.5 shrink-0 rounded-full border-2", o.key === option?.key ? "border-brand-600 bg-brand-600 ring-2 ring-white ring-inset" : "border-grey-150")} />
+                  <div className="min-w-0">
+                    <p className="text-[12px] font-semibold text-grey-950">{o.name || "Untitled"}</p>
+                    <p className="text-[10px] text-heading-6">
+                      {o.kind === "session" ? (o.start && o.end ? `${shortDate(o.start)} – ${shortDate(o.end)} · ${monthsText(len)}` : "Dates not set") : `${monthsText(len)} from move-in`}
+                    </p>
+                  </div>
+                </div>
+              );
+            })
+          : empty("Turn on at least one option for students")}
+      </div>
+      {setup.options.length > online.length && <p className="mt-2 text-[10px] text-heading-6">{setup.options.length - online.length} more only you can use when adding tenants</p>}
+    </div>
+  );
+
+  // The room map, with block tabs
+  const block = setup.blocks.find((b) => b.rooms.length) ?? null;
   const shown = block?.rooms.slice(0, 9) ?? [];
   const picked = shown[1] ?? shown[0];
   const pickedClass = picked ? classes.get(picked.classKey) : undefined;
-  const price = pickedClass?.prices[setup.defaultOptionKey] ?? 0;
+  const who = block?.who === "female" ? "Female only" : block?.who === "male" ? "Male only" : null;
+  const map = (
+    <div className="px-5 pt-4">
+      {setup.blocks.length > 1 && (
+        <div className="mb-3 flex gap-1.5 overflow-hidden">
+          {setup.blocks.slice(0, 4).map((b) => (
+            <span key={b.key} className={cn("shrink-0 rounded-full px-2.5 py-1 text-[10px] font-medium", b === block ? "bg-brand-950 text-white" : "bg-grey-50 text-heading-5")}>
+              {b.name || "Block"}
+            </span>
+          ))}
+        </div>
+      )}
+      <p className="text-[14px] font-semibold text-grey-950">Pick your room</p>
+      <p className="text-[11px] text-heading-6">
+        {block ? `${block.name || "Block"} · ${block.rooms.length} free` : "Your rooms appear here"}
+        {who && <span className="ml-1.5 rounded-full bg-amber-50 px-1.5 py-0.5 text-[9px] font-medium text-amber-800">{who}</span>}
+      </p>
+      <div className="mt-3 grid grid-cols-3 gap-2">
+        {shown.length
+          ? shown.map((r, i) => (
+              <span
+                key={`${r.label}-${i}`}
+                className={cn(
+                  "flex h-12 flex-col items-center justify-center rounded-xl border px-1 text-center text-[11px] leading-tight font-semibold",
+                  r === picked ? "border-brand-600 bg-brand-600 text-white" : "border-brand-200 text-heading-2",
+                )}
+              >
+                <span className="max-w-full truncate">{r.label}</span>
+                <span className="text-[9px] font-normal">{r === picked ? "Your pick" : "Free"}</span>
+              </span>
+            ))
+          : Array.from({ length: 9 }, (_, i) => <span key={i} className="h-12 rounded-xl border border-dashed border-grey-150 bg-grey-10" />)}
+      </div>
+      {pickedClass && (
+        <div className="mt-3 rounded-xl bg-brand-50 px-3.5 py-2.5 text-[11px] text-brand-900">
+          {picked!.label} · {pickedClass.name}
+          {option && pickedClass.prices[option.key] > 0 && (
+            <>
+              {" "}
+              · <b>{naira(pickedClass.prices[option.key])}</b> {perText(pickedClass.pricing)}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+
+  // The pay screen: rent, charges, service fee, total
+  const payClass = pickedClass ?? setup.classes[0];
+  const rent = payClass && option ? (payClass.prices[option.key] ?? 0) : 0;
+  const lines = [{ label: `Rent${option ? `, ${option.name.toLowerCase()}` : ""}`, amount: rent }, ...setup.charges.map((ch) => ({ label: ch.name || "Charge", amount: ch.amount, refundable: ch.refundable }))];
+  const total = checkoutTotal(lines);
+  const pay = (
+    <div className="px-5 pt-5">
+      <p className="text-[14px] font-semibold text-grey-950">Booking summary</p>
+      <p className="text-[11px] text-heading-6">{payClass ? `${picked?.label ?? "Your room"} · ${payClass.name}` : "Your room"}</p>
+      <dl className="mt-3 space-y-1.5 rounded-xl border border-grey-100 p-3 text-[11px]">
+        {lines.map((l, i) => (
+          <div key={i} className="flex justify-between gap-2">
+            <dt className="text-heading-5">
+              {l.label}
+              {"refundable" in l && l.refundable && <span className="text-heading-6"> (refundable)</span>}
+            </dt>
+            <dd className="tabular-nums">{l.amount ? naira(l.amount) : "₦—"}</dd>
+          </div>
+        ))}
+        <div className="flex justify-between gap-2">
+          <dt className="text-heading-5">Service fee</dt>
+          <dd className="tabular-nums">{naira(total.fee)}</dd>
+        </div>
+        <div className="flex justify-between gap-2 border-t border-grey-100 pt-1.5 text-[12px] font-semibold">
+          <dt>Total</dt>
+          <dd className="tabular-nums">{naira(total.total)}</dd>
+        </div>
+      </dl>
+      <div className="mt-3 flex h-11 items-center justify-center rounded-2xl bg-brand-600 text-[13px] font-semibold text-white">Pay {naira(total.total)}</div>
+      <p className="mt-2 text-center text-[9px] text-heading-6">Card, bank transfer or USSD</p>
+    </div>
+  );
+
+  const screen = { classes: types, options: stays, prices: types, blocks: map, charges: pay, review: map }[step];
   return (
     <div className="flex flex-col items-center">
       <Scaled {...PHONE_SIZE} className="[--s:0.92]">
         <Phone>
-          <div className="rounded-b-[28px] bg-brand-900 px-5 pt-12 pb-6 text-white">
-            <p className="text-[15px] font-semibold tracking-tight">
-              hostel<span className="text-brand-300">hub</span>
-            </p>
-            <p className="mt-4 text-[22px] leading-tight font-semibold break-words">{hostelName}</p>
-            {place && (
-              <p className="mt-1.5 flex items-center gap-1 text-[12px] text-brand-100/80">
-                <MapPin className="size-3.5" /> {place}
-              </p>
-            )}
-          </div>
-          <div className="px-5 pt-5">
-            <p className="text-[14px] font-semibold text-grey-950">Pick your room</p>
-            <p className="text-[11px] text-heading-6">{block ? `${block.name} · ${block.rooms.length} free` : "Your rooms appear here"}</p>
-            <div className="mt-3 grid grid-cols-3 gap-2">
-              {shown.length
-                ? shown.map((r, i) => (
-                    <span
-                      key={`${r.label}-${i}`}
-                      className={cn(
-                        "flex h-12 flex-col items-center justify-center rounded-xl border px-1 text-center text-[11px] leading-tight font-semibold",
-                        r === picked ? "border-brand-600 bg-brand-600 text-white" : "border-brand-200 text-heading-2",
-                      )}
-                    >
-                      <span className="max-w-full truncate">{r.label}</span>
-                      <span className="text-[9px] font-normal">{r === picked ? "Your pick" : "Free"}</span>
-                    </span>
-                  ))
-                : Array.from({ length: 9 }, (_, i) => <span key={i} className="h-12 rounded-xl border border-dashed border-grey-150 bg-grey-10" />)}
-            </div>
-            {pickedClass && (
-              <div className="mt-4 rounded-xl bg-brand-50 px-3.5 py-2.5 text-[11px] text-brand-900">
-                {picked!.label} · {pickedClass.name}
-                {price > 0 && (
-                  <>
-                    {" "}
-                    · <b>{naira(price)}</b> {perText(pickedClass.pricing)}
-                  </>
-                )}
-              </div>
-            )}
+          {header}
+          <div key={step} className="motion-safe:animate-[fade-in_0.3s_ease-out]">
+            {screen}
           </div>
         </Phone>
       </Scaled>
@@ -681,11 +817,11 @@ export function RoomsWizard({
 
       <aside className="hidden lg:block" aria-label="Preview of your booking page">
         <div className="sticky top-32">
-          <RoomsPreview setup={setup} hostelName={hostelName} place={place} />
+          <RoomsPreview setup={setup} hostelName={hostelName} place={place} step={step} />
         </div>
       </aside>
       <PreviewSheet>
-        <RoomsPreview setup={setup} hostelName={hostelName} place={place} />
+        <RoomsPreview setup={setup} hostelName={hostelName} place={place} step={step} />
       </PreviewSheet>
     </div>
   );

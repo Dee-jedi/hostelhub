@@ -153,7 +153,6 @@ export function StartWizard() {
   const [busy, setBusy] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [signedInAs, setSignedInAs] = useState<string | null>(null);
   /** Saving starts only once the saved answers are back, so blank first-render state never overwrites them */
   const [restored, setRestored] = useState(false);
   /** How far through the rooms part (0–1), reported by RoomsWizard for the progress bar */
@@ -170,7 +169,6 @@ export function StartWizard() {
       setStep(saved.step);
     }
     setRestored(true);
-    return auth.onAuthStateChanged((u) => setSignedInAs(u?.email ?? null));
   }, []);
 
   useEffect(() => {
@@ -229,17 +227,18 @@ export function StartWizard() {
     setBusy(true);
     setProblem(null);
     try {
-      let user = auth.currentUser;
-      if (!user) {
-        if (!/^\S+@\S+\.\S+$/.test(email.trim())) throw new Error("Enter a valid email address.");
-        if (password.length < 8) throw new Error("Use a password of at least 8 characters.");
-        try {
-          user = (await createUserWithEmailAndPassword(auth, email.trim(), password)).user;
-        } catch (err) {
-          // Someone who already uses HostelHub (e.g. a second hostel): same email and password
-          if (err instanceof FirebaseError && err.code === "auth/email-already-in-use") user = (await signInWithEmailAndPassword(auth, email.trim(), password)).user;
-          else throw err;
-        }
+      if (!/^\S+@\S+\.\S+$/.test(email.trim())) throw new Error("Enter a valid email address.");
+      if (password.length < 8) throw new Error("Use a password of at least 8 characters.");
+      // Always the owner's own login: whoever this browser was logged in as (a demo or staff
+      // account, someone else's) is signed out first, so a hostel never lands on the wrong login
+      if (auth.currentUser) await signOut(auth);
+      let user;
+      try {
+        user = (await createUserWithEmailAndPassword(auth, email.trim(), password)).user;
+      } catch (err) {
+        // Someone who already uses HostelHub (e.g. a second hostel): same email and password
+        if (err instanceof FirebaseError && err.code === "auth/email-already-in-use") user = (await signInWithEmailAndPassword(auth, email.trim(), password)).user;
+        else throw err;
       }
       const res = await fetch("/api/onboarding/hostel", {
         method: "POST",
@@ -475,44 +474,28 @@ export function StartWizard() {
 
               {step === "account" && (
                 <Question
-                  title={signedInAs ? "Save your hostel" : "Create your login"}
-                  hint={signedInAs ? `You're logged in as ${signedInAs}. Your hostel will be added to this login.` : "You'll use this to open your dashboard. We'll save your hostel to it now."}
+                  title="Create your login"
+                  hint="Your own email and password. You'll use them to open your dashboard. Already use HostelHub for another hostel? Enter that login and this hostel joins it."
                 >
-                  {signedInAs && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setProblem(null);
-                        void signOut(auth);
-                      }}
-                      className="text-[15px] font-semibold text-brand-800 underline-offset-4 hover:underline"
-                    >
-                      Use a different email
-                    </button>
-                  )}
-                  {!signedInAs && (
-                    <>
-                      <div>
-                        <Label htmlFor="email">Email</Label>
-                        <input
-                          id="email"
-                          type="email"
-                          autoFocus
-                          autoComplete="email"
-                          className={cn(big, "h-14")}
-                          placeholder="you@example.com"
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                          autoCapitalize="none"
-                        />
-                        <p className="mt-2 text-sm text-heading-6">Use one you can open: password resets come here.</p>
-                      </div>
-                      <div>
-                        <Label htmlFor="password">Password</Label>
-                        <PasswordInput id="password" autoComplete="new-password" className="h-14 rounded-2xl px-4 text-lg" placeholder="At least 8 characters" value={password} onChange={(e) => setPassword(e.target.value)} />
-                      </div>
-                    </>
-                  )}
+                  <div>
+                    <Label htmlFor="email">Email</Label>
+                    <input
+                      id="email"
+                      type="email"
+                      autoFocus
+                      autoComplete="email"
+                      className={cn(big, "h-14")}
+                      placeholder="you@example.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      autoCapitalize="none"
+                    />
+                    <p className="mt-2 text-sm text-heading-6">Use one you can open: password resets come here.</p>
+                  </div>
+                  <div>
+                    <Label htmlFor="password">Password</Label>
+                    <PasswordInput id="password" autoComplete="new-password" className="h-14 rounded-2xl px-4 text-lg" placeholder="At least 8 characters" value={password} onChange={(e) => setPassword(e.target.value)} />
+                  </div>
                 </Question>
               )}
 
