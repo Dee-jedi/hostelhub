@@ -2,7 +2,7 @@
 
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "firebase/auth";
 import { FirebaseError } from "firebase/app";
-import { ArrowLeft, ArrowRight, BedDouble, Check, CircleAlert, Loader2, MapPin, MessageCircle, PartyPopper } from "lucide-react";
+import { ArrowLeft, ArrowRight, BedDouble, Check, CircleAlert, Loader2, MapPin, MessageCircle, PartyPopper, Smartphone, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Wordmark } from "@/components/site/brand";
@@ -139,6 +139,51 @@ function BookingPreview({ basics }: { basics: HostelBasics }) {
         </Phone>
       </Scaled>
       <p className="mt-4 text-sm text-heading-6">What tenants will see</p>
+    </div>
+  );
+}
+
+/** Phones and tablets: a floating "Preview" button that slides the booking page preview up. */
+function PhonePreview({ basics }: { basics: HostelBasics }) {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("keydown", onKey);
+    const overflow = document.documentElement.style.overflow;
+    document.documentElement.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.documentElement.style.overflow = overflow;
+    };
+  }, [open]);
+
+  return (
+    <div className="lg:hidden">
+      {open && (
+        <div className="fixed inset-0 z-30 flex flex-col bg-brand-950/40 backdrop-blur-sm motion-safe:animate-[fade-in_0.2s_ease-out]" onClick={() => setOpen(false)}>
+          <div
+            role="dialog"
+            aria-label="Preview of your booking page"
+            onClick={(e) => e.stopPropagation()}
+            className="mt-auto max-h-[92dvh] overflow-y-auto rounded-t-[2rem] bg-[#f6f8f7] px-5 pt-3 pb-28 motion-safe:animate-[sheet-in_0.3s_ease-out]"
+          >
+            <span className="mx-auto mb-5 block h-1.5 w-12 rounded-full bg-grey-150" aria-hidden />
+            <BookingPreview basics={basics} />
+          </div>
+        </div>
+      )}
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="fixed right-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-40 inline-flex h-12 items-center gap-2 rounded-full bg-white pr-5 pl-2 text-[15px] font-semibold text-brand-950 shadow-[0_12px_30px_-10px_rgba(11,35,34,0.45)] ring-1 ring-black/5"
+      >
+        <span className="flex size-8 items-center justify-center rounded-full bg-brand-950 text-brand-300">
+          {open ? <X className="size-4" /> : <Smartphone className="size-4" />}
+        </span>
+        {open ? "Close preview" : "Preview"}
+      </button>
     </div>
   );
 }
@@ -602,6 +647,9 @@ export function StartWizard() {
           </aside>
         )}
       </main>
+
+      {/* Phones: the preview is a tap away instead of beside the questions */}
+      {showPreview && <PhonePreview basics={basics} />}
     </div>
   );
 }
