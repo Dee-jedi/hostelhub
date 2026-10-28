@@ -1,6 +1,8 @@
 import { randomBytes } from "node:crypto";
 import type { DocumentReference, Transaction } from "firebase-admin/firestore";
-import type { Hostel, HostelRoom, Listing, RentPeriod, RoomType, Tenancy } from "../model";
+import { stayOptionOf } from "../checkout";
+import type { Block, Hostel, HostelRoom, Listing, RentPeriod, RoomType, Tenancy } from "../model";
+import { monthsBetween } from "../room-setup";
 import { listingRoomEntry, spaceIdsOf } from "../spaces";
 import { DEFAULT_TYPE_ID } from "../migrate/from-legacy";
 import { requestHost, resolveHost } from "../hostel-host";
@@ -113,6 +115,46 @@ export async function claimSpace(tx: Transaction, h: string, roomId: string, opt
 }
 
 /** The listing update for a room after a change, given which of its spaces end up taken. */
+/**
+ * The booking page's summary of a hostel: details, room classes and prices, the stays students
+ * can pick, extra charges, block names and who may stay, and whether the service fee applies.
+ */
+export function listingInfoFor(hostel: Hostel, types: RoomType[], periods: RentPeriod[], blocks: Block[]): Listing["info"] {
+  const sortedTypes = [...types].sort((a, b) => a.capacity - b.capacity || a.price - b.price);
+  const sortedBlocks = [...blocks].sort((a, b) => a.order - b.order);
+  const online = [...periods].filter((p) => p.online !== false).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  const usual = periods.find((p) => p.id === hostel.defaultPeriodId);
+  const leaseMonths = !usual ? 12 : usual.kind === "rolling" ? usual.months : Math.round(monthsBetween(usual.start, usual.end));
+  return {
+    hostelName: hostel.name,
+    address: hostel.address,
+    managerName: hostel.manager.name,
+    managerPhone: hostel.manager.phone,
+    whatsappGroupLink: hostel.whatsappGroupLink,
+    blocks: sortedBlocks.map((b) => b.id),
+    blockNames: Object.fromEntries(sortedBlocks.map((b) => [b.id, b.name])),
+    blockWho: Object.fromEntries(sortedBlocks.map((b) => [b.id, b.who ?? "any"])),
+    roomTypes: sortedTypes.map((t) => ({ id: t.id, name: t.name, capacity: t.capacity, pricingMode: t.pricingMode, price: t.price, ...(t.prices ? { prices: t.prices } : {}), ...(t.features ? { features: t.features } : {}) })),
+    rentAmount: sortedTypes.length ? Math.min(...sortedTypes.map((t) => t.price)) : 0,
+    leaseMonths,
+    maxOccupants: sortedTypes.length ? Math.max(...sortedTypes.map((t) => t.capacity)) : 1,
+    options: online.map(stayOptionOf),
+    defaultOptionId: online.some((p) => p.id === hostel.defaultPeriodId) ? hostel.defaultPeriodId : online[0]?.id,
+    charges: (hostel.charges ?? []).map((c) => ({ name: c.name, amount: c.amount, when: c.when, refundable: c.refundable })),
+    serviceFee: !!hostel.payout,
+  };
+}
+
+/** A whole listing for a hostel nobody lives in yet (sign-up): every room free, no holds. */
+export function freshListing(hostel: Hostel, types: RoomType[], periods: RentPeriod[], blocks: Block[], rooms: HostelRoom[]): Listing {
+  const byId = new Map(types.map((t) => [t.id, t]));
+  return {
+    info: listingInfoFor(hostel, types, periods, blocks),
+    rooms: Object.fromEntries(rooms.map((room) => [room.id, listingRoomEntry(room, room.blockId, byId.get(room.typeId)!, new Set())])),
+    holds: {},
+  };
+}
+
 export function listingUpdate(room: HostelRoom, type: RoomType, occupied: Set<string>) {
   return { [`rooms.${room.id}`]: listingRoomEntry(room, room.blockId, type, occupied) };
 }

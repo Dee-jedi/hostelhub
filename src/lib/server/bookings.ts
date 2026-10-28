@@ -1,6 +1,8 @@
 import { randomBytes } from "node:crypto";
 import { FieldValue } from "firebase-admin/firestore";
-import type { HostelBooking, HostelMessage, HostelPayment, HostelResident, HostelRoom, Listing, Tenancy } from "../model";
+import { firstPayment, leaseFor, mayStay, stayOptionOf } from "../checkout";
+import { platformShare } from "../fees";
+import type { Block, HostelBooking, HostelMessage, HostelPayment, HostelResident, HostelRoom, Listing, RentPeriod, Tenancy } from "../model";
 import type { StudentInfo } from "../types";
 import { bedOf, bookableSpaces, spaceIdsOf } from "../spaces";
 import { addMonths, todayISO, toStudentInfo } from "../utils";
@@ -42,7 +44,7 @@ function person(info: StudentInfo) {
  * Reserves the room for HOLD_MINUTES, records a pending booking and opens a Paystack
  * transaction for it. Returns the access code the browser uses to show the payment popup.
  */
-export async function startBooking(input: { hostelId: string; uid: string; email: string; info: StudentInfo; roomId: string; agent?: string; origin: string }) {
+export async function startBooking(input: { hostelId: string; uid: string; email: string; info: StudentInfo; roomId: string; periodId?: string; agent?: string; origin: string }) {
   const h = input.hostelId;
   const r = hostelRefs(h);
   await refuseIfAlreadyPaying(h, input.uid);
@@ -50,21 +52,36 @@ export async function startBooking(input: { hostelId: string; uid: string; email
   const now = Date.now();
   let amount = 0;
   let chosenSpace = input.roomId;
+  let split: { subaccount: string; mainShareNaira: number } | undefined;
+  let pricing: Pick<HostelBooking, "periodId" | "lines" | "toHostel" | "serviceFee"> = {};
 
   await adminDb.runTransaction(async (tx) => {
     const [listingSnap, roomSnap] = await tx.getAll(r.listing, r.doc("rooms", input.roomId));
     if (!listingSnap.exists) throw new BookingError("Bookings are not open yet. Please contact the hostel.");
     const already = await tx.get(r.col("tenancies").where("uid", "==", input.uid).where("status", "==", "active").limit(1));
     const room = roomSnap.data() as HostelRoom | undefined;
-    const { type } = await readTerms(tx, h, room ?? null);
+    const { hostel, type } = await readTerms(tx, h, room ?? null);
+    // The stay they picked (or the usual one), which must be on offer online and not over
+    const periodId = input.periodId || hostel.defaultPeriodId;
+    const [periodSnap, blockSnap] = await tx.getAll(r.doc("rentPeriods", periodId), r.doc("blocks", room?.blockId ?? "-"));
+    const period = periodSnap.data() as RentPeriod | undefined;
     if (!already.empty) throw new BookingError("You already have a room. Log in to your portal instead.");
+    if (!period || period.online === false) throw new BookingError("That length of stay isn't available online. Pick another.");
+    if (!leaseFor(stayOptionOf(period), todayISO())) throw new BookingError(`${period.name} has ended. Pick another length of stay.`);
+    const block = blockSnap.data() as Block | undefined;
+    if (!mayStay(block?.who, input.info.sex)) throw new BookingError(`${block!.name} is for ${block!.who} tenants only. Pick a room in another block.`);
 
     const listing = listingSnap.data() as Listing;
     // The whole room, or the first free bed nobody else is paying for (students pick rooms, not beds)
     const spaceId = room ? bookableSpaces(input.roomId, listing.rooms[input.roomId], listing.holds, now, input.uid)[0] : undefined;
-    if (!room || !spaceId) throw new BookingError(`Room ${input.roomId} was just taken. Please pick another room.`);
-    amount = type.price;
+    if (!room || !spaceId) throw new BookingError(`Room ${room?.label ?? input.roomId} was just taken. Please pick another room.`);
+    // Rent for that stay, the extra charges, and (with a payout account) the service fee on top
+    const pay = firstPayment(type, period.id, hostel.charges ?? [], !!hostel.payout);
+    amount = pay.total;
+    // The hostel receives exactly `toHostel`; HostelHub keeps the fee less Paystack's charge
+    if (hostel.payout && pay.fee > 0) split = { subaccount: hostel.payout.subaccountCode, mainShareNaira: platformShare(pay.total, pay.fee) };
     chosenSpace = spaceId;
+    pricing = { periodId: period.id, lines: pay.lines, toHostel: pay.toHostel, serviceFee: pay.fee };
     const sharing = (input.info.occupants ?? []).length;
     if (type.pricingMode === "per_bed" && sharing) throw new BookingError("Each bed is booked by one person. Remove the room occupants, or have each person book their own bed.");
     if (type.pricingMode === "per_room" && sharing + 1 > type.capacity) throw new BookingError(`Room ${input.roomId} takes up to ${type.capacity} people including you.`);
@@ -84,6 +101,7 @@ export async function startBooking(input: { hostelId: string; uid: string; email
       roomId: input.roomId,
       spaceId: chosenSpace,
       amount,
+      ...pricing,
       status: "pending",
       createdAt: new Date(now).toISOString(),
       ...(input.agent ? { agent: input.agent.slice(0, 40) } : {}),
@@ -98,6 +116,7 @@ export async function startBooking(input: { hostelId: string; uid: string; email
       reference,
       callbackUrl: `${input.origin}/book`,
       metadata: { hostelId: h, bookingId: reference, roomId: input.roomId, spaceId: chosenSpace, uid: input.uid },
+      split,
     });
     return { reference, accessCode: trx.access_code, amount };
   } catch (err) {
@@ -147,6 +166,8 @@ export interface BookingResult {
   payment?: "processing" | "not_paid";
   reference?: string;
   roomId?: string;
+  /** The room's name as tenants know it ("Ruby 2"); older rooms' ids are their names */
+  roomLabel?: string;
   spaceId?: string;
   fullName?: string;
   amount?: number;
@@ -195,6 +216,9 @@ export async function finalizeBooking(hostelId: string, reference: string, { for
     const occ = await readOccupancy(tx, h, booking.roomId);
     const existing = await tx.get(r.col("tenancies").where("uid", "==", booking.uid).where("status", "==", "active").limit(1));
     const { hostel, months } = await readTerms(tx, h, occ.room);
+    // The stay they paid for (older bookings: the hostel's default)
+    const periodId = booking.periodId ?? hostel.defaultPeriodId;
+    const period = booking.periodId ? ((await tx.get(r.doc("rentPeriods", booking.periodId))).data() as RentPeriod | undefined) : undefined;
     const receipt = await readReceiptCounter(tx, h);
 
     const listing = listingSnap.data() as Listing;
@@ -220,23 +244,30 @@ export async function finalizeBooking(hostelId: string, reference: string, { for
       return false;
     }
 
-    const leaseStart = todayISO();
-    const leaseEnd = addMonths(leaseStart, months);
+    const today = todayISO();
+    // A session ends on its end date; months from move-in run from today (a session that ended
+    // between paying and confirming still gets its months rather than nothing)
+    const lease = (period && leaseFor(stayOptionOf(period), today)) ?? { start: today, end: addMonths(today, period?.kind === "rolling" ? period.months : months) };
+    const leaseStart = lease.start;
+    const leaseEnd = lease.end;
     const now = new Date().toISOString();
     const tenancyId = newId("t_");
     const resident: HostelResident = { ...person(booking), id: booking.uid, uid: booking.uid, createdAt: now };
     const tenancy: Tenancy = {
       id: tenancyId, residentId: booking.uid, uid: booking.uid, roomId: booking.roomId, spaceId,
-      periodId: hostel.defaultPeriodId, status: "active", checkInDate: leaseStart, leaseStart, leaseEnd, occupants: booking.occupants ?? [], createdAt: now,
+      periodId, status: "active", checkInDate: leaseStart, leaseStart, leaseEnd, occupants: booking.occupants ?? [], createdAt: now,
     };
+    // The hostel's share is its income; HostelHub's fee is recorded beside it, not in it
     const payment: HostelPayment = {
-      id: `pay_${reference}`, receiptNo: receipt.receiptNo, residentId: booking.uid, roomId: booking.roomId, amount: trx.amount / 100,
+      id: `pay_${reference}`, receiptNo: receipt.receiptNo, residentId: booking.uid, roomId: booking.roomId, amount: booking.toHostel ?? trx.amount / 100,
       method: "Online", reference, date: leaseStart, periodStart: leaseStart, periodEnd: leaseEnd, note: `Paystack · ${trx.channel}`,
       uid: booking.uid, tenancyId,
+      ...(booking.lines ? { lines: booking.lines } : {}),
+      ...(booking.serviceFee ? { serviceFee: booking.serviceFee } : {}),
     };
     const welcome: HostelMessage = {
       id: newId("msg_"), kind: "notice", channel: "Email", recipientIds: [booking.uid], recipientUids: [booking.uid],
-      body: `Welcome to ${hostel.name}, ${booking.fullName.split(" ")[0]}! Your payment of ₦${(trx.amount / 100).toLocaleString("en-NG")} is confirmed and ${bedOf(spaceId, booking.roomId) ? `bed ${bedOf(spaceId, booking.roomId)} in room ${booking.roomId}` : `room ${booking.roomId}`} is yours until ${leaseEnd}. Receipt ${receipt.receiptNo}.`,
+      body: `Welcome to ${hostel.name}, ${booking.fullName.split(" ")[0]}! Your payment of ₦${(trx.amount / 100).toLocaleString("en-NG")} is confirmed and ${bedOf(spaceId, booking.roomId) ? `bed ${bedOf(spaceId, booking.roomId)} in room ${occ.room.label}` : `room ${occ.room.label}`} is yours until ${leaseEnd}. Receipt ${receipt.receiptNo}.`,
       sentAt: now, automated: true,
     };
 
@@ -266,6 +297,7 @@ async function summarize(h: string, reference: string): Promise<BookingResult> {
     status: "paid",
     reference,
     roomId: booking.roomId,
+    roomLabel: (listing.data() as Listing | undefined)?.rooms[booking.roomId]?.label,
     spaceId: booking.spaceId,
     fullName: booking.fullName,
     amount: booking.amount,

@@ -86,6 +86,8 @@ export const POST = command<Body, { accountName: string; bankName: string; saved
     payout: { subaccountCode, bankCode: payoutBankCode, verifiedAt: now, mode: testing ? "test" : "live" },
     "onboarding.step": "golive",
   });
+  // Online payments now go through the payout account, with the service fee on top
+  if ((await r.listing.get()).exists) await r.listing.update({ "info.serviceFee": true });
   await ctx.audit("hostel.payout_set", { bank: bank.name, accountEnding: accountNumber.slice(-4), subaccountCode });
   return { accountName, bankName: bank.name, saved: true };
 });

@@ -4,7 +4,7 @@ import type { Hostel, PricingMode } from "@/lib/model";
 import { setupProblem, setupToDocs, type RoomsSetup } from "@/lib/room-setup";
 import { adminDb, verifyRequest } from "@/lib/server/admin";
 import { command, CommandError } from "@/lib/server/command";
-import { hostelRefs } from "@/lib/server/hostel-data";
+import { freshListing, hostelRefs } from "@/lib/server/hostel-data";
 
 /** The most rooms sign-up creates in one go (bigger hostels add more blocks afterwards). */
 const MAX_ROOMS = 1000;
@@ -59,14 +59,11 @@ export const POST = command<{ hostelId: string; setup: RoomsSetup }, { rooms: nu
   // Screens that still read one charging style for the whole hostel get the most common one
   const perBed = docs.types.filter((t) => t.pricingMode === "per_bed").length;
   const rentalModel: PricingMode = perBed * 2 >= docs.types.length ? "per_bed" : "per_room";
-  await r.hostel.update({
-    defaultPeriodId: docs.defaultPeriodId,
-    defaultTypeId: docs.defaultTypeId,
-    rentalModel,
-    charges: docs.charges,
-    setupDraft: setup,
-    "onboarding.step": "payments",
-  });
+  const patch = { defaultPeriodId: docs.defaultPeriodId, defaultTypeId: docs.defaultTypeId, rentalModel, charges: docs.charges };
+  await r.hostel.update({ ...patch, setupDraft: setup, "onboarding.step": "payments" });
+  // The booking page's listing, every room free: the manager can try their own booking page
+  // (test payments only until Go live)
+  await r.listing.set(freshListing({ ...hostel, ...patch }, docs.types, docs.periods, docs.blocks, docs.rooms));
   await ctx.audit("hostel.rooms_set", { rooms: docs.rooms.length, classes: docs.types.length, options: docs.periods.length });
   return { rooms: docs.rooms.length };
 });

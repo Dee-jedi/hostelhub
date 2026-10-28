@@ -66,6 +66,7 @@ export function RoomPicker({
   value,
   onChange,
   uid,
+  allowBlock,
 }: {
   doc: PublicBookingDoc;
   /** Current time; holds that ended before this are treated as expired */
@@ -74,15 +75,22 @@ export function RoomPicker({
   onChange: (roomId: string) => void;
   /** The signed-in student: their own checkout hold (e.g. after cancelling the payment) stays pickable */
   uid?: string;
+  /** Blocks this person may book (e.g. female-only blocks for a female student). Default: all. */
+  allowBlock?: (blockId: string) => boolean;
 }) {
-  const blocks = doc.info.blocks;
+  const blocks = allowBlock ? doc.info.blocks.filter(allowBlock) : doc.info.blocks;
   const ids = Object.keys(doc.rooms);
+  // Hostels set up through sign-up name their blocks ("Ruby"); older ones are a letter ("Block A")
+  const blockLabel = (id: string) => doc.info.blockNames?.[id] ?? `Block ${id}`;
+  const roomLabel = (id: string) => doc.rooms[id].label || id;
   // Per-bed hostels count free beds; per-room hostels count free rooms
   const perBed = ids.some((id) => doc.rooms[id].beds);
   const freeIn = (id: string) => bookableSpaces(id, doc.rooms[id], doc.holds, now, uid).length;
   const vacantIn = (block: string) => ids.filter((id) => doc.rooms[id].block === block).reduce((n, id) => n + (perBed ? freeIn(id) : isBookable(doc, id, now, uid) ? 1 : 0), 0);
   const firstWithSpace = blocks.find((b) => vacantIn(b) > 0) ?? blocks[0];
-  const [block, setBlock] = useState(() => (value ? doc.rooms[value]?.block : undefined) ?? firstWithSpace);
+  const [picked, setBlock] = useState(() => (value ? doc.rooms[value]?.block : undefined) ?? firstWithSpace);
+  // A block that's no longer offered (e.g. the sex on the form changed) falls back to the first one
+  const block = picked && blocks.includes(picked) ? picked : firstWithSpace;
   const rooms = ids.filter((id) => doc.rooms[id].block === block).sort((a, b) => doc.rooms[a].number - doc.rooms[b].number);
   const totalVacant = blocks.reduce((n, b) => n + vacantIn(b), 0);
   const { near, far, length } = corridorSides(rooms);
@@ -99,7 +107,7 @@ export function RoomPicker({
         disabled={!clickable}
         onClick={() => onChange(st === "selected" ? "" : id)}
         aria-pressed={st === "selected"}
-        aria-label={`Room ${id}: ${statusText[st]}`}
+        aria-label={`Room ${roomLabel(id)}: ${statusText[st]}`}
         title={st === "maintenance" ? (doc.rooms[id].note ?? "Under maintenance") : st === "held" ? "Someone is paying for this room right now" : undefined}
         className={cn(
           "relative flex h-14 min-w-0 flex-col items-center justify-center rounded-lg border text-sm leading-tight font-semibold tabular-nums transition-all",
@@ -111,7 +119,7 @@ export function RoomPicker({
         <span className="flex items-center gap-1">
           {st === "selected" && <Check className="size-3.5" strokeWidth={3} />}
           {st === "maintenance" && <Wrench className="size-3" />}
-          {id}
+          <span className="max-w-full truncate">{roomLabel(id)}</span>
         </span>
         <span className={cn("mt-0.5 text-[10px] font-medium", st === "selected" ? "text-white/85" : st === "vacant" ? "text-brand-700" : "")}>
           {doc.rooms[id].beds && (st === "vacant" || st === "selected") ? `${freeIn(id)} bed${freeIn(id) === 1 ? "" : "s"} free` : statusText[st]}
@@ -132,11 +140,13 @@ export function RoomPicker({
         </span>
       </div>
 
-      <BlockTabs blocks={blocks} block={block} onSelect={setBlock} vacantIn={vacantIn} />
+      {!blocks.length && <p className="rounded-2xl border border-grey-100 bg-grey-10 p-6 text-center text-sm text-heading-6">There are no rooms you can book here right now.</p>}
+
+      {blocks.length > 0 && <BlockTabs blocks={blocks} block={block} onSelect={setBlock} vacantIn={vacantIn} label={blockLabel} />}
 
       {/* Floor plan: when there's room the corridor runs across, otherwise (phones, narrow columns) down the middle */}
-      <div className="@container rounded-2xl border border-grey-100 bg-grey-10 p-3">
-        <p className="mb-2.5 text-[11px] font-semibold tracking-wider text-heading-6 uppercase">Block {block} · floor plan</p>
+      <div className={cn("@container rounded-2xl border border-grey-100 bg-grey-10 p-3", !blocks.length && "hidden")}>
+        <p className="mb-2.5 text-[11px] font-semibold tracking-wider text-heading-6 uppercase">{block ? blockLabel(block) : ""} · floor plan</p>
 
         <div className="hidden @lg:block">
           <div className="grid gap-1.5" style={{ gridTemplateColumns: `repeat(${length}, minmax(0, 1fr))` }}>
@@ -176,11 +186,13 @@ function BlockTabs({
   block,
   onSelect,
   vacantIn,
+  label,
 }: {
   blocks: string[];
   block: string;
   onSelect: (block: string) => void;
   vacantIn: (block: string) => number;
+  label: (block: string) => string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [more, setMore] = useState({ left: false, right: false });
@@ -237,7 +249,7 @@ function BlockTabs({
                 b === block ? "border-brand-200 bg-brand-50 text-brand-800" : "border-grey-100 bg-white text-heading-4 hover:bg-grey-50",
               )}
             >
-              Block {b}
+              {label(b)}
               <span className={cn("text-[11px] font-normal", n ? "text-brand-700" : "text-heading-6")}>{n ? `${n} free` : "Full"}</span>
             </button>
           );

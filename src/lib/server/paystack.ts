@@ -26,6 +26,11 @@ export function initializeTransaction(input: {
   reference: string;
   callbackUrl: string;
   metadata: Record<string, unknown>;
+  /**
+   * Splits the payment: `mainShareNaira` settles to HostelHub's own account and the rest, less
+   * Paystack's charge, to the hostel's subaccount (see fees.ts platformShare).
+   */
+  split?: { subaccount: string; mainShareNaira: number };
 }) {
   return call<{ authorization_url: string; access_code: string; reference: string }>("/transaction/initialize", {
     method: "POST",
@@ -36,6 +41,7 @@ export function initializeTransaction(input: {
       reference: input.reference,
       callback_url: input.callbackUrl,
       metadata: input.metadata,
+      ...(input.split ? { subaccount: input.split.subaccount, transaction_charge: Math.round(input.split.mainShareNaira * 100) } : {}),
     }),
   });
 }

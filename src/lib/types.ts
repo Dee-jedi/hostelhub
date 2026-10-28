@@ -1,4 +1,4 @@
-import type { PricingMode, RoomType } from "./model";
+import type { BlockOccupancy, ExtraCharge, PricingMode, RoomType, StayOptionInfo } from "./model";
 
 export type Sex = "Male" | "Female";
 export type PaymentMethod = "Transfer" | "Cash" | "POS" | "Online";
@@ -166,7 +166,14 @@ export interface PublicBookingDoc {
     managerName: string;
     managerPhone: string;
     /** Room sizes and prices (multi-hostel listings) */
-    roomTypes?: Pick<RoomType, "id" | "name" | "capacity" | "pricingMode" | "price">[];
+    roomTypes?: Pick<RoomType, "id" | "name" | "capacity" | "pricingMode" | "price" | "prices" | "features">[];
+    /** Hostels set up through sign-up (see model.ts Listing) */
+    blockNames?: Record<string, string>;
+    blockWho?: Record<string, BlockOccupancy>;
+    options?: StayOptionInfo[];
+    defaultOptionId?: string;
+    charges?: Pick<ExtraCharge, "name" | "amount" | "when" | "refundable">[];
+    serviceFee?: boolean;
   };
   rooms: Record<string, PublicRoom>;
   holds: Record<string, RoomHold>;

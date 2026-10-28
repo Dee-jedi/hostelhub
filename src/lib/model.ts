@@ -7,6 +7,7 @@
  * per room, or one bed when priced per bed. Spaces aren't stored: a space id is the room id
  * (per room) or `${roomId}-${bed}` (per bed: A, B, C, D).
  */
+import type { CheckoutLine } from "./fees";
 import type { Hold, ListingRoom } from "./spaces";
 import type { Booking, Message, Payment, StudentInfo, Ticket } from "./types";
 
@@ -159,6 +160,10 @@ export interface Charge {
 export interface HostelPayment extends Payment {
   uid: string | null;
   tenancyId: string | null;
+  /** Online payments: what it covered (rent, charges; refundable ones flagged). `amount` is the hostel's share. */
+  lines?: CheckoutLine[];
+  /** HostelHub's service fee the student paid on top (not the hostel's money) */
+  serviceFee?: number;
 }
 
 /** hostels/{h}/messages/{messageId}. recipientIds are resident ids; recipientUids their logins. */
@@ -174,6 +179,12 @@ export interface HostelRequest extends Ticket {
 /** hostels/{h}/bookings/{bookingId} */
 export interface HostelBooking extends Booking {
   spaceId: string;
+  /** The stay picked (rent period id); absent on older bookings, which used the hostel's default */
+  periodId?: string;
+  /** `amount` is what the student is charged; these split it */
+  lines?: CheckoutLine[];
+  toHostel?: number;
+  serviceFee?: number;
 }
 
 /** listings/{hostelId}: everything the public booking page needs, no personal data */
@@ -184,16 +195,37 @@ export interface Listing {
     managerName: string;
     managerPhone: string;
     whatsappGroupLink: string;
+    /** Block ids, in order (older hostels: the ids are their names, "A") */
     blocks: string[];
-    roomTypes: Pick<RoomType, "id" | "name" | "capacity" | "pricingMode" | "price">[];
+    roomTypes: Pick<RoomType, "id" | "name" | "capacity" | "pricingMode" | "price" | "prices" | "features">[];
     /** The default room type's terms, as the current booking page shows them */
     rentAmount: number;
     leaseMonths: number;
     maxOccupants: number;
+    /** Hostels set up through sign-up: block names and who may stay, by block id */
+    blockNames?: Record<string, string>;
+    blockWho?: Record<string, BlockOccupancy>;
+    /** Stays students can pick online, in order, and the usual one */
+    options?: StayOptionInfo[];
+    defaultOptionId?: string;
+    /** Charges on top of rent */
+    charges?: Pick<ExtraCharge, "name" | "amount" | "when" | "refundable">[];
+    /** Rent is paid through the hostel's payout account, with HostelHub's service fee on top */
+    serviceFee?: boolean;
   };
   /** Keyed by room id. Holds are keyed by space id (the room id, or `${roomId}-A`… for beds). */
   rooms: Record<string, ListingRoom>;
   holds: Record<string, Hold>;
+}
+
+/** A stay a student can pick on the booking page: a rent period without the internal fields. */
+export interface StayOptionInfo {
+  id: string;
+  name: string;
+  kind: "session" | "rolling";
+  start?: string;
+  end?: string;
+  months?: number;
 }
 
 /** hostels/{h}/counters/receipts */

@@ -15,6 +15,7 @@ import { EMPTY_STUDENT, StudentForm, validateStudent } from "@/components/Studen
 import { toast } from "@/components/toast";
 import { Button, Field, Input, PasswordInput } from "@/components/ui";
 import { authMessage } from "@/lib/auth";
+import { firstPayment, leaseFor, mayStay, optionRent, stayLength } from "@/lib/checkout";
 import { listingPath } from "@/lib/current-hostel";
 import { bedOf, spaceLabel } from "@/lib/spaces";
 import { auth, db, storage } from "@/lib/firebase";
@@ -29,6 +30,7 @@ interface Result {
   payment?: "processing" | "not_paid";
   reference?: string;
   roomId?: string;
+  roomLabel?: string;
   spaceId?: string;
   fullName?: string;
   amount?: number;
@@ -97,6 +99,14 @@ export default function BookPage() {
   const [password, setPassword] = useState("");
   const [password2, setPassword2] = useState("");
   const [agree, setAgree] = useState(false);
+  /** The stay picked (a rent option id); empty = the hostel's usual one */
+  const [periodId, setPeriodId] = useState("");
+  // Rooms and blocks by the names tenants know ("Ruby 2", "Ruby"); older hostels' ids are their names
+  const roomLabel = (id: string) => pub?.rooms[id]?.label || id;
+  const blockLabel = (id: string | undefined) => (id ? (pub?.info.blockNames?.[id] ?? `Block ${id}`) : "");
+  // The stays students can pick, and the one picked (or the hostel's usual one)
+  const options = pub?.info.options ?? [];
+  const option = options.find((o) => o.id === periodId) ?? options.find((o) => o.id === pub?.info.defaultOptionId) ?? options[0] ?? null;
   const [agent, setAgent] = useState("");
 
   const [paying, setPaying] = useState(false);
@@ -176,10 +186,10 @@ export default function BookPage() {
     if (!roomId) return toast("Tap a room to select it", "info");
     const type = pub?.info.roomTypes?.find((t) => t.id === pub.rooms[roomId]?.typeId);
     if (type?.pricingMode === "per_room" && info.occupants.length + 1 > type.capacity) {
-      return toast(`Room ${roomId} is a ${type.name.toLowerCase()}: up to ${type.capacity} people including you. Remove someone from "Room occupants" or pick a bigger room.`, "info");
+      return toast(`Room ${roomLabel(roomId)} is a ${type.name.toLowerCase()}: up to ${type.capacity} people including you. Remove someone from "Room occupants" or pick a bigger room.`, "info");
     }
     if (pub && !isBookable(pub, roomId, Date.now(), auth.currentUser?.uid)) {
-      toast(`Room ${roomId} was just taken. Please pick another.`, "info");
+      toast(`Room ${roomLabel(roomId)} was just taken. Please pick another.`, "info");
       return setRoomId("");
     }
     goTo(2);
@@ -200,7 +210,7 @@ export default function BookPage() {
       const photoUrl = await getDownloadURL(photoRef);
       const start = await postJSON<{ reference: string; accessCode: string }>(
         "/api/bookings/start",
-        { info: { ...info, email: email.trim(), photoUrl }, roomId, agent: agent || undefined },
+        { info: { ...info, email: email.trim(), photoUrl }, roomId, periodId: option?.id, agent: agent || undefined },
         token,
       );
       setHeldUntil(Date.now() + 15 * 60_000);
@@ -217,7 +227,7 @@ export default function BookPage() {
             setConfirming(false);
           }
         },
-        onCancel: () => toast(`Payment not completed. Room ${roomId} stays reserved for you for 15 minutes.`, "info"),
+        onCancel: () => toast(`Payment not completed. Room ${roomLabel(roomId)} stays reserved for you for 15 minutes.`, "info"),
         onError: (e) => toast(e.message || "Couldn't open the payment window", "info"),
       });
     } catch (err) {
@@ -232,31 +242,36 @@ export default function BookPage() {
     }
   };
 
-  // Prices come from each room's type; per-bed hostels show beds instead of rooms
+  // Prices come from each room's type and the stay picked; per-bed hostels show beds instead of rooms
   const types = pub?.info.roomTypes ?? [];
   const perBed = types.some((t) => t.pricingMode === "per_bed");
   const unit = perBed ? "bed" : "room";
   const chosenType = pub && roomId ? (types.find((t) => t.id === pub.rooms[roomId]?.typeId) ?? null) : null;
-  const price = chosenType?.price ?? pub?.info.rentAmount ?? 0;
-  const prices = [...new Set(types.map((t) => t.price))];
+  const rentOf = (t: (typeof types)[number]) => optionRent(t, option?.id);
+  // What they pay: rent, the hostel's extra charges, and the service fee when the hostel takes payouts
+  const payment = chosenType ? firstPayment(chosenType, option?.id, pub?.info.charges ?? [], !!pub?.info.serviceFee) : null;
+  const price = payment?.total ?? pub?.info.rentAmount ?? 0;
+  const prices = [...new Set(types.map(rentOf))];
   const priceLine = !pub ? "" : prices.length > 1 ? `From ${naira(Math.min(...prices))} per ${unit}` : `${naira(prices[0] ?? pub.info.rentAmount)} per ${unit}`;
 
   // Only once the room data has loaded in the browser (the page is prerendered without a clock)
   const leaseStart = pub ? todayISO() : "";
-  const leaseEnd = pub ? addMonths(leaseStart, pub.info.leaseMonths) : leaseStart;
+  const lease = option && leaseStart ? leaseFor(option, leaseStart) : null;
+  const leaseEnd = lease?.end ?? (pub ? addMonths(leaseStart, pub.info.leaseMonths) : leaseStart);
+  const stayText = !pub ? "" : option ? stayLength(option) : `${pub.info.leaseMonths} months`;
 
   return (
     <BrandLayout
       phoneIllustration={false}
       title={pub ? `Book your room at ${pub.info.hostelName}` : "Book your room"}
-      subtitle={pub ? `${priceLine} for ${pub.info.leaseMonths} months · Pay securely online` : undefined}
+      subtitle={pub ? `${priceLine} · ${stayText} · Pay securely online` : undefined}
       action={{ href: "/login", label: "Log in" }}
     >
       <div className="mx-auto w-full max-w-2xl">
         {!result && (
           <div className="mb-6">
             <h1 className="text-2xl font-semibold tracking-tight text-grey-950">{pub?.info.hostelName ?? "Book a room"}</h1>
-            <p className="mt-1 text-sm text-heading-6">{pub ? `${priceLine} · ${pub.info.leaseMonths} months` : "Loading rooms…"}</p>
+            <p className="mt-1 text-sm text-heading-6">{pub ? `${priceLine} · ${stayText}` : "Loading rooms…"}</p>
           </div>
         )}
         {result ? (
@@ -315,10 +330,38 @@ export default function BookPage() {
                       : `Choose the room you were shown. Rent is per room, for up to ${pub.info.maxOccupants} people.`
                   }
                 >
-                  <RoomPicker doc={pub} now={now} value={roomId} onChange={setRoomId} uid={auth.currentUser?.uid} />
+                  {options.length > 1 && (
+                    <div className="mb-5" role="radiogroup" aria-label="How long are you staying?">
+                      <p className="mb-2 text-sm font-medium text-heading-2">How long are you staying?</p>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {options.map((o) => (
+                          <button
+                            key={o.id}
+                            type="button"
+                            role="radio"
+                            aria-checked={o.id === option?.id}
+                            onClick={() => setPeriodId(o.id)}
+                            className={cn("rounded-xl border p-3 text-left transition-colors", o.id === option?.id ? "border-brand-600 bg-brand-50" : "border-grey-150 hover:border-brand-300")}
+                          >
+                            <span className="block text-sm font-semibold text-grey-950">{o.name}</span>
+                            <span className="block text-xs text-heading-6">{stayLength(o)}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <RoomPicker
+                    doc={pub}
+                    now={now}
+                    value={roomId}
+                    onChange={setRoomId}
+                    uid={auth.currentUser?.uid}
+                    // Only blocks this person may stay in (female-only, male-only…)
+                    allowBlock={(b) => mayStay(pub.info.blockWho?.[b], info.sex)}
+                  />
                   {chosenType && (
                     <p className="mt-3 rounded-xl bg-brand-50 px-3 py-2 text-sm text-brand-900">
-                      Room {roomId} · {chosenType.name} · <span className="font-semibold">{naira(chosenType.price)}</span> per {chosenType.pricingMode === "per_bed" ? "bed" : "room"}
+                      Room {roomLabel(roomId)} · {chosenType.name} · <span className="font-semibold">{naira(rentOf(chosenType))}</span> per {chosenType.pricingMode === "per_bed" ? "bed" : "room"}
                     </p>
                   )}
                 </FormCard>
@@ -327,7 +370,7 @@ export default function BookPage() {
                     <ArrowLeft className="size-4" /> <span className="max-sm:hidden">Back</span>
                   </Button>
                   <Button className="h-12 flex-1 rounded-xl text-[15px]" onClick={nextFromRoom} disabled={!roomId}>
-                    {roomId ? `Continue with room ${roomId}` : "Select a room"} <ArrowRight className="size-4" />
+                    {roomId ? `Continue with room ${roomLabel(roomId)}` : "Select a room"} <ArrowRight className="size-4" />
                   </Button>
                 </StepActions>
               </div>
@@ -347,10 +390,29 @@ export default function BookPage() {
                     </div>
                   </div>
                   <dl className="divide-y divide-grey-100 text-sm">
-                    <Row label="Room" value={`${roomId} · Block ${pub.rooms[roomId]?.block}${chosenType ? ` · ${chosenType.name}` : ""}`} />
+                    <Row label="Room" value={`${roomLabel(roomId)} · ${blockLabel(pub.rooms[roomId]?.block)}${chosenType ? ` · ${chosenType.name}` : ""}`} />
                     {perBed && <Row label="Bed" value="The next free bed, confirmed after payment" />}
                     <Row label="Rent period" value={`${formatDate(leaseStart)} – ${formatDate(leaseEnd)}`} />
                     {info.occupants.length > 0 && <Row label="Sharing with" value={info.occupants.map((o) => o.fullName).join(", ")} />}
+                    {payment && (payment.lines.length > 1 || payment.fee > 0) && (
+                      <div className="space-y-1.5 py-3">
+                        {payment.lines.map((l) => (
+                          <div key={l.label} className="flex justify-between gap-3">
+                            <dt className="text-heading-6">
+                              {l.label === "Rent" && option ? `Rent, ${option.name.toLowerCase()}` : l.label}
+                              {l.refundable && " (refundable)"}
+                            </dt>
+                            <dd className="text-heading-2 tabular-nums">{naira(l.amount)}</dd>
+                          </div>
+                        ))}
+                        {payment.fee > 0 && (
+                          <div className="flex justify-between gap-3">
+                            <dt className="text-heading-6">Service fee</dt>
+                            <dd className="text-heading-2 tabular-nums">{naira(payment.fee)}</dd>
+                          </div>
+                        )}
+                      </div>
+                    )}
                     <div className="flex items-center justify-between pt-3">
                       <dt className="font-medium text-grey-950">Total</dt>
                       <dd className="text-lg font-semibold text-grey-950">{naira(price)}</dd>
@@ -544,7 +606,7 @@ function Done({ result, managerPhone }: { result: Result; managerPhone?: string 
         <div className="text-center">
           <CheckCircle2 className="mx-auto size-14 text-emerald-500" />
           <h2 className="mt-4 text-xl font-medium text-grey-950">
-            {bedOf(result.spaceId, result.roomId) ? `Bed ${bedOf(result.spaceId, result.roomId)} in room ${result.roomId} is yours!` : `Room ${result.roomId} is yours!`}
+            {bedOf(result.spaceId, result.roomId) ? `Bed ${bedOf(result.spaceId, result.roomId)} in room ${result.roomLabel ?? result.roomId} is yours!` : `Room ${result.roomLabel ?? result.roomId} is yours!`}
           </h2>
           <p className="mx-auto mt-2 max-w-sm text-sm text-heading-6">
             Payment confirmed. Welcome, {result.fullName?.split(" ")[0]}. You&apos;re now registered as a tenant.
@@ -553,7 +615,7 @@ function Done({ result, managerPhone }: { result: Result; managerPhone?: string 
         <dl className="mt-6 divide-y divide-grey-100 rounded-xl border border-grey-100 px-4 text-sm">
           <Row label="Receipt" value={result.receiptNo} />
           <Row label="Amount paid" value={naira(result.amount ?? 0)} />
-          <Row label="Room" value={spaceLabel(result.roomId, result.spaceId).replace(/^Room /, "")} />
+          <Row label="Room" value={spaceLabel(result.roomLabel ?? result.roomId, result.spaceId && result.roomLabel ? result.spaceId.replace(result.roomId ?? "", result.roomLabel) : result.spaceId).replace(/^Room /, "")} />
           <Row label="Rent period" value={`${formatDate(result.leaseStart)} – ${formatDate(result.leaseEnd)}`} />
         </dl>
         <div className="mt-6 flex flex-col gap-2">

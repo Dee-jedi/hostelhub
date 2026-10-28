@@ -9,7 +9,7 @@ export async function POST(req: Request) {
   const user = await verifyRequest(req);
   if (!user?.email) return Response.json({ error: "Please sign in again." }, { status: 401 });
 
-  const body = (await req.json().catch(() => null)) as { info?: StudentInfo; roomId?: string; agent?: string } | null;
+  const body = (await req.json().catch(() => null)) as { info?: StudentInfo; roomId?: string; periodId?: string; agent?: string } | null;
   if (!body?.info || typeof body.roomId !== "string") return Response.json({ error: "Missing booking details." }, { status: 400 });
   const invalid = validateBookingInfo(body.info);
   if (invalid) return Response.json({ error: invalid }, { status: 400 });
@@ -24,6 +24,7 @@ export async function POST(req: Request) {
       email: user.email,
       info: body.info,
       roomId: body.roomId,
+      periodId: typeof body.periodId === "string" ? body.periodId : undefined,
       agent: typeof body.agent === "string" ? body.agent : undefined,
       origin: new URL(req.url).origin,
     });
