@@ -2,9 +2,9 @@
 
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "firebase/auth";
 import { FirebaseError } from "firebase/app";
-import { ArrowLeft, ArrowRight, BedDouble, Check, CircleAlert, Loader2, MapPin, MessageCircle, PartyPopper, Smartphone, X } from "lucide-react";
+import { ArrowRight, BedDouble, Check, Loader2, MapPin, MessageCircle, PartyPopper } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Wordmark } from "@/components/site/brand";
 import { Phone, PHONE_SIZE, Scaled } from "@/components/site/Mockups";
 import { PasswordInput, Select } from "@/components/ui";
@@ -14,6 +14,8 @@ import { auth } from "@/lib/firebase";
 import { BASICS_CHECKS, EMPTY_BASICS, normalizePhone, suggestSlugs, type HostelBasics } from "@/lib/onboarding";
 import { PLATFORM_HOST, whatsappHref } from "@/lib/platform";
 import { cn } from "@/lib/utils";
+import { RoomsWizard } from "./RoomsWizard";
+import { big, Label, NavButtons, PreviewSheet, Problem, Question } from "./shell";
 
 /*
  * Owner sign-up, part one: who and where the hostel is, then a login. One question per screen,
@@ -21,16 +23,13 @@ import { cn } from "@/lib/utils";
  * and a preview of the hostel's booking page that fills in as they type.
  */
 
-type StepId = "welcome" | "name" | "slug" | "location" | "manager" | "account" | "saved";
+type StepId = "welcome" | "name" | "slug" | "location" | "manager" | "account" | "saved" | "rooms" | "roomsSaved";
 const QUESTIONS: StepId[] = ["name", "slug", "location", "manager", "account"];
 
 /** The whole sign-up, so people see how far they are; only "Your hostel" exists so far. */
 const SECTIONS = ["Your hostel", "Rooms & prices", "Payments", "Go live"];
 
 const STORAGE_KEY = "hostelhub:start";
-
-const big =
-  "block w-full rounded-2xl border border-grey-150 bg-white px-4 text-lg text-grey-950 placeholder:text-grey-400 outline-none transition-colors focus:border-brand-500 focus:ring-4 focus:ring-brand-100";
 
 interface Saved {
   step: StepId;
@@ -143,79 +142,6 @@ function BookingPreview({ basics }: { basics: HostelBasics }) {
   );
 }
 
-/** Phones and tablets: a floating "Preview" button that slides the booking page preview up. */
-function PhonePreview({ basics }: { basics: HostelBasics }) {
-  const [open, setOpen] = useState(false);
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
-    document.addEventListener("keydown", onKey);
-    const overflow = document.documentElement.style.overflow;
-    document.documentElement.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.documentElement.style.overflow = overflow;
-    };
-  }, [open]);
-
-  return (
-    <div className="lg:hidden">
-      {open && (
-        <div className="fixed inset-0 z-30 flex flex-col bg-brand-950/40 backdrop-blur-sm motion-safe:animate-[fade-in_0.2s_ease-out]" onClick={() => setOpen(false)}>
-          <div
-            role="dialog"
-            aria-label="Preview of your booking page"
-            onClick={(e) => e.stopPropagation()}
-            className="mt-auto max-h-[92dvh] overflow-y-auto rounded-t-[2rem] bg-[#f6f8f7] px-5 pt-3 pb-28 motion-safe:animate-[sheet-in_0.3s_ease-out]"
-          >
-            <span className="mx-auto mb-5 block h-1.5 w-12 rounded-full bg-grey-150" aria-hidden />
-            <BookingPreview basics={basics} />
-          </div>
-        </div>
-      )}
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        aria-expanded={open}
-        className="fixed right-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-40 inline-flex h-12 items-center gap-2 rounded-full bg-white pr-5 pl-2 text-[15px] font-semibold text-brand-950 shadow-[0_12px_30px_-10px_rgba(11,35,34,0.45)] ring-1 ring-black/5"
-      >
-        <span className="flex size-8 items-center justify-center rounded-full bg-brand-950 text-brand-300">
-          {open ? <X className="size-4" /> : <Smartphone className="size-4" />}
-        </span>
-        {open ? "Close preview" : "Preview"}
-      </button>
-    </div>
-  );
-}
-
-// --------------------------------------------------------------------------- shell
-
-function Question({ title, hint, children }: { title: string; hint?: ReactNode; children: ReactNode }) {
-  return (
-    <div className="motion-safe:animate-[rise_0.35s_ease-out]">
-      <h1 className="text-[clamp(1.9rem,4vw,2.6rem)] leading-[1.08] font-bold tracking-[-0.03em] text-brand-950">{title}</h1>
-      {hint && <p className="mt-3 text-lg leading-relaxed text-heading-5">{hint}</p>}
-      <div className="mt-8 space-y-5">{children}</div>
-    </div>
-  );
-}
-
-function Label({ children, htmlFor }: { children: ReactNode; htmlFor: string }) {
-  return (
-    <label htmlFor={htmlFor} className="mb-2 block text-[15px] font-medium text-heading-2">
-      {children}
-    </label>
-  );
-}
-
-function Problem({ children }: { children: ReactNode }) {
-  return (
-    <p role="alert" className="flex items-start gap-2 rounded-2xl bg-rose-50 px-4 py-3 text-[15px] text-rose-700">
-      <CircleAlert className="mt-0.5 size-4 shrink-0" /> {children}
-    </p>
-  );
-}
-
 // --------------------------------------------------------------------------- wizard
 
 export function StartWizard() {
@@ -230,6 +156,8 @@ export function StartWizard() {
   const [signedInAs, setSignedInAs] = useState<string | null>(null);
   /** Saving starts only once the saved answers are back, so blank first-render state never overwrites them */
   const [restored, setRestored] = useState(false);
+  /** How far through the rooms part (0–1), reported by RoomsWizard for the progress bar */
+  const [roomsProgress, setRoomsProgress] = useState(0);
 
   // Pick up where this browser left off
   useEffect(() => {
@@ -337,8 +265,10 @@ export function StartWizard() {
     }
   };
 
-  const section = step === "saved" ? 1 : 0;
-  const showPreview = step !== "welcome" && step !== "saved";
+  // Which of the four parts the progress bar is in, and how far through it
+  const section = step === "roomsSaved" ? 2 : step === "saved" || step === "rooms" ? 1 : 0;
+  const partDone = step === "rooms" ? roomsProgress : step === "saved" || step === "roomsSaved" ? 0 : (index + 1) / (QUESTIONS.length + 1);
+  const showPreview = QUESTIONS.includes(step);
 
   // Until this browser's saved answers are read, show the frame only (no flash of the welcome screen)
   if (!restored) return <div className="min-h-dvh bg-[#f6f8f7]" />;
@@ -358,7 +288,7 @@ export function StartWizard() {
           <div className="mx-auto max-w-6xl px-5 pb-3 sm:px-8">
             <ol className="grid grid-cols-4 gap-1.5" aria-label="Sign-up progress">
               {SECTIONS.map((s, i) => {
-                const part = i < section ? 1 : i > section ? 0 : step === "saved" ? 0 : (index + 1) / (QUESTIONS.length + 1);
+                const part = i < section ? 1 : i > section ? 0 : partDone;
                 return (
                   <li key={s} aria-current={i === section ? "step" : undefined}>
                     <span className="block h-1.5 overflow-hidden rounded-full bg-brand-100">
@@ -374,7 +304,17 @@ export function StartWizard() {
         )}
       </header>
 
-      <main className={cn("mx-auto grid max-w-6xl gap-12 px-5 pt-10 pb-16 sm:px-8 sm:pt-14", showPreview && "lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-20")}>
+      <main className={cn("mx-auto grid max-w-6xl gap-12 px-5 pt-10 pb-28 sm:px-8 sm:pt-14 lg:pb-16", showPreview && "lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-20")}>
+        {step === "rooms" && hostelId ? (
+          <RoomsWizard
+            hostelId={hostelId}
+            hostelName={basics.name || "Your hostel"}
+            place={[basics.city.trim(), basics.state].filter(Boolean).join(", ")}
+            onBack={() => go("saved")}
+            onDone={() => go("roomsSaved")}
+            onProgress={setRoomsProgress}
+          />
+        ) : (
         <div className="mx-auto w-full max-w-xl lg:mx-0">
           {step === "welcome" && (
             <div className="motion-safe:animate-[rise_0.4s_ease-out]">
@@ -582,38 +522,7 @@ export function StartWizard() {
                 </div>
               )}
 
-              <div className="mt-10 flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={back}
-                  aria-label="Back"
-                  className="flex size-14 shrink-0 items-center justify-center rounded-full text-brand-950 ring-1 ring-brand-200 hover:bg-white"
-                >
-                  <ArrowLeft className="size-5" />
-                </button>
-                <button
-                  type="submit"
-                  disabled={busy}
-                  className="inline-flex h-14 flex-1 items-center justify-center gap-2 rounded-full bg-brand-950 px-8 text-base font-semibold text-white shadow-[0_12px_30px_-12px_rgba(11,35,34,0.6)] hover:bg-brand-800 disabled:opacity-70 sm:flex-none"
-                >
-                  {busy ? (
-                    <>
-                      <Loader2 className="size-5 animate-spin" /> Saving your hostel…
-                    </>
-                  ) : step === "account" ? (
-                    <>
-                      Save my hostel <ArrowRight className="size-5 text-brand-300" />
-                    </>
-                  ) : (
-                    <>
-                      Continue <ArrowRight className="size-5 text-brand-300" />
-                    </>
-                  )}
-                </button>
-              </div>
-              <p className="mt-4 hidden text-sm text-heading-6 sm:block">
-                Press <kbd className="rounded-md bg-white px-1.5 py-0.5 font-sans text-xs ring-1 ring-grey-150">Enter</kbd> to continue
-              </p>
+              <NavButtons onBack={back} busy={busy} busyLabel="Saving your hostel…" label={step === "account" ? "Save my hostel" : "Continue"} />
             </form>
           )}
 
@@ -629,15 +538,38 @@ export function StartWizard() {
               <div className="mt-8 rounded-3xl bg-white p-6 ring-1 ring-black/5">
                 <p className="text-sm font-semibold tracking-wide text-brand-700 uppercase">Next: rooms & prices</p>
                 <p className="mt-2 text-[15px] leading-relaxed text-heading-4">
-                  How you charge (per room or per bed), your room sizes, your blocks and what each room costs. This part of sign-up is being built now.
+                  The kinds of room you have, how tenants pay, what each costs and how your building is arranged. About 10 minutes.
                 </p>
               </div>
-              <a href={hostelUrl(hostelId)} className="mt-8 inline-flex text-[15px] font-semibold text-brand-800 underline-offset-4 hover:underline">
-                Open {hostelId}.{PLATFORM_HOST}
-              </a>
+              <button type="button" onClick={() => go("rooms")} className={nextButton}>
+                Set up rooms & prices <ArrowRight className="size-5 text-brand-300" />
+              </button>
+            </div>
+          )}
+
+          {step === "roomsSaved" && hostelId && (
+            <div className="motion-safe:animate-[rise_0.4s_ease-out]">
+              <span className="flex size-14 items-center justify-center rounded-2xl bg-brand-100 text-brand-800">
+                <Check className="size-7" strokeWidth={2.5} />
+              </span>
+              <h1 className="mt-6 text-[clamp(2rem,4.5vw,3rem)] leading-[1.05] font-bold tracking-[-0.04em] text-brand-950">Rooms & prices are saved.</h1>
+              <p className="mt-4 text-lg leading-relaxed text-heading-5">Two parts left: where your rent should go, then going live.</p>
+              <div className="mt-8 rounded-3xl bg-white p-6 ring-1 ring-black/5">
+                <p className="text-sm font-semibold tracking-wide text-brand-700 uppercase">Next: payments</p>
+                <p className="mt-2 text-[15px] leading-relaxed text-heading-4">The bank account your rent goes to, checked with Paystack. This part of sign-up is being built now.</p>
+              </div>
+              <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3">
+                <button type="button" onClick={() => go("rooms")} className="text-[15px] font-semibold text-brand-800 underline-offset-4 hover:underline">
+                  Change rooms & prices
+                </button>
+                <a href={hostelUrl(hostelId)} className="text-[15px] font-semibold text-brand-800 underline-offset-4 hover:underline">
+                  Open {hostelId}.{PLATFORM_HOST}
+                </a>
+              </div>
             </div>
           )}
         </div>
+        )}
 
         {showPreview && (
           <aside className="hidden lg:block" aria-label="Preview of your booking page">
@@ -649,7 +581,14 @@ export function StartWizard() {
       </main>
 
       {/* Phones: the preview is a tap away instead of beside the questions */}
-      {showPreview && <PhonePreview basics={basics} />}
+      {showPreview && (
+        <PreviewSheet>
+          <BookingPreview basics={basics} />
+        </PreviewSheet>
+      )}
     </div>
   );
 }
+
+const nextButton =
+  "mt-8 inline-flex h-14 w-full items-center justify-center gap-2 rounded-full bg-brand-950 px-8 text-base font-semibold text-white shadow-[0_12px_30px_-12px_rgba(11,35,34,0.6)] hover:bg-brand-800 sm:w-auto";
