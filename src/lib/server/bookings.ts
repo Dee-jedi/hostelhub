@@ -1,7 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { FieldValue } from "firebase-admin/firestore";
 import { firstPayment, leaseFor, mayStay, stayOptionOf } from "../checkout";
-import { platformShare } from "../fees";
 import type { Block, HostelBooking, HostelMessage, HostelPayment, HostelResident, HostelRoom, Listing, RentPeriod, Tenancy } from "../model";
 import type { StudentInfo } from "../types";
 import { bedOf, bookableSpaces, spaceIdsOf } from "../spaces";
@@ -78,8 +77,8 @@ export async function startBooking(input: { hostelId: string; uid: string; email
     // Rent for that stay, the extra charges, and (with a payout account) the service fee on top
     const pay = firstPayment(type, period.id, hostel.charges ?? [], !!hostel.payout);
     amount = pay.total;
-    // The hostel receives exactly `toHostel`; HostelHub keeps the fee less Paystack's charge
-    if (hostel.payout && pay.fee > 0) split = { subaccount: hostel.payout.subaccountCode, mainShareNaira: platformShare(pay.total, pay.fee) };
+    // The hostel receives exactly `toHostel`; the fee goes to HostelHub, which bears Paystack's charge
+    if (hostel.payout && pay.fee > 0) split = { subaccount: hostel.payout.subaccountCode, mainShareNaira: pay.fee };
     chosenSpace = spaceId;
     pricing = { periodId: period.id, lines: pay.lines, toHostel: pay.toHostel, serviceFee: pay.fee };
     const sharing = (input.info.occupants ?? []).length;

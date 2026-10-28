@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { firstPayment, leaseFor, mayStay, optionRent, renewalPayment } from "./checkout";
-import { paystackCharge, platformShare } from "./fees";
+import { paystackCharge, platformNet, SERVICE_FEE } from "./fees";
 
 const exec = { price: 450_000, prices: { "p_session": 450_000, "p_year": 520_000 } };
 const charges = [
@@ -42,10 +42,11 @@ test("the split: the hostel gets exactly its amount, HostelHub the fee less Pays
   assert.equal(paystackCharge(10_000), 250, "1.5% + ₦100, as Paystack charged in the test on 2026-10-28");
   assert.equal(paystackCharge(2_000), 30, "the ₦100 is waived under ₦2,500");
   assert.equal(paystackCharge(575_900), 2_000, "capped");
+  // The fee always covers Paystack's charge, so the main account can bear it and the hostel's share is whole
+  assert.ok(SERVICE_FEE.minimum > paystackCharge(Number.MAX_SAFE_INTEGER));
   const p = firstPayment(exec, "p_year", charges.slice(0, 2), true); // ₦575,900 total, ₦10,900 fee
-  const share = platformShare(p.total, p.fee);
-  assert.equal(share, 8_900);
-  assert.equal(p.total - share - paystackCharge(p.total), p.toHostel, "what reaches the hostel's account");
+  assert.equal(p.total - p.fee, p.toHostel, "what reaches the hostel's account");
+  assert.equal(platformNet(p.total, p.fee), 8_900);
 });
 
 test("who may stay in a block", () => {

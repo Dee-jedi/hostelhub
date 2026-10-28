@@ -27,8 +27,8 @@ export function initializeTransaction(input: {
   callbackUrl: string;
   metadata: Record<string, unknown>;
   /**
-   * Splits the payment: `mainShareNaira` settles to HostelHub's own account and the rest, less
-   * Paystack's charge, to the hostel's subaccount (see fees.ts platformShare).
+   * Splits the payment: `mainShareNaira` goes to HostelHub's own account, which bears Paystack's
+   * charge, and the rest to the hostel's subaccount in full (see fees.ts platformNet).
    */
   split?: { subaccount: string; mainShareNaira: number };
 }) {
@@ -41,7 +41,7 @@ export function initializeTransaction(input: {
       reference: input.reference,
       callback_url: input.callbackUrl,
       metadata: input.metadata,
-      ...(input.split ? { subaccount: input.split.subaccount, transaction_charge: Math.round(input.split.mainShareNaira * 100) } : {}),
+      ...(input.split ? { subaccount: input.split.subaccount, transaction_charge: Math.round(input.split.mainShareNaira * 100), bearer: "account" } : {}),
     }),
   });
 }

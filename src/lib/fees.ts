@@ -27,12 +27,14 @@ export function paystackCharge(total: number) {
 }
 
 /**
- * HostelHub's share of a split payment. Paystack takes its charge from the subaccount's share
- * whenever a fixed amount goes to the main account (it ignores `bearer: account` then, as tested
- * on 2026-10-28), so HostelHub's share is the fee minus that charge: the hostel then receives
- * exactly its amount.
+ * What HostelHub keeps of a split payment: the whole fee goes to the main account, and Paystack
+ * takes its charge from that share (`bearer: account`), so the hostel receives exactly its
+ * amount. That needs the fee to cover Paystack's charge, which the minimum fee guarantees
+ * (₦2,500 against a ₦2,000 cap). Checked 2026-10-28: on ₦22,500 with a ₦2,500 fee, the
+ * subaccount got ₦20,000 and Paystack ₦437.50 from the main share. (When the main share is
+ * smaller than Paystack's charge, Paystack takes the charge from the subaccount instead.)
  */
-export const platformShare = (total: number, fee: number) => Math.max(0, fee - paystackCharge(total));
+export const platformNet = (total: number, fee: number) => fee - paystackCharge(total);
 
 export interface CheckoutLine {
   label: string;
