@@ -1,0 +1,607 @@
+"use client";
+
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "firebase/auth";
+import { FirebaseError } from "firebase/app";
+import { ArrowLeft, ArrowRight, BedDouble, Check, CircleAlert, Loader2, MapPin, MessageCircle, PartyPopper } from "lucide-react";
+import Link from "next/link";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { Wordmark } from "@/components/site/brand";
+import { Phone, PHONE_SIZE, Scaled } from "@/components/site/Mockups";
+import { PasswordInput, Select } from "@/components/ui";
+import { STATES } from "@/lib/academics";
+import { authMessage } from "@/lib/auth";
+import { auth } from "@/lib/firebase";
+import { BASICS_CHECKS, EMPTY_BASICS, normalizePhone, suggestSlugs, type HostelBasics } from "@/lib/onboarding";
+import { PLATFORM_HOST, whatsappHref } from "@/lib/platform";
+import { cn } from "@/lib/utils";
+
+/*
+ * Owner sign-up, part one: who and where the hostel is, then a login. One question per screen,
+ * answers kept in this browser until the account exists (a refresh or lost signal loses nothing),
+ * and a preview of the hostel's booking page that fills in as they type.
+ */
+
+type StepId = "welcome" | "name" | "slug" | "location" | "manager" | "account" | "saved";
+const QUESTIONS: StepId[] = ["name", "slug", "location", "manager", "account"];
+
+/** The whole sign-up, so people see how far they are; only "Your hostel" exists so far. */
+const SECTIONS = ["Your hostel", "Rooms & prices", "Payments", "Go live"];
+
+const STORAGE_KEY = "hostelhub:start";
+
+const big =
+  "block w-full rounded-2xl border border-grey-150 bg-white px-4 text-lg text-grey-950 placeholder:text-grey-400 outline-none transition-colors focus:border-brand-500 focus:ring-4 focus:ring-brand-100";
+
+interface Saved {
+  step: StepId;
+  basics: HostelBasics;
+  slugTouched: boolean;
+  hostelId?: string;
+}
+
+function load(): Saved | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as Saved) : null;
+  } catch {
+    return null;
+  }
+}
+
+function store(s: Saved) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+  } catch {
+    // Private browsing: the wizard still works, it just won't survive a refresh
+  }
+}
+
+/** "https://sunrise.hostelhub.africa" here, or "http://sunrise.localhost:3000" in development. */
+function hostelUrl(slug: string) {
+  if (typeof window === "undefined") return `https://${slug}.${PLATFORM_HOST}`;
+  const { protocol, port } = window.location;
+  return `${protocol}//${slug}.${PLATFORM_HOST}${port ? `:${port}` : ""}`;
+}
+
+type SlugState = { status: "idle" | "checking" | "available" | "taken" | "error"; message?: string };
+
+/** Asks the server whether the address is free, a moment after typing stops. */
+function useSlugCheck(slug: string, enabled: boolean): SlugState {
+  const [state, setState] = useState<SlugState>({ status: "idle" });
+  useEffect(() => {
+    if (!enabled) return;
+    const problem = BASICS_CHECKS.slug({ ...EMPTY_BASICS, slug });
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reflects the address just typed
+    if (problem) return setState({ status: "taken", message: slug ? problem : undefined });
+    setState({ status: "checking" });
+    let live = true;
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/onboarding/hostel?slug=${encodeURIComponent(slug)}`);
+        const data = (await res.json()) as { available?: boolean; problem?: string | null; error?: string };
+        if (!live) return;
+        if (!res.ok) setState({ status: "error", message: data.error });
+        else setState(data.available ? { status: "available" } : { status: "taken", message: data.problem ?? undefined });
+      } catch {
+        if (live) setState({ status: "error", message: "Couldn't check that address. Check your connection." });
+      }
+    }, 400);
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+  }, [slug, enabled]);
+  return state;
+}
+
+// --------------------------------------------------------------------------- preview
+
+/** The hostel's booking page as it will look, filled in from the answers so far. */
+function BookingPreview({ basics }: { basics: HostelBasics }) {
+  const name = basics.name.trim() || "Your hostel";
+  const place = [basics.city.trim(), basics.state].filter(Boolean).join(", ");
+  return (
+    <div className="flex flex-col items-center">
+      <p className="mb-4 max-w-full truncate rounded-full bg-white px-4 py-1.5 text-sm text-heading-5 shadow-[0_6px_20px_-10px_rgba(11,35,34,0.3)] ring-1 ring-black/5">
+        <span className="font-semibold text-brand-800">{basics.slug || "yourhostel"}</span>.{PLATFORM_HOST}
+      </p>
+      <Scaled {...PHONE_SIZE} className="[--s:0.92]">
+        <Phone>
+          <div className="rounded-b-[28px] bg-brand-900 px-5 pt-12 pb-6 text-white">
+            <p className="text-[15px] font-semibold tracking-tight">
+              hostel<span className="text-brand-300">hub</span>
+            </p>
+            <p className={cn("mt-4 text-[22px] leading-tight font-semibold break-words", !basics.name.trim() && "text-white/40")}>{name}</p>
+            {place ? (
+              <p className="mt-1.5 flex items-center gap-1 text-[12px] text-brand-100/80">
+                <MapPin className="size-3.5" /> {place}
+              </p>
+            ) : (
+              <p className="mt-1.5 text-[12px] text-brand-100/40">Town, state</p>
+            )}
+          </div>
+          <div className="px-5 pt-5">
+            <p className="text-[14px] font-semibold text-grey-950">Pick your room</p>
+            <div className="mt-3 grid grid-cols-3 gap-2">
+              {Array.from({ length: 9 }, (_, i) => (
+                <span key={i} className="h-12 rounded-xl border border-dashed border-grey-150 bg-grey-10" />
+              ))}
+            </div>
+            <p className="mt-3 flex items-center gap-1.5 text-[11px] text-heading-6">
+              <BedDouble className="size-3.5" /> Your rooms appear here in the next part
+            </p>
+            {basics.managerPhone && (
+              <p className="mt-4 rounded-xl bg-brand-50 px-3.5 py-2.5 text-[11px] text-brand-900">
+                Questions? Call {basics.managerName.trim().split(/\s+/)[0] || "the manager"} on {normalizePhone(basics.managerPhone)}
+              </p>
+            )}
+          </div>
+        </Phone>
+      </Scaled>
+      <p className="mt-4 text-sm text-heading-6">What tenants will see</p>
+    </div>
+  );
+}
+
+// --------------------------------------------------------------------------- shell
+
+function Question({ title, hint, children }: { title: string; hint?: ReactNode; children: ReactNode }) {
+  return (
+    <div className="motion-safe:animate-[rise_0.35s_ease-out]">
+      <h1 className="text-[clamp(1.9rem,4vw,2.6rem)] leading-[1.08] font-bold tracking-[-0.03em] text-brand-950">{title}</h1>
+      {hint && <p className="mt-3 text-lg leading-relaxed text-heading-5">{hint}</p>}
+      <div className="mt-8 space-y-5">{children}</div>
+    </div>
+  );
+}
+
+function Label({ children, htmlFor }: { children: ReactNode; htmlFor: string }) {
+  return (
+    <label htmlFor={htmlFor} className="mb-2 block text-[15px] font-medium text-heading-2">
+      {children}
+    </label>
+  );
+}
+
+function Problem({ children }: { children: ReactNode }) {
+  return (
+    <p role="alert" className="flex items-start gap-2 rounded-2xl bg-rose-50 px-4 py-3 text-[15px] text-rose-700">
+      <CircleAlert className="mt-0.5 size-4 shrink-0" /> {children}
+    </p>
+  );
+}
+
+// --------------------------------------------------------------------------- wizard
+
+export function StartWizard() {
+  const [step, setStep] = useState<StepId>("welcome");
+  const [basics, setBasics] = useState<HostelBasics>(EMPTY_BASICS);
+  const [slugTouched, setSlugTouched] = useState(false);
+  const [hostelId, setHostelId] = useState<string | undefined>();
+  const [problem, setProblem] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [signedInAs, setSignedInAs] = useState<string | null>(null);
+  /** Saving starts only once the saved answers are back, so blank first-render state never overwrites them */
+  const [restored, setRestored] = useState(false);
+
+  // Pick up where this browser left off
+  useEffect(() => {
+    const saved = load();
+    if (saved) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- restoring once from storage on mount
+      setBasics({ ...EMPTY_BASICS, ...saved.basics });
+      setSlugTouched(saved.slugTouched);
+      setHostelId(saved.hostelId);
+      setStep(saved.step);
+    }
+    setRestored(true);
+    return auth.onAuthStateChanged((u) => setSignedInAs(u?.email ?? null));
+  }, []);
+
+  useEffect(() => {
+    if (restored) store({ step, basics, slugTouched, hostelId });
+  }, [restored, step, basics, slugTouched, hostelId]);
+
+  // A new answer clears the last complaint, so the screen never shows an error that's been fixed
+  const set = (patch: Partial<HostelBasics>) => {
+    setProblem(null);
+    setBasics((b) => {
+      const next = { ...b, ...patch };
+      // The address follows the name until they choose their own
+      if (patch.name !== undefined && !slugTouched) next.slug = suggestSlugs(next.name)[0] ?? "";
+      return next;
+    });
+  };
+  const chooseSlug = (slug: string) => {
+    setSlugTouched(true);
+    setProblem(null);
+    setBasics((b) => ({ ...b, slug }));
+  };
+
+  const slugCheck = useSlugCheck(basics.slug, step === "slug");
+  const index = QUESTIONS.indexOf(step);
+  const go = (to: StepId) => {
+    setProblem(null);
+    setStep(to);
+    window.scrollTo({ top: 0 });
+  };
+  const back = () => go(index <= 0 ? "welcome" : QUESTIONS[index - 1]);
+
+  /** Checks this screen's answers, then moves on. */
+  const next = async (e?: FormEvent) => {
+    e?.preventDefault();
+    const checks: Partial<Record<StepId, (keyof HostelBasics)[]>> = {
+      name: ["name"],
+      slug: ["slug"],
+      location: ["street", "city", "state"],
+      manager: ["managerName", "managerPhone"],
+    };
+    for (const field of checks[step] ?? []) {
+      const p = BASICS_CHECKS[field](basics);
+      if (p) return setProblem(p);
+    }
+    if (step === "slug") {
+      if (slugCheck.status === "checking") return setProblem("Checking that address. One moment…");
+      // The reason is already shown under the field; only say something if it isn't
+      if (slugCheck.status !== "available") return slugCheck.message ? document.getElementById("slug")?.focus() : setProblem("Pick an address that's free.");
+    }
+    if (step === "account") return createHostel();
+    go(QUESTIONS[index + 1]);
+  };
+
+  /** Signs in (creating the login on first use), then saves the hostel as a draft. */
+  const createHostel = async () => {
+    setBusy(true);
+    setProblem(null);
+    try {
+      let user = auth.currentUser;
+      if (!user) {
+        if (!/^\S+@\S+\.\S+$/.test(email.trim())) throw new Error("Enter a valid email address.");
+        if (password.length < 8) throw new Error("Use a password of at least 8 characters.");
+        try {
+          user = (await createUserWithEmailAndPassword(auth, email.trim(), password)).user;
+        } catch (err) {
+          // Someone who already uses HostelHub (e.g. a second hostel): same email and password
+          if (err instanceof FirebaseError && err.code === "auth/email-already-in-use") user = (await signInWithEmailAndPassword(auth, email.trim(), password)).user;
+          else throw err;
+        }
+      }
+      const res = await fetch("/api/onboarding/hostel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${await user.getIdToken()}` },
+        body: JSON.stringify(basics),
+      });
+      const data = (await res.json().catch(() => ({}))) as { hostelId?: string; error?: string };
+      if (!res.ok || !data.hostelId) {
+        if (res.status === 409 && /web address/.test(data.error ?? "")) {
+          setStep("slug");
+          setSlugTouched(true);
+        }
+        throw new Error(data.error ?? "Couldn't save your hostel. Please try again.");
+      }
+      // The login is now this hostel's manager; refresh it so the next screens can open its records
+      await user.getIdToken(true);
+      setHostelId(data.hostelId);
+      go("saved");
+    } catch (err) {
+      setProblem(err instanceof FirebaseError ? (err.code === "auth/invalid-credential" ? "This email already has a HostelHub account, and that isn't its password." : authMessage(err)) : err instanceof Error ? err.message : "Something went wrong.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const section = step === "saved" ? 1 : 0;
+  const showPreview = step !== "welcome" && step !== "saved";
+
+  // Until this browser's saved answers are read, show the frame only (no flash of the welcome screen)
+  if (!restored) return <div className="min-h-dvh bg-[#f6f8f7]" />;
+
+  return (
+    <div className="min-h-dvh bg-[#f6f8f7]">
+      <header className="sticky top-0 z-20 border-b border-black/5 bg-[#f6f8f7]/90 backdrop-blur">
+        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-5 sm:px-8">
+          <Link href="/" aria-label="HostelHub home">
+            <Wordmark />
+          </Link>
+          <a href={whatsappHref("Hi HostelHub, I need help setting up my hostel.")} target="_blank" rel="noreferrer" className="flex items-center gap-2 rounded-full px-3 py-2 text-sm font-medium text-heading-4 hover:bg-white">
+            <MessageCircle className="size-4 text-[#1f7a4d]" /> <span className="hidden sm:inline">Need help?</span> Chat with us
+          </a>
+        </div>
+        {step !== "welcome" && (
+          <div className="mx-auto max-w-6xl px-5 pb-3 sm:px-8">
+            <ol className="grid grid-cols-4 gap-1.5" aria-label="Sign-up progress">
+              {SECTIONS.map((s, i) => {
+                const part = i < section ? 1 : i > section ? 0 : step === "saved" ? 0 : (index + 1) / (QUESTIONS.length + 1);
+                return (
+                  <li key={s} aria-current={i === section ? "step" : undefined}>
+                    <span className="block h-1.5 overflow-hidden rounded-full bg-brand-100">
+                      <span className="block h-full rounded-full bg-brand-600 transition-[width] duration-500" style={{ width: `${Math.round(part * 100)}%` }} />
+                    </span>
+                    <span className={cn("mt-1.5 hidden text-xs sm:block", i === section ? "font-semibold text-brand-900" : "text-heading-6")}>{s}</span>
+                  </li>
+                );
+              })}
+            </ol>
+            <p className="mt-1.5 text-xs font-medium text-brand-900 sm:hidden">{SECTIONS[section]}</p>
+          </div>
+        )}
+      </header>
+
+      <main className={cn("mx-auto grid max-w-6xl gap-12 px-5 pt-10 pb-16 sm:px-8 sm:pt-14", showPreview && "lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-20")}>
+        <div className="mx-auto w-full max-w-xl lg:mx-0">
+          {step === "welcome" && (
+            <div className="motion-safe:animate-[rise_0.4s_ease-out]">
+              <p className="text-sm font-semibold tracking-wide text-brand-700 uppercase">Free for hostels</p>
+              <h1 className="mt-3 text-[clamp(2.25rem,5vw,3.4rem)] leading-[1.02] font-bold tracking-[-0.04em] text-brand-950">Let&apos;s get your hostel online.</h1>
+              <p className="mt-5 text-lg leading-relaxed text-heading-5">
+                A few simple questions, one at a time. Your answers save as you go, so you can stop and come back. Nothing goes live until you say so.
+              </p>
+              <div className="mt-8 rounded-3xl bg-white p-6 ring-1 ring-black/5">
+                <p className="font-semibold text-grey-950">Have these to hand</p>
+                <ul className="mt-4 space-y-3 text-[15px] text-heading-4">
+                  {["Your hostel's name and address", "Your room sizes and what each one costs", "The bank account rent should go to"].map((t) => (
+                    <li key={t} className="flex items-start gap-3">
+                      <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-brand-100 text-brand-800">
+                        <Check className="size-3" strokeWidth={3} />
+                      </span>
+                      {t}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <button
+                type="button"
+                onClick={() => go("name")}
+                className="mt-8 inline-flex h-14 w-full items-center justify-center gap-2 rounded-full bg-brand-950 px-8 text-base font-semibold text-white shadow-[0_12px_30px_-12px_rgba(11,35,34,0.6)] hover:bg-brand-800 sm:w-auto"
+              >
+                Let&apos;s start <ArrowRight className="size-5 text-brand-300" />
+              </button>
+              <p className="mt-6 text-[15px] text-heading-5">
+                Already set up?{" "}
+                <Link href="/login" className="font-semibold text-brand-800 underline-offset-4 hover:underline">
+                  Log in
+                </Link>
+              </p>
+            </div>
+          )}
+
+          {step !== "welcome" && step !== "saved" && (
+            <form onSubmit={next} noValidate>
+              <p className="mb-4 text-sm font-medium text-brand-700">
+                Question {index + 1} of {QUESTIONS.length}
+              </p>
+
+              {step === "name" && (
+                <Question title="What's your hostel called?" hint="Tenants see this on your booking page, their receipts and their ID cards.">
+                  <div>
+                    <Label htmlFor="name">Hostel name</Label>
+                    <input id="name" autoFocus className={cn(big, "h-14")} placeholder="e.g. Sunrise Hostel" value={basics.name} onChange={(e) => set({ name: e.target.value })} maxLength={60} />
+                  </div>
+                </Question>
+              )}
+
+              {step === "slug" && (
+                <Question title="Pick your web address" hint="This is your booking page. Share it with agents, on WhatsApp and on your poster.">
+                  <div>
+                    <Label htmlFor="slug">Web address</Label>
+                    <div className="flex h-14 items-center rounded-2xl border border-grey-150 bg-white pr-4 transition-colors focus-within:border-brand-500 focus-within:ring-4 focus-within:ring-brand-100">
+                      <input
+                        id="slug"
+                        autoFocus
+                        className="h-full min-w-0 flex-1 rounded-l-2xl bg-transparent pl-4 text-lg font-semibold text-grey-950 outline-none"
+                        value={basics.slug}
+                        onChange={(e) => chooseSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 32))}
+                        autoCapitalize="none"
+                        autoCorrect="off"
+                        spellCheck={false}
+                      />
+                      <span className="shrink-0 text-lg text-heading-6">.{PLATFORM_HOST}</span>
+                    </div>
+                    <p className="mt-2.5 flex min-h-6 items-center gap-2 text-[15px]" aria-live="polite">
+                      {slugCheck.status === "checking" && (
+                        <span className="flex items-center gap-2 text-heading-6">
+                          <Loader2 className="size-4 animate-spin" /> Checking…
+                        </span>
+                      )}
+                      {slugCheck.status === "available" && (
+                        <span className="flex items-center gap-2 font-medium text-brand-700">
+                          <Check className="size-4" strokeWidth={3} /> It&apos;s yours if you want it
+                        </span>
+                      )}
+                      {(slugCheck.status === "taken" || slugCheck.status === "error") && slugCheck.message && <span className="text-rose-600">{slugCheck.message}</span>}
+                    </p>
+                  </div>
+                  {suggestSlugs(basics.name, basics.city).filter((s) => s !== basics.slug).length > 0 && (
+                    <div>
+                      <p className="mb-2 text-sm text-heading-6">Or try</p>
+                      <div className="flex flex-wrap gap-2">
+                        {suggestSlugs(basics.name, basics.city)
+                          .filter((s) => s !== basics.slug)
+                          .map((s) => (
+                            <button
+                              key={s}
+                              type="button"
+                              onClick={() => {
+                                chooseSlug(s);
+                                // Back to the field, so Enter continues rather than re-clicking the chip
+                                document.getElementById("slug")?.focus();
+                              }}
+                              className="rounded-full bg-white px-4 py-2 text-[15px] text-brand-900 ring-1 ring-brand-200 hover:bg-brand-50"
+                            >
+                              {s}
+                            </button>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+                </Question>
+              )}
+
+              {step === "location" && (
+                <Question title="Where is it?" hint="So tenants and agents can find you. It's shown on your booking page and receipts.">
+                  <div>
+                    <Label htmlFor="street">Street address</Label>
+                    <input id="street" autoFocus className={cn(big, "h-14")} placeholder="e.g. 12 University Road" value={basics.street} onChange={(e) => set({ street: e.target.value })} />
+                  </div>
+                  <div className="grid gap-5 sm:grid-cols-2">
+                    <div>
+                      <Label htmlFor="city">Town or city</Label>
+                      <input id="city" className={cn(big, "h-14")} placeholder="e.g. Nsukka" value={basics.city} onChange={(e) => set({ city: e.target.value })} />
+                    </div>
+                    <div>
+                      <Label htmlFor="state">State</Label>
+                      <Select id="state" value={basics.state} onChange={(e) => set({ state: e.target.value })} searchable searchPlaceholder="Search states…" className="h-14 rounded-2xl px-4 text-lg">
+                        <option value="">Pick a state</option>
+                        {STATES.map((s) => (
+                          <option key={s} value={s}>
+                            {s}
+                          </option>
+                        ))}
+                      </Select>
+                    </div>
+                  </div>
+                </Question>
+              )}
+
+              {step === "manager" && (
+                <Question title="Who manages it?" hint="Tenants can call this number from your booking page.">
+                  <div>
+                    <Label htmlFor="managerName">Your full name</Label>
+                    <input id="managerName" autoFocus autoComplete="name" className={cn(big, "h-14")} placeholder="e.g. Grace Adeyemi" value={basics.managerName} onChange={(e) => set({ managerName: e.target.value })} />
+                  </div>
+                  <div>
+                    <Label htmlFor="managerPhone">Phone number</Label>
+                    <input
+                      id="managerPhone"
+                      type="tel"
+                      inputMode="tel"
+                      autoComplete="tel"
+                      className={cn(big, "h-14")}
+                      placeholder="08031234567"
+                      value={basics.managerPhone}
+                      onChange={(e) => set({ managerPhone: e.target.value })}
+                    />
+                    <p className="mt-2 text-sm text-heading-6">A WhatsApp number is best.</p>
+                  </div>
+                </Question>
+              )}
+
+              {step === "account" && (
+                <Question
+                  title={signedInAs ? "Save your hostel" : "Create your login"}
+                  hint={signedInAs ? `You're logged in as ${signedInAs}. Your hostel will be added to this login.` : "You'll use this to open your dashboard. We'll save your hostel to it now."}
+                >
+                  {signedInAs && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setProblem(null);
+                        void signOut(auth);
+                      }}
+                      className="text-[15px] font-semibold text-brand-800 underline-offset-4 hover:underline"
+                    >
+                      Use a different email
+                    </button>
+                  )}
+                  {!signedInAs && (
+                    <>
+                      <div>
+                        <Label htmlFor="email">Email</Label>
+                        <input
+                          id="email"
+                          type="email"
+                          autoFocus
+                          autoComplete="email"
+                          className={cn(big, "h-14")}
+                          placeholder="you@example.com"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          autoCapitalize="none"
+                        />
+                        <p className="mt-2 text-sm text-heading-6">Use one you can open: password resets come here.</p>
+                      </div>
+                      <div>
+                        <Label htmlFor="password">Password</Label>
+                        <PasswordInput id="password" autoComplete="new-password" className="h-14 rounded-2xl px-4 text-lg" placeholder="At least 8 characters" value={password} onChange={(e) => setPassword(e.target.value)} />
+                      </div>
+                    </>
+                  )}
+                </Question>
+              )}
+
+              {problem && (
+                <div className="mt-6">
+                  <Problem>{problem}</Problem>
+                </div>
+              )}
+
+              <div className="mt-10 flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={back}
+                  aria-label="Back"
+                  className="flex size-14 shrink-0 items-center justify-center rounded-full text-brand-950 ring-1 ring-brand-200 hover:bg-white"
+                >
+                  <ArrowLeft className="size-5" />
+                </button>
+                <button
+                  type="submit"
+                  disabled={busy}
+                  className="inline-flex h-14 flex-1 items-center justify-center gap-2 rounded-full bg-brand-950 px-8 text-base font-semibold text-white shadow-[0_12px_30px_-12px_rgba(11,35,34,0.6)] hover:bg-brand-800 disabled:opacity-70 sm:flex-none"
+                >
+                  {busy ? (
+                    <>
+                      <Loader2 className="size-5 animate-spin" /> Saving your hostel…
+                    </>
+                  ) : step === "account" ? (
+                    <>
+                      Save my hostel <ArrowRight className="size-5 text-brand-300" />
+                    </>
+                  ) : (
+                    <>
+                      Continue <ArrowRight className="size-5 text-brand-300" />
+                    </>
+                  )}
+                </button>
+              </div>
+              <p className="mt-4 hidden text-sm text-heading-6 sm:block">
+                Press <kbd className="rounded-md bg-white px-1.5 py-0.5 font-sans text-xs ring-1 ring-grey-150">Enter</kbd> to continue
+              </p>
+            </form>
+          )}
+
+          {step === "saved" && hostelId && (
+            <div className="motion-safe:animate-[rise_0.4s_ease-out]">
+              <span className="flex size-14 items-center justify-center rounded-2xl bg-brand-100 text-brand-800">
+                <PartyPopper className="size-7" />
+              </span>
+              <h1 className="mt-6 text-[clamp(2rem,4.5vw,3rem)] leading-[1.05] font-bold tracking-[-0.04em] text-brand-950">{basics.name} is saved.</h1>
+              <p className="mt-4 text-lg leading-relaxed text-heading-5">
+                Your web address <span className="font-semibold text-brand-900">{hostelId}.{PLATFORM_HOST}</span> is held for you. It stays private until you go live.
+              </p>
+              <div className="mt-8 rounded-3xl bg-white p-6 ring-1 ring-black/5">
+                <p className="text-sm font-semibold tracking-wide text-brand-700 uppercase">Next: rooms & prices</p>
+                <p className="mt-2 text-[15px] leading-relaxed text-heading-4">
+                  How you charge (per room or per bed), your room sizes, your blocks and what each room costs. This part of sign-up is being built now.
+                </p>
+              </div>
+              <a href={hostelUrl(hostelId)} className="mt-8 inline-flex text-[15px] font-semibold text-brand-800 underline-offset-4 hover:underline">
+                Open {hostelId}.{PLATFORM_HOST}
+              </a>
+            </div>
+          )}
+        </div>
+
+        {showPreview && (
+          <aside className="hidden lg:block" aria-label="Preview of your booking page">
+            <div className="sticky top-32">
+              <BookingPreview basics={basics} />
+            </div>
+          </aside>
+        )}
+      </main>
+    </div>
+  );
+}

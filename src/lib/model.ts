@@ -34,6 +34,12 @@ export interface Hostel {
   /** The rent period new tenancies use unless another is chosen */
   defaultPeriodId: string;
   createdAt: string;
+  /** The login that signed the hostel up (/start). Absent on hostels set up before sign-up existed. */
+  ownerUid?: string;
+  /** The address in parts, as sign-up collects it; `address` is the same joined into one line */
+  location?: { street: string; city: string; state: string };
+  /** Sign-up progress while `status` is "draft": the wizard resumes at `step` */
+  onboarding?: { step: string; startedAt: string };
 }
 
 /** hostels/{h}/blocks/{blockId} */
