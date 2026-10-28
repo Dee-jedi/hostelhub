@@ -43,7 +43,7 @@ function MoneyFlow({ hostelName, lookup }: { hostelName: string; lookup: Lookup 
         </span>
         <div>
           <p className="text-[15px] font-semibold text-grey-950">A tenant pays online</p>
-          <p className="text-sm text-heading-6">Card, bank transfer or USSD</p>
+          <p className="text-sm text-heading-6">Card, transfer, OPay or USSD</p>
         </div>
       </div>
       <ArrowDown className="mx-auto size-4 text-brand-300" />

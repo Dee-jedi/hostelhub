@@ -70,7 +70,7 @@ function PainRow({ items, reverse }: { items: string[]; reverse?: boolean }) {
 
 const FEATURES = [
   { icon: BedDouble, title: "A live map of every room", body: "Free, taken, rent due or under repair, block by block. Per room or per bed, 2 to 4 people." },
-  { icon: Banknote, title: "Rent straight to your bank", body: "Tenants pay online by card, transfer or USSD through Paystack. HostelHub never holds your money." },
+  { icon: Banknote, title: "Rent straight to your bank", body: "Tenants pay online by card, transfer, OPay or USSD through Paystack. HostelHub never holds your money." },
   { icon: ReceiptText, title: "Receipts that write themselves", body: "Every payment gets a numbered receipt, for you and for the tenant. No more receipt booklets." },
   { icon: Bell, title: "Know who owes, before they forget", body: "Rent running out this month, next month or already late, each in its own list. Remind them in one tap." },
   { icon: NotebookPen, title: "A register you can trust", body: "Name, course, level, phone, next of kin and photo for every tenant. Search it, export it, print it." },

@@ -1,6 +1,6 @@
 "use client";
 
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "firebase/auth";
+import { createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndPassword, signOut, type User } from "firebase/auth";
 import { FirebaseError } from "firebase/app";
 import { ArrowRight, BedDouble, Check, Loader2, MapPin, MessageCircle, PartyPopper } from "lucide-react";
 import Link from "next/link";
@@ -98,6 +98,48 @@ function useSlugCheck(slug: string, enabled: boolean, savedId?: string): SlugSta
     };
   }, [slug, enabled, savedId]);
   return state;
+}
+
+type EmailState = { status: "idle" | "checking" | "done"; exists?: boolean };
+
+/** Whether the email typed already has a login, so the screen asks to log in or to pick a password. */
+function useEmailCheck(email: string, enabled: boolean): EmailState & { exists: boolean } {
+  const [state, setState] = useState<EmailState & { email?: string }>({ status: "idle" });
+  const clean = email.trim().toLowerCase();
+  const valid = /^\S+@\S+\.\S+$/.test(clean);
+  useEffect(() => {
+    if (!enabled || !valid) return;
+    let live = true;
+    // Only once typing pauses: one request per email, not per key
+    const timer = setTimeout(async () => {
+      setState({ status: "checking", email: clean });
+      try {
+        const res = await fetch(`/api/onboarding/login?email=${encodeURIComponent(clean)}`);
+        const data = (await res.json()) as { exists?: boolean };
+        if (live) setState(res.ok ? { status: "done", exists: !!data.exists, email: clean } : { status: "idle" });
+      } catch {
+        if (live) setState({ status: "idle" });
+      }
+    }, 500);
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+  }, [clean, valid, enabled]);
+  // An answer about an email they've since changed doesn't count
+  const current = valid && state.email === clean;
+  return { status: current ? state.status : "idle", exists: current && !!state.exists };
+}
+
+/** Rooms answers saved in this browser follow the hostel to its new address. */
+function moveRoomsDraft(from: string, to: string) {
+  try {
+    const saved = localStorage.getItem(`hostelhub:rooms:${from}`);
+    if (saved) localStorage.setItem(`hostelhub:rooms:${to}`, saved);
+    localStorage.removeItem(`hostelhub:rooms:${from}`);
+  } catch {
+    // storage blocked: the rooms are saved on the server too
+  }
 }
 
 // --------------------------------------------------------------------------- preview
@@ -199,6 +241,11 @@ export function StartWizard() {
   };
 
   const slugCheck = useSlugCheck(basics.slug, step === "slug", hostelId);
+  const emailCheck = useEmailCheck(email, step === "account");
+  const [owner, setOwner] = useState<User | null>(null);
+  useEffect(() => onAuthStateChanged(auth, setOwner), []);
+  /** Back to change an answer on a hostel already saved, still logged in: the last question saves it */
+  const editing = !!hostelId && !!owner;
   const index = QUESTIONS.indexOf(step);
   const go = (to: StepId) => {
     setProblem(null);
@@ -226,31 +273,38 @@ export function StartWizard() {
       if (slugCheck.status !== "available") return slugCheck.message ? document.getElementById("slug")?.focus() : setProblem("Pick an address that's free.");
     }
     if (step === "account") return createHostel();
+    // Already saved and still logged in (they came back to change an answer): save, no login again
+    if (step === "manager" && editing) return createHostel(owner!);
     go(QUESTIONS[index + 1]);
   };
 
   /** Signs in (creating the login on first use), then saves the hostel as a draft. */
-  const createHostel = async () => {
+  const createHostel = async (signedIn?: User) => {
     setBusy(true);
     setProblem(null);
     try {
-      if (!/^\S+@\S+\.\S+$/.test(email.trim())) throw new Error("Enter a valid email address.");
-      if (password.length < 8) throw new Error("Use a password of at least 8 characters.");
-      // Always the owner's own login: whoever this browser was logged in as (a demo or staff
-      // account, someone else's) is signed out first, so a hostel never lands on the wrong login
-      if (auth.currentUser) await signOut(auth);
-      let user;
-      try {
-        user = (await createUserWithEmailAndPassword(auth, email.trim(), password)).user;
-      } catch (err) {
-        // Someone who already uses HostelHub (e.g. a second hostel): same email and password
-        if (err instanceof FirebaseError && err.code === "auth/email-already-in-use") user = (await signInWithEmailAndPassword(auth, email.trim(), password)).user;
-        else throw err;
+      let user = signedIn;
+      if (!user) {
+        if (!/^\S+@\S+\.\S+$/.test(email.trim())) throw new Error("Enter a valid email address.");
+        if (password.length < 8 && !emailCheck.exists) throw new Error("Use a password of at least 8 characters.");
+        // Always the owner's own login: whoever this browser was logged in as (a demo or staff
+        // account, someone else's) is signed out first, so a hostel never lands on the wrong login
+        if (auth.currentUser) await signOut(auth);
+        // Someone who already uses HostelHub (e.g. a second hostel) logs in with the same email and password
+        if (emailCheck.exists) user = (await signInWithEmailAndPassword(auth, email.trim(), password)).user;
+        else {
+          try {
+            user = (await createUserWithEmailAndPassword(auth, email.trim(), password)).user;
+          } catch (err) {
+            if (err instanceof FirebaseError && err.code === "auth/email-already-in-use") user = (await signInWithEmailAndPassword(auth, email.trim(), password)).user;
+            else throw err;
+          }
+        }
       }
       const res = await fetch("/api/onboarding/hostel", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${await user.getIdToken()}` },
-        body: JSON.stringify(basics),
+        body: JSON.stringify({ ...basics, from: hostelId }),
       });
       const data = (await res.json().catch(() => ({}))) as { hostelId?: string; error?: string };
       if (!res.ok || !data.hostelId) {
@@ -262,6 +316,7 @@ export function StartWizard() {
       }
       // The login is now this hostel's manager; refresh it so the next screens can open its records
       await user.getIdToken(true);
+      if (hostelId && data.hostelId !== hostelId) moveRoomsDraft(hostelId, data.hostelId);
       setHostelId(data.hostelId);
       go("saved");
     } catch (err) {
@@ -395,17 +450,10 @@ export function StartWizard() {
                 <Question title="Pick your web address" hint="This is your booking page. Share it with agents, on WhatsApp and on your poster.">
                   <div>
                     <Label htmlFor="slug">Web address</Label>
-                    <div
-                      className={cn(
-                        "flex h-14 items-center rounded-2xl border border-grey-150 pr-4 transition-colors focus-within:border-brand-500 focus-within:ring-4 focus-within:ring-brand-100",
-                        hostelId ? "bg-grey-50" : "bg-white",
-                      )}
-                    >
+                    <div className="flex h-14 items-center rounded-2xl border border-grey-150 bg-white pr-4 transition-colors focus-within:border-brand-500 focus-within:ring-4 focus-within:ring-brand-100">
                       <input
                         id="slug"
                         autoFocus
-                        // Saved hostels keep their address: it's what all their records are filed under
-                        readOnly={!!hostelId}
                         className="h-full min-w-0 flex-1 rounded-l-2xl bg-transparent pl-4 text-lg font-semibold text-grey-950 outline-none"
                         value={basics.slug}
                         onChange={(e) => chooseSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 32))}
@@ -429,15 +477,15 @@ export function StartWizard() {
                       {(slugCheck.status === "taken" || slugCheck.status === "error") && slugCheck.message && <span className="text-rose-600">{slugCheck.message}</span>}
                     </p>
                   </div>
-                  {hostelId ? (
+                  {hostelId && basics.slug !== hostelId && (
                     <p className="text-[15px] leading-relaxed text-heading-5">
-                      Your hostel is saved under this address, so it can&apos;t change here. Need a different one?{" "}
-                      <a href={whatsappHref(`Hi HostelHub, I'd like to change my web address (${hostelId}).`)} target="_blank" rel="noreferrer" className="font-semibold text-brand-800 underline-offset-4 hover:underline">
-                        Message us
-                      </a>
-                      .
+                      Your hostel moves to this address when you save, and <span className="font-semibold">{hostelId}</span> is freed.{" "}
+                      <button type="button" onClick={() => chooseSlug(hostelId)} className="font-semibold text-brand-800 underline-offset-4 hover:underline">
+                        Keep {hostelId}
+                      </button>
                     </p>
-                  ) : suggestSlugs(basics.name, basics.city).filter((s) => s !== basics.slug).length > 0 && (
+                  )}
+                  {suggestSlugs(basics.name, basics.city).filter((s) => s !== basics.slug).length > 0 && (
                     <div>
                       <p className="mb-2 text-sm text-heading-6">Or try</p>
                       <div className="flex flex-wrap gap-2">
@@ -514,8 +562,12 @@ export function StartWizard() {
 
               {step === "account" && (
                 <Question
-                  title="Create your login"
-                  hint="Your own email and password. You'll use them to open your dashboard. Already use HostelHub for another hostel? Enter that login and this hostel joins it."
+                  title={emailCheck.exists ? "Welcome back" : "Create your login"}
+                  hint={
+                    emailCheck.exists
+                      ? "This email already has a HostelHub login. Enter its password and this hostel joins it."
+                      : "Your own email and password. You'll use them to open your dashboard."
+                  }
                 >
                   <div>
                     <Label htmlFor="email">Email</Label>
@@ -530,11 +582,31 @@ export function StartWizard() {
                       onChange={(e) => setEmail(e.target.value)}
                       autoCapitalize="none"
                     />
-                    <p className="mt-2 text-sm text-heading-6">Use one you can open: password resets come here.</p>
+                    <p className="mt-2 flex min-h-5 items-center gap-2 text-sm text-heading-6" aria-live="polite">
+                      {emailCheck.status === "checking" ? (
+                        <>
+                          <Loader2 className="size-3.5 animate-spin" /> Checking…
+                        </>
+                      ) : emailCheck.status === "done" && !emailCheck.exists ? (
+                        <span className="flex items-center gap-1.5 font-medium text-brand-700">
+                          <Check className="size-3.5" strokeWidth={3} /> New login. Password resets come to this email.
+                        </span>
+                      ) : emailCheck.exists ? (
+                        <span className="flex items-center gap-1.5 font-medium text-brand-700">
+                          <Check className="size-3.5" strokeWidth={3} /> You already have a login
+                        </span>
+                      ) : (
+                        "Use one you can open: password resets come here."
+                      )}
+                    </p>
                   </div>
                   <div>
-                    <Label htmlFor="password">Password</Label>
-                    <PasswordInput id="password" autoComplete="new-password" className="h-14 rounded-2xl px-4 text-lg" placeholder="At least 8 characters" value={password} onChange={(e) => setPassword(e.target.value)} />
+                    <Label htmlFor="password">{emailCheck.exists ? "Your password" : "Choose a password"}</Label>
+                    <PasswordInput
+                      id="password"
+                      autoComplete={emailCheck.exists ? "current-password" : "new-password"}
+                      className="h-14 rounded-2xl px-4 text-lg"
+                      placeholder={emailCheck.exists ? "Your HostelHub password" : "At least 8 characters"} value={password} onChange={(e) => setPassword(e.target.value)} />
                   </div>
                 </Question>
               )}
@@ -545,7 +617,7 @@ export function StartWizard() {
                 </div>
               )}
 
-              <NavButtons onBack={back} busy={busy} busyLabel="Saving your hostel…" label={step === "account" ? "Save my hostel" : "Continue"} />
+              <NavButtons onBack={back} busy={busy} busyLabel="Saving your hostel…" label={step === "account" ? (emailCheck.exists ? "Log in and save" : "Save my hostel") : step === "manager" && editing ? "Save changes" : "Continue"} />
             </form>
           )}
 
@@ -566,6 +638,9 @@ export function StartWizard() {
               </div>
               <button type="button" onClick={() => go("rooms")} className={nextButton}>
                 Set up rooms & prices <ArrowRight className="size-5 text-brand-300" />
+              </button>
+              <button type="button" onClick={() => go("name")} className="mt-6 block text-[15px] font-semibold text-brand-800 underline-offset-4 hover:underline">
+                Change name, address or web address
               </button>
             </div>
           )}

@@ -31,11 +31,46 @@ export async function GET(req: Request) {
 }
 
 /**
+ * Moves an unfinished hostel to a new web address. The address is the id everything is filed
+ * under, so its records are copied across and the old address freed. Only before any booking:
+ * after that, receipts and links carry the address. Safe to retry: a half-done move finds the
+ * new address already theirs and carries on.
+ */
+async function moveDraft(uid: string, from: string, to: string) {
+  const old = hostelRefs(from);
+  const next = hostelRefs(to);
+  const snap = await old.hostel.get();
+  if (!ownDraft(snap.data() as Hostel | undefined, uid)) {
+    // Already moved (a retry after the copy finished), or not theirs to move
+    if (ownDraft((await next.hostel.get()).data() as Hostel | undefined, uid)) return;
+    throw new CommandError("Only an unfinished hostel you started can change its web address.", 403);
+  }
+  const [bookings, tenancies] = await Promise.all([old.col("bookings").limit(1).get(), old.col("tenancies").limit(1).get()]);
+  if (!bookings.empty || !tenancies.empty) throw new CommandError("This hostel has taken bookings, so its web address can't change here. Message us to change it.", 409);
+
+  await adminDb.runTransaction(async (tx) => {
+    const target = await tx.get(next.hostel);
+    if (target.exists && !ownDraft(target.data() as Hostel, uid)) throw new CommandError("Someone just took that web address. Pick another.", 409);
+    tx.set(next.hostel, { ...(snap.data() as Hostel), id: to });
+  });
+  const writer = adminDb.bulkWriter();
+  const [cols, listing] = await Promise.all([old.hostel.listCollections(), old.listing.get()]);
+  for (const docs of await Promise.all(cols.map((c) => c.get()))) for (const d of docs.docs) writer.set(next.col(d.ref.parent.id).doc(d.id), d.data());
+  if (listing.exists) writer.set(next.listing, listing.data()!);
+  await writer.close();
+
+  await setHostelRole(uid, to, "manager");
+  await setHostelRole(uid, from, null);
+  await Promise.all([adminDb.recursiveDelete(old.hostel), old.listing.delete()]);
+  await next.col("audit").add({ action: "hostel.moved", at: new Date().toISOString(), by: { uid, email: null, role: "manager" }, details: { from, to } });
+}
+
+/**
  * Step one of sign-up: saves the hostel as a draft owned by this login, and makes the login its
  * manager. The rest of the wizard (rooms, rent, bank) fills the draft in until it goes live.
  * Saving again (they went back and changed an answer) updates their draft instead.
  */
-export const POST = command<HostelBasics, { hostelId: string }>({ access: "signed-in" }, async (ctx, body) => {
+export const POST = command<HostelBasics & { from?: string }, { hostelId: string }>({ access: "signed-in" }, async (ctx, body) => {
   const basics: HostelBasics = {
     name: String(body.name ?? "").trim(),
     slug: String(body.slug ?? "").trim().toLowerCase(),
@@ -50,6 +85,9 @@ export const POST = command<HostelBasics, { hostelId: string }>({ access: "signe
   const uid = ctx.user!.uid;
   const ref = hostelRefs(basics.slug).hostel;
   const now = new Date().toISOString();
+  // They went back and picked a new web address for the hostel they already saved
+  const from = String(body.from ?? "").trim().toLowerCase();
+  if (from && from !== basics.slug) await moveDraft(uid, from, basics.slug);
 
   if (ownDraft((await ref.get()).data() as Hostel | undefined, uid)) {
     await ref.update({

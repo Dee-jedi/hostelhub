@@ -29,7 +29,7 @@ export function BookingWaiting({
       <p className="mx-auto mt-2 max-w-sm text-sm text-heading-6">
         {received
           ? "Your money is safe, but we couldn't place you in a room automatically. The hostel manager has been notified and will allocate you a room shortly."
-          : "Bank transfers and USSD payments can take a few minutes. If you were debited, your room will be confirmed automatically."}
+          : "Bank transfers, OPay and USSD payments can take a few minutes. If you were debited, your room will be confirmed automatically."}
       </p>
       <p className="mx-auto mt-3 max-w-sm text-sm font-medium text-grey-950">Please don&apos;t pay again.</p>
       {reference && (

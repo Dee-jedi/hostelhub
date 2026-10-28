@@ -459,7 +459,7 @@ export default function BookPage() {
                   </Button>
                 </StepActions>
                 <p className="flex items-center justify-center gap-1.5 text-xs text-heading-6">
-                  <ShieldCheck className="size-3.5" /> Secured by Paystack. Card, bank transfer or USSD.
+                  <ShieldCheck className="size-3.5" /> Secured by Paystack. Card, transfer, OPay or USSD.
                 </p>
               </div>
             )}

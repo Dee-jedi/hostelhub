@@ -231,7 +231,7 @@ function RoomsPreview({ setup, hostelName, place, step }: { setup: RoomsSetup; h
         </div>
       </dl>
       <div className="mt-3 flex h-11 items-center justify-center rounded-2xl bg-brand-600 text-[13px] font-semibold text-white">Pay {naira(total.total)}</div>
-      <p className="mt-2 text-center text-[9px] text-heading-6">Card, bank transfer or USSD</p>
+      <p className="mt-2 text-center text-[9px] text-heading-6">Card, transfer, OPay or USSD</p>
     </div>
   );
 
