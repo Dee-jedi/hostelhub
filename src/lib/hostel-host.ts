@@ -18,7 +18,11 @@ export type ResolvedHost =
   | { kind: "unknown" };
 
 /** Subdomains that belong to the platform and can never be a hostel's slug. */
-export const RESERVED_SLUGS = new Set(["www", "app", "admin", "api", "staging", "mail", "help", "support", "status", "docs", "blog"]);
+// Includes the DNS host's own records (mail, ftp, pop, smtp…), which win over the *.domain wildcard
+export const RESERVED_SLUGS = new Set([
+  "www", "app", "admin", "api", "staging", "mail", "help", "support", "status", "docs", "blog",
+  "ftp", "pop", "smtp", "imap", "webmail", "cpanel", "whm", "ns1", "ns2",
+]);
 
 /** 3–32 characters: lowercase letters, digits and inner hyphens. */
 export function isValidSlug(slug: string) {
