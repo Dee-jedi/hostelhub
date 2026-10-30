@@ -2,6 +2,7 @@
 
 import { ExternalLink, Loader2, Rocket, UserPlus, X } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { JoinRequestsPanel } from "@/components/JoinRequestsPanel";
 import { Select } from "@/components/ui";
 import { HAND_ADD_FEE, SERVICE_FEE } from "@/lib/fees";
 import { auth } from "@/lib/firebase";
@@ -174,10 +175,13 @@ export function GoLiveStep({ hostelId, hostelName, bookingUrl, onBack, onDone }:
             <div>
               <h2 className="text-lg font-semibold text-grey-950">Who already lives here?</h2>
               <p className="mt-1 text-[15px] leading-relaxed text-heading-5">
-                Add them now, <b>free</b>. Their spaces won&apos;t be offered to new tenants, and you&apos;ll see who&apos;s where from day one. No tenants yet? Skip this.
+                Add them, <b>free</b>. Their spaces won&apos;t be offered to new tenants, and you&apos;ll see who&apos;s where from day one. No tenants yet? Skip this.
               </p>
             </div>
           </div>
+
+          <JoinRequestsPanel className="mt-5" hostelId={hostelId} hostelName={hostelName} hostelOrigin={bookingUrl.replace(/\/book$/, "")} onApproved={() => void load()} />
+          <p className="mt-6 text-sm font-semibold tracking-wide text-heading-6 uppercase">Or add them yourself</p>
 
           {!state && loadError ? (
             <div className="mt-5 flex flex-wrap items-center gap-3">

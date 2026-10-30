@@ -4,6 +4,8 @@ import { AlertTriangle, BedDouble, BellRing, CalendarClock, ClipboardList, DoorO
 import Link from "next/link";
 import { useState } from "react";
 import { AddResidentModal } from "@/components/AddResidentModal";
+import { JoinRequestsPanel } from "@/components/JoinRequestsPanel";
+import { currentHostelId } from "@/lib/current-hostel";
 import { BlockOccupancyChart, ExpiryForecastChart } from "@/components/charts";
 import { toast } from "@/components/toast";
 import { Avatar, Badge, BtnLabel, Button, headerBtn, PageHeader, Panel, PanelLink, RentBadge, StatCard } from "@/components/ui";
@@ -55,6 +57,16 @@ export default function DashboardPage() {
           </>
         }
       />
+
+      {/* Tenants adding themselves through the join link: only shows while the link is open */}
+      {currentHostelId() && (
+        <JoinRequestsPanel
+          className="mb-6 rounded-2xl bg-white p-4 ring-1 ring-grey-100 sm:p-5"
+          hostelId={currentHostelId()!}
+          hostelName={s.settings.hostelName}
+          hostelOrigin={typeof window === "undefined" ? "" : window.location.origin}
+        />
+      )}
 
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <StatCard

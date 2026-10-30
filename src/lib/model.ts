@@ -49,6 +49,26 @@ export interface Hostel {
   liveAt?: string;
   /** The fee terms the owner accepted to go live (fees.ts TERMS_VERSION) */
   terms?: { version: string; acceptedAt: string; uid: string };
+  /** The secret part of the link existing tenants use to add themselves (join.ts) */
+  joinCode?: string;
+}
+
+/**
+ * hostels/{h}/joinRequests/{uid}: an existing tenant who added themselves through the hostel's
+ * join link, waiting for the manager to confirm they really live there. No payment: they paid
+ * the hostel before it joined HostelHub.
+ */
+export interface JoinRequest {
+  uid: string;
+  info: StudentInfo;
+  roomId: string;
+  /** yyyy-mm: when they moved in */
+  movedIn: string;
+  /** yyyy-mm-dd: the day their current rent runs out */
+  paidUntil: string;
+  status: "pending" | "approved" | "rejected";
+  createdAt: string;
+  decidedAt?: string;
 }
 
 /** Who may book rooms in a block. */

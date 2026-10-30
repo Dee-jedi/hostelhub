@@ -301,11 +301,14 @@ export function StudentForm({
         </Field>
       </Section>
 
-      <fieldset>
-        <legend className="mb-1 text-xs font-semibold tracking-wider text-slate-500 uppercase">Room occupants</legend>
-        <p className="mb-3 text-xs text-heading-6">Anyone who will stay in the room with you. For record keeping only — rent is per room.</p>
-        <OccupantsEditor value={value.occupants ?? []} onChange={(occupants) => set("occupants", occupants)} maxOccupants={maxOccupants} />
-      </fieldset>
+      {/* Only rooms that hold more than the tenant (per-bed rooms and the join link don't) */}
+      {maxOccupants > 1 && (
+        <fieldset>
+          <legend className="mb-1 text-xs font-semibold tracking-wider text-slate-500 uppercase">Room occupants</legend>
+          <p className="mb-3 text-xs text-heading-6">Anyone who will stay in the room with you. For record keeping only — rent is per room.</p>
+          <OccupantsEditor value={value.occupants ?? []} onChange={(occupants) => set("occupants", occupants)} maxOccupants={maxOccupants} />
+        </fieldset>
+      )}
     </div>
   );
 }
