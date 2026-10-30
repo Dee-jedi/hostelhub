@@ -23,6 +23,8 @@ import type { PublicBookingDoc, StudentInfo } from "@/lib/types";
 import { addMonths, cn, formatDate, isBookable, naira, todayISO } from "@/lib/utils";
 
 const STEPS = ["Your details", "Pick a room", "Pay"] as const;
+/** Paystack test keys: hostels still signing up can be tried here with test payments. */
+const TEST_SITE = !!process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY?.startsWith("pk_test_");
 
 interface Result {
   status: "paid" | "needs_attention" | "pending" | "resolved" | "failed";
@@ -292,8 +294,20 @@ export default function BookPage() {
               "Loading…"
             )}
           </section>
+        ) : pub.info.open === false && !TEST_SITE ? (
+          <section className={cn(CARD, "p-10 text-center")}>
+            <p className="text-lg font-semibold text-grey-950">Opening soon</p>
+            <p className="mt-2 text-sm text-heading-6">
+              {pub.info.hostelName} isn&apos;t taking bookings online yet.{pub.info.managerPhone ? ` To ask about a room, call ${pub.info.managerPhone}.` : ""}
+            </p>
+          </section>
         ) : (
           <>
+            {pub.info.open === false && (
+              <p className="mb-4 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                <b>Preview.</b> This hostel isn&apos;t live yet. On this test site you can try a booking with Paystack&apos;s test payments.
+              </p>
+            )}
             <Stepper step={step} onStep={goTo} />
 
             {step === 0 && (

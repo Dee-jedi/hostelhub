@@ -174,6 +174,7 @@ export interface PublicBookingDoc {
     defaultOptionId?: string;
     charges?: Pick<ExtraCharge, "name" | "amount" | "when" | "refundable">[];
     serviceFee?: boolean;
+    open?: false;
   };
   rooms: Record<string, PublicRoom>;
   holds: Record<string, RoomHold>;

@@ -10,6 +10,15 @@ export const SERVICE_FEE = {
   minimum: 2_500,
 };
 
+/**
+ * What a hostel pays to add a tenant by hand once it's live (tenants living there before it went
+ * live are added free during sign-up). Without it, rent collected offline would skip the fee.
+ */
+export const HAND_ADD_FEE = 1_500;
+
+/** The terms a hostel accepts to go live; bump when they change, so we know who agreed to what. */
+export const TERMS_VERSION = "2026-10";
+
 /** The fee on an amount the fee applies to (₦, whole naira). Nothing to pay means no fee. */
 export function serviceFee(amount: number) {
   if (amount <= 0) return 0;

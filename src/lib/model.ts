@@ -45,6 +45,10 @@ export interface Hostel {
   charges?: ExtraCharge[];
   /** Where online rent settles: the hostel's Paystack subaccount (set up during sign-up) */
   payout?: { subaccountCode: string; bankCode: string; verifiedAt: string; mode: "test" | "live" };
+  /** When sign-up's last step opened the hostel for bookings */
+  liveAt?: string;
+  /** The fee terms the owner accepted to go live (fees.ts TERMS_VERSION) */
+  terms?: { version: string; acceptedAt: string; uid: string };
 }
 
 /** Who may book rooms in a block. */
@@ -212,6 +216,8 @@ export interface Listing {
     charges?: Pick<ExtraCharge, "name" | "amount" | "when" | "refundable">[];
     /** Rent is paid through the hostel's payout account, with HostelHub's service fee on top */
     serviceFee?: boolean;
+    /** false while the hostel is still signing up: the page is a preview, not open for bookings. Absent = open. */
+    open?: false;
   };
   /** Keyed by room id. Holds are keyed by space id (the room id, or `${roomId}-A`… for beds). */
   rooms: Record<string, ListingRoom>;

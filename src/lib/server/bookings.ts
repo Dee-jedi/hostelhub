@@ -8,7 +8,7 @@ import { addMonths, todayISO, toStudentInfo } from "../utils";
 import { adminDb } from "./admin";
 import { setTenantOf } from "./claims";
 import { hostelRefs, listingUpdate, newId, plus, readOccupancy, readReceiptCounter, readTerms } from "./hostel-data";
-import { initializeTransaction, verifyTransaction } from "./paystack";
+import { initializeTransaction, isTestMode, verifyTransaction } from "./paystack";
 
 /** How long a room stays reserved for someone at checkout. */
 export const HOLD_MINUTES = 15;
@@ -62,6 +62,8 @@ export async function startBooking(input: { hostelId: string; uid: string; email
     const already = await tx.get(r.col("tenancies").where("uid", "==", input.uid).where("status", "==", "active").limit(1));
     const room = roomSnap.data() as HostelRoom | undefined;
     const { hostel, type } = await readTerms(tx, h, room ?? null);
+    // Still signing up: a preview, except on test sites, where the owner tries a booking
+    if (hostel.status === "draft" && !isTestMode()) throw new BookingError(`${hostel.name} isn't taking bookings yet. Check back soon.`);
     // The stay they picked (or the usual one), which must be on offer online and not over
     const periodId = input.periodId || hostel.defaultPeriodId;
     const [periodSnap, blockSnap] = await tx.getAll(r.doc("rentPeriods", periodId), r.doc("blocks", room?.blockId ?? "-"));

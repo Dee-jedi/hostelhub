@@ -142,6 +142,7 @@ export function listingInfoFor(hostel: Hostel, types: RoomType[], periods: RentP
     defaultOptionId: online.some((p) => p.id === hostel.defaultPeriodId) ? hostel.defaultPeriodId : online[0]?.id,
     charges: (hostel.charges ?? []).map((c) => ({ name: c.name, amount: c.amount, when: c.when, refundable: c.refundable })),
     serviceFee: !!hostel.payout,
+    ...(hostel.status === "draft" ? { open: false as const } : {}),
   };
 }
 

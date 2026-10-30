@@ -14,6 +14,7 @@ import { auth } from "@/lib/firebase";
 import { BASICS_CHECKS, EMPTY_BASICS, normalizePhone, suggestSlugs, type HostelBasics } from "@/lib/onboarding";
 import { PLATFORM_HOST, whatsappHref } from "@/lib/platform";
 import { cn } from "@/lib/utils";
+import { GoLiveStep } from "./GoLiveStep";
 import { PaymentsStep } from "./PaymentsStep";
 import { RoomsWizard } from "./RoomsWizard";
 import { big, Label, NavButtons, PreviewSheet, Problem, Question } from "./shell";
@@ -24,7 +25,7 @@ import { big, Label, NavButtons, PreviewSheet, Problem, Question } from "./shell
  * and a preview of the hostel's booking page that fills in as they type.
  */
 
-type StepId = "welcome" | "name" | "slug" | "location" | "manager" | "account" | "saved" | "rooms" | "roomsSaved" | "payments" | "paymentsSaved";
+type StepId = "welcome" | "name" | "slug" | "location" | "manager" | "account" | "saved" | "rooms" | "roomsSaved" | "payments" | "paymentsSaved" | "golive" | "live";
 const QUESTIONS: StepId[] = ["name", "slug", "location", "manager", "account"];
 
 /** The whole sign-up, so people see how far they are; only "Your hostel" exists so far. */
@@ -327,9 +328,17 @@ export function StartWizard() {
   };
 
   // Which of the four parts the progress bar is in, and how far through it
-  const section = step === "paymentsSaved" ? 3 : step === "roomsSaved" || step === "payments" ? 2 : step === "saved" || step === "rooms" ? 1 : 0;
+  const section = ["paymentsSaved", "golive", "live"].includes(step) ? 3 : step === "roomsSaved" || step === "payments" ? 2 : step === "saved" || step === "rooms" ? 1 : 0;
   const partDone =
-    step === "rooms" ? roomsProgress : step === "payments" ? 0.5 : ["saved", "roomsSaved", "paymentsSaved"].includes(step) ? 0 : (index + 1) / (QUESTIONS.length + 1);
+    step === "live"
+      ? 1
+      : step === "rooms"
+        ? roomsProgress
+        : step === "payments" || step === "golive"
+          ? 0.5
+          : ["saved", "roomsSaved", "paymentsSaved"].includes(step)
+            ? 0
+            : (index + 1) / (QUESTIONS.length + 1);
   const showPreview = QUESTIONS.includes(step);
 
   // Until this browser's saved answers are read, show the frame only (no flash of the welcome screen)
@@ -367,7 +376,9 @@ export function StartWizard() {
       </header>
 
       <main className={cn("mx-auto grid max-w-6xl gap-12 px-5 pt-10 pb-28 sm:px-8 sm:pt-14 lg:pb-16", showPreview && "lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-20")}>
-        {step === "payments" && hostelId ? (
+        {step === "golive" && hostelId ? (
+          <GoLiveStep hostelId={hostelId} hostelName={basics.name || "Your hostel"} bookingUrl={`${hostelUrl(hostelId)}/book`} onBack={() => go("paymentsSaved")} onDone={() => go("live")} />
+        ) : step === "payments" && hostelId ? (
           <PaymentsStep hostelId={hostelId} hostelName={basics.name || "Your hostel"} onBack={() => go("roomsSaved")} onDone={() => go("paymentsSaved")} />
         ) : step === "rooms" && hostelId ? (
           <RoomsWizard
@@ -680,10 +691,13 @@ export function StartWizard() {
               <div className="mt-8 rounded-3xl bg-white p-6 ring-1 ring-black/5">
                 <p className="text-sm font-semibold tracking-wide text-brand-700 uppercase">Last: go live · 2 minutes</p>
                 <p className="mt-2 text-[15px] leading-relaxed text-heading-4">
-                  Add the tenants already living with you (free), try a test booking yourself, then switch on real payments. This part of sign-up is being built now.
+                  Add the tenants already living with you (free), look over your booking page, then open for bookings.
                 </p>
               </div>
-              <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3">
+              <button type="button" onClick={() => go("golive")} className={nextButton}>
+                Go live <ArrowRight className="size-5 text-brand-300" />
+              </button>
+              <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-3">
                 <button type="button" onClick={() => go("payments")} className="text-[15px] font-semibold text-brand-800 underline-offset-4 hover:underline">
                   Change the payout account
                 </button>
@@ -693,6 +707,8 @@ export function StartWizard() {
               </div>
             </div>
           )}
+
+          {step === "live" && hostelId && <LiveScreen hostelId={hostelId} hostelName={basics.name} />}
         </div>
         )}
 
@@ -717,3 +733,66 @@ export function StartWizard() {
 
 const nextButton =
   "mt-8 inline-flex h-14 w-full items-center justify-center gap-2 rounded-full bg-brand-950 px-8 text-base font-semibold text-white shadow-[0_12px_30px_-12px_rgba(11,35,34,0.6)] hover:bg-brand-800 sm:w-auto";
+
+/** The end of sign-up: the link to share, and where to go next. */
+function LiveScreen({ hostelId, hostelName }: { hostelId: string; hostelName: string }) {
+  const [copied, setCopied] = useState(false);
+  const bookingLink = `${hostelUrl(hostelId)}/book`;
+  const shareText = `Book a room at ${hostelName} and pay online: ${bookingLink}`;
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(bookingLink);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // clipboard blocked: the link is on screen to copy by hand
+    }
+  };
+  const startAnother = () => {
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {
+      // storage blocked: nothing saved to clear
+    }
+    window.location.reload();
+  };
+  const link = "text-[15px] font-semibold text-brand-800 underline-offset-4 hover:underline";
+  return (
+    <div className="motion-safe:animate-[rise_0.4s_ease-out]">
+      <span className="flex size-14 items-center justify-center rounded-2xl bg-brand-100 text-brand-800">
+        <PartyPopper className="size-7" />
+      </span>
+      <h1 className="mt-6 text-[clamp(2rem,4.5vw,3rem)] leading-[1.05] font-bold tracking-[-0.04em] text-brand-950">{hostelName} is live.</h1>
+      <p className="mt-4 text-lg leading-relaxed text-heading-5">Tenants can now book and pay online. Share your booking page everywhere tenants look for rooms.</p>
+      <div className="mt-8 rounded-3xl bg-white p-6 ring-1 ring-black/5">
+        <p className="text-sm font-semibold tracking-wide text-brand-700 uppercase">Your booking page</p>
+        <p className="mt-2 text-lg font-semibold break-all text-brand-950">{bookingLink.replace(/^https?:\/\//, "")}</p>
+        <div className="mt-4 flex flex-wrap gap-3">
+          <button type="button" onClick={copy} className="inline-flex h-12 items-center gap-2 rounded-full bg-brand-100 px-5 text-[15px] font-semibold text-brand-900 hover:bg-brand-200">
+            {copied ? <Check className="size-4" strokeWidth={3} /> : null}
+            {copied ? "Copied" : "Copy link"}
+          </button>
+          <a
+            href={`https://wa.me/?text=${encodeURIComponent(shareText)}`}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex h-12 items-center gap-2 rounded-full bg-[#e7f6ee] px-5 text-[15px] font-semibold text-[#1f7a4d] hover:bg-[#d5efe1]"
+          >
+            <MessageCircle className="size-4" /> Share on WhatsApp
+          </a>
+        </div>
+      </div>
+      <p className="mt-6 text-[15px] leading-relaxed text-heading-5">
+        Your first payout can take a working day longer while Paystack confirms your account. After that, rent arrives the next working day.
+      </p>
+      <a href={`${hostelUrl(hostelId)}/login`} className={nextButton}>
+        Open my dashboard <ArrowRight className="size-5 text-brand-300" />
+      </a>
+      <div className="mt-6">
+        <button type="button" onClick={startAnother} className={link}>
+          Set up another hostel
+        </button>
+      </div>
+    </div>
+  );
+}
