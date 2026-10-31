@@ -17,6 +17,8 @@ const nextConfig: NextConfig = {
     // Pages load their data in the browser after login (Firebase), so the staff area can't
     // render before that check. Only validate segments that opt in with `export const instant`.
     instantInsights: { validationLevel: "manual-warning" },
+    // Remind about Next.js security fixes during `next dev` / `next build` (the default policy)
+    agentUpgrade: "security",
   },
   turbopack: {
     rules: {
