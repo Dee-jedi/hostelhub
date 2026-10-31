@@ -1,6 +1,6 @@
 "use client";
 
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth";
+import { createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndPassword, type User } from "firebase/auth";
 import { FirebaseError } from "firebase/app";
 import { doc, onSnapshot } from "firebase/firestore";
 import { getDownloadURL, ref as storageRef, uploadBytes } from "firebase/storage";
@@ -8,6 +8,7 @@ import { ArrowLeft, ArrowRight, BedDouble, Check, CheckCircle2, Clock, KeyRound,
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { BookingWaiting } from "@/components/BookingWaiting";
+import { GoogleButton, GoogleG } from "@/components/GoogleButton";
 import { type Passport, PhotoPicker } from "@/components/PhotoPicker";
 import { BrandLayout } from "@/components/BrandLayout";
 import { RoomPicker } from "@/components/RoomPicker";
@@ -110,6 +111,18 @@ export default function BookPage() {
   const options = pub?.info.options ?? [];
   const option = options.find((o) => o.id === periodId) ?? options.find((o) => o.id === pub?.info.defaultOptionId) ?? options[0] ?? null;
   const [agent, setAgent] = useState("");
+  /** Signed in on this hostel's address (with Google, or from an earlier booking) */
+  const [me, setMe] = useState<User | null>(null);
+  const viaGoogle = !!me?.providerData.some((p) => p.providerId === "google.com");
+  useEffect(
+    () =>
+      onAuthStateChanged(auth, (u) => {
+        setMe(u);
+        // Google gives us their name: one less thing to type
+        if (u?.displayName) setInfo((i) => (i.fullName ? i : { ...i, fullName: u.displayName! }));
+      }),
+    [],
+  );
 
   const [paying, setPaying] = useState(false);
   const [heldUntil, setHeldUntil] = useState(0);
@@ -198,21 +211,25 @@ export default function BookPage() {
   };
 
   const pay = async () => {
-    if (!/^\S+@\S+\.\S+$/.test(email.trim())) return toast("Enter a valid email address", "info");
-    if (password.length < 6) return toast("Use a password of at least 6 characters", "info");
-    if (password !== password2) return toast("The passwords don't match", "info");
+    // Signed in already (Google): that login is the tenant's; otherwise they make one here
+    if (!me) {
+      if (!/^\S+@\S+\.\S+$/.test(email.trim())) return toast("Enter a valid email address", "info");
+      if (password.length < 6) return toast("Use a password of at least 6 characters", "info");
+      if (password !== password2) return toast("The passwords don't match", "info");
+    }
     if (!agree) return toast("Please accept the hostel rules", "info");
+    const loginEmail = me?.email ?? email.trim();
 
     setPaying(true);
     try {
-      const token = await tenantToken(email.trim(), password);
+      const token = me ? await me.getIdToken() : await tenantToken(loginEmail, password);
       // The photo goes into this tenant's own Storage folder; only the link is saved with the booking
       const photoRef = storageRef(storage, `passports/${auth.currentUser!.uid}/passport.jpg`);
       await uploadBytes(photoRef, photo!.blob, { contentType: "image/jpeg" });
       const photoUrl = await getDownloadURL(photoRef);
       const start = await postJSON<{ reference: string; accessCode: string }>(
         "/api/bookings/start",
-        { info: { ...info, email: email.trim(), photoUrl }, roomId, periodId: option?.id, agent: agent || undefined },
+        { info: { ...info, email: loginEmail, photoUrl }, roomId, periodId: option?.id, agent: agent || undefined },
         token,
       );
       setHeldUntil(Date.now() + 15 * 60_000);
@@ -312,6 +329,22 @@ export default function BookPage() {
 
             {step === 0 && (
               <div className="space-y-6">
+                {/* The quickest start: Google fills in the name and is the login, no password */}
+                {!me ? (
+                  <section className={cn(CARD, "p-5 sm:p-6")}>
+                    <p className="text-[15px] font-semibold text-grey-950">Start with Google</p>
+                    <p className="mt-1 mb-4 text-sm text-heading-6">We&apos;ll fill in your name, and you won&apos;t need a password to log in later.</p>
+                    <GoogleButton />
+                    <p className="mt-4 text-center text-xs text-heading-6">Or fill in the form below with your email.</p>
+                  </section>
+                ) : (
+                  <p className="flex flex-wrap items-center gap-2 rounded-xl bg-brand-50 px-4 py-3 text-sm text-brand-950">
+                    {viaGoogle && <GoogleG className="size-4" />} Booking as <b>{me.email}</b>
+                    <button type="button" onClick={() => void auth.signOut()} className="ml-auto text-xs font-medium text-brand-700 hover:underline">
+                      Not you?
+                    </button>
+                  </p>
+                )}
                 <FormCard>
                   <div className="mb-7">
                     <PhotoPicker
@@ -440,7 +473,22 @@ export default function BookPage() {
                   )}
                 </FormCard>
 
-                <FormCard icon={KeyRound} title="Create your tenant login" description="You'll use this to log in to your portal for receipts, repairs and renewals.">
+                <FormCard
+                  icon={KeyRound}
+                  title={me ? "Your tenant login" : "Create your tenant login"}
+                  description="You'll use this to log in to your portal for receipts, repairs and renewals."
+                >
+                  {me ? (
+                    <div className="flex flex-wrap items-center gap-3 rounded-xl bg-grey-10 p-3 text-sm">
+                      {viaGoogle && <GoogleG className="size-5" />}
+                      <span className="min-w-0 flex-1 truncate">
+                        Signed in as <b>{me.email}</b>
+                      </span>
+                      <button type="button" onClick={() => void auth.signOut()} className="text-xs font-medium text-brand-700 hover:underline">
+                        Not you?
+                      </button>
+                    </div>
+                  ) : (
                   <div className="grid gap-4 sm:grid-cols-2">
                     <Field label="Email" required className="sm:col-span-2" hint="You log in with this, and a password reset link comes here. Use one you can open.">
                       <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" placeholder="you@example.com" />
@@ -458,6 +506,7 @@ export default function BookPage() {
                       )}
                     </Field>
                   </div>
+                  )}
                   <label className="mt-5 flex items-start gap-3 text-sm text-slate-700">
                     <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} className="mt-0.5 size-4 accent-brand-600" />
                     I confirm my details are correct and I agree to abide by the hostel rules and regulations.

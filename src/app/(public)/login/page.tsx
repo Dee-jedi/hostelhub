@@ -6,9 +6,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { BrandLayout } from "@/components/BrandLayout";
+import { GoogleButton, OrDivider } from "@/components/GoogleButton";
 import { toast } from "@/components/toast";
 import { Button, Input, PasswordInput } from "@/components/ui";
-import { authMessage, homeFor, useSession } from "@/lib/auth";
+import { authMessage, homeFor, signOut, useSession } from "@/lib/auth";
 import { auth } from "@/lib/firebase";
 
 export default function LoginPage() {
@@ -57,7 +58,24 @@ export default function LoginPage() {
         <h1 className="text-2xl font-semibold tracking-tight text-grey-950">Welcome back</h1>
         <p className="mt-1.5 text-sm text-heading-6">Log in to your tenant portal or the hostel dashboard.</p>
 
-        <form onSubmit={submit} className="mt-8 space-y-5">
+        {user && role === null ? (
+          // Signed in (e.g. with Google) but not a tenant or manager of this hostel
+          <div className="mt-8 rounded-2xl bg-amber-50 p-4 text-sm text-amber-900">
+            <p>
+              <b>{user.email}</b> isn&apos;t a tenant or manager here yet. Book a room to become one, or log in with another account.
+            </p>
+            <button type="button" onClick={() => void signOut()} className="mt-2 font-semibold underline-offset-4 hover:underline">
+              Use another account
+            </button>
+          </div>
+        ) : (
+          <>
+            <GoogleButton className="mt-8" />
+            <OrDivider />
+          </>
+        )}
+
+        <form onSubmit={submit} className="space-y-5">
           <div>
             <label htmlFor="email" className="mb-1.5 block text-xs font-medium text-heading-4">
               Email
