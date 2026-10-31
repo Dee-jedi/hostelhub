@@ -16,6 +16,16 @@ import { googleProvider } from "@/lib/google-auth";
 const STARTED = "hostelhub:google-started";
 let started = false;
 
+/** The note left when this tab last went to Google; anything unreadable (an older format) counts as none. */
+function readStarted(): { returnTo: string; at: number } | null {
+  try {
+    const note = JSON.parse(sessionStorage.getItem(STARTED) ?? "null") as { returnTo?: unknown; at?: unknown } | null;
+    return note && typeof note.returnTo === "string" && typeof note.at === "number" ? { returnTo: note.returnTo, at: note.at } : null;
+  } catch {
+    return null;
+  }
+}
+
 async function handBack(user: User, returnTo: string) {
   const res = await fetch("/api/auth/handoff", {
     method: "POST",
@@ -46,7 +56,7 @@ export function GoogleHandoff() {
         // (one tap), so "Not you?" on the hostel page really lets them pick someone else
         // Came back from Google without an account: they closed it or pressed back. Only a
         // recent attempt counts; an old note (a lost tab, a restart) just starts afresh.
-        const last = JSON.parse(sessionStorage.getItem(STARTED) ?? "null") as { returnTo: string; at: number } | null;
+        const last = readStarted();
         sessionStorage.removeItem(STARTED);
         if (last?.returnTo === returnTo && Date.now() - last.at < 3 * 60_000) return setProblem("Google sign-in was cancelled.");
         sessionStorage.setItem(STARTED, JSON.stringify({ returnTo, at: Date.now() }));
