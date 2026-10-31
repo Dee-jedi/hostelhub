@@ -12,7 +12,7 @@ export const CONTACT = {
   whatsapp: "07079723612",
   /** International form for wa.me links */
   whatsappIntl: "2347079723612",
-  email: "divinedigitallabs@gmail.com",
+  email: "support@hostelhub.africa",
 };
 
 export const whatsappHref = (text = "Hi HostelHub, I'd like to know more about using it for my hostel.") =>
