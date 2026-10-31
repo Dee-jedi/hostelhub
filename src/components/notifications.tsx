@@ -3,7 +3,7 @@
 import { AlertTriangle, CalendarClock, ChevronRight, ClipboardList, Wrench } from "lucide-react";
 import Link from "next/link";
 import { useMemo, type ReactNode } from "react";
-import { useHostel } from "@/lib/store";
+import { roomLabel, useHostel } from "@/lib/store";
 import { activeResidents, addDays, cn, daysLeft, formatDateTime, isOpenTicket, rentStatus, todayISO } from "@/lib/utils";
 
 export interface Notice {
@@ -45,7 +45,7 @@ export function useNotifications(): Notice[] {
         id: b.id,
         icon: <ClipboardList className="size-4" />,
         tone: "bg-brand-50 text-brand-600",
-        title: `${b.fullName} booked room ${b.roomId}`,
+        title: `${b.fullName} booked room ${roomLabel(b.roomId)}`,
         detail: `Paid online · ${formatDateTime(b.paidAt!)}`,
         href: "/bookings",
       });
@@ -75,7 +75,7 @@ export function useNotifications(): Notice[] {
         icon: <Wrench className="size-4" />,
         tone: "bg-sky-50 text-sky-700",
         title: `${who?.fullName.split(" ")[0] ?? "A tenant"} sent a ${t.kind === "room_change" ? "room change request" : t.kind === "complaint" ? "complaint" : "repair request"}`,
-        detail: `${t.title} · room ${t.roomId}`,
+        detail: `${t.title} · room ${roomLabel(t.roomId)}`,
         href: "/maintenance",
       });
     }

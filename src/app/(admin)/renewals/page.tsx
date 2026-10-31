@@ -7,7 +7,7 @@ import { ComposeModal } from "@/components/ComposeModal";
 import { PaymentModal } from "@/components/PaymentModal";
 import { toast } from "@/components/toast";
 import { Avatar, Badge, BtnLabel, Button, headerBtn, Card, EmptyState, PageHeader, Tabs } from "@/components/ui";
-import { runAutomatedReminders, useHostel } from "@/lib/store";
+import { roomLabel, runAutomatedReminders, useHostel } from "@/lib/store";
 import { openResident } from "@/lib/ui-store";
 import { TEMPLATES } from "@/lib/templates";
 import type { Resident } from "@/lib/types";
@@ -167,7 +167,7 @@ export default function RenewalsPage() {
                           <div>
                             <p className="font-medium text-slate-900 hover:underline">{r.fullName}</p>
                             <p className="text-xs text-slate-500">
-                              <span className="sm:hidden">Room {r.roomId} · </span>
+                              <span className="sm:hidden">Room {roomLabel(r.roomId)} · </span>
                               {r.phone}
                             </p>
                             <p className={`text-xs sm:hidden ${left < 0 ? "text-rose-600" : "text-amber-700"}`}>
@@ -176,7 +176,7 @@ export default function RenewalsPage() {
                           </div>
                         </button>
                       </td>
-                      <td className="hidden px-2.5 py-3 sm:px-4 font-medium text-slate-700 sm:table-cell">{r.roomId}</td>
+                      <td className="hidden px-2.5 py-3 sm:px-4 font-medium text-slate-700 sm:table-cell">{roomLabel(r.roomId)}</td>
                       <td className="hidden px-2.5 py-3 sm:table-cell sm:px-4">
                         <p className="whitespace-nowrap text-slate-700">{formatDate(r.leaseEnd)}</p>
                         <p className={`text-xs whitespace-nowrap ${left < 0 ? "text-rose-600" : "text-amber-700"}`}>{describeDaysLeft(left)}</p>

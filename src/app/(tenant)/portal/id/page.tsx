@@ -6,7 +6,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { useEffect, useState } from "react";
 import { auth } from "@/lib/firebase";
 import { bedOf } from "@/lib/spaces";
-import { useTenant } from "@/lib/tenant-store";
+import { roomName, useTenant } from "@/lib/tenant-store";
 import { academicLine, daysLeft, formatDate, initials } from "@/lib/utils";
 
 export default function TenantIdPage() {
@@ -60,7 +60,7 @@ export default function TenantIdPage() {
             <div>
               <dt className="text-[10px] font-medium tracking-wide text-heading-6 uppercase">{bedOf(r.spaceId, r.roomId) ? "Room · bed" : "Room"}</dt>
               <dd className="text-base font-semibold text-grey-950">
-                {r.roomId}
+                {roomName(t, r.roomId)}
                 {bedOf(r.spaceId, r.roomId) ? ` · ${bedOf(r.spaceId, r.roomId)}` : ""}
               </dd>
             </div>

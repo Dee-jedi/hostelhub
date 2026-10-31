@@ -7,7 +7,7 @@ import { AddResidentModal } from "@/components/AddResidentModal";
 import { OlderRecords } from "@/components/OlderRecords";
 import { toast } from "@/components/toast";
 import { Avatar, Badge, BtnLabel, Button, headerBtn, Card, EmptyState, Modal, PageHeader, Tabs } from "@/components/ui";
-import { bookingToStudent, useHostel } from "@/lib/store";
+import { bookingToStudent, roomLabel, useHostel } from "@/lib/store";
 import { openResident } from "@/lib/ui-store";
 import type { Booking } from "@/lib/types";
 import { academicLine, formatDateTime, naira } from "@/lib/utils";
@@ -95,7 +95,7 @@ export default function BookingsPage() {
               <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
                 <div>
                   <dt className="text-xs text-slate-500">Room</dt>
-                  <dd className="font-medium text-slate-900">{b.roomId}</dd>
+                  <dd className="font-medium text-slate-900">{roomLabel(b.roomId)}</dd>
                 </div>
                 <div>
                   <dt className="text-xs text-slate-500">Amount</dt>

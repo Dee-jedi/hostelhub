@@ -10,7 +10,7 @@ import { authMessage, signOut } from "@/lib/auth";
 import { hostelPath } from "@/lib/current-hostel";
 import { auth, db } from "@/lib/firebase";
 import { resolveFaculty } from "@/lib/academics";
-import { useTenant } from "@/lib/tenant-store";
+import { roomName, useTenant } from "@/lib/tenant-store";
 import type { Resident } from "@/lib/types";
 import { academicLine, cn, formatDate, whatsappLink } from "@/lib/utils";
 
@@ -255,7 +255,7 @@ export default function ProfilePage() {
         <h1 className="mt-3 text-lg font-semibold text-grey-950">{r.fullName}</h1>
         <p className="text-sm text-heading-6">{academicLine(r)}</p>
         <div className="mt-3 flex flex-wrap justify-center gap-2 text-xs">
-          <span className="rounded-full bg-brand-50 px-2.5 py-1 font-semibold text-brand-700">Room {r.roomId}</span>
+          <span className="rounded-full bg-brand-50 px-2.5 py-1 font-semibold text-brand-700">Room {roomName(t, r.roomId)}</span>
           <span className="rounded-full bg-grey-50 px-2.5 py-1 font-medium text-heading-4">Since {formatDate(r.checkInDate)}</span>
         </div>
       </section>
@@ -303,7 +303,7 @@ export default function ProfilePage() {
             <>
               <LinkRow href={`tel:${info.managerPhone}`} icon={Phone} tint="bg-brand-50 text-brand-600" label={`Call ${info.managerName || "the manager"}`} hint={info.managerPhone} />
               <LinkRow
-                href={whatsappLink(info.managerPhone, `Hello, this is ${r.fullName} in room ${r.roomId}.`)}
+                href={whatsappLink(info.managerPhone, `Hello, this is ${r.fullName} in room ${roomName(t, r.roomId)}.`)}
                 icon={MessageCircle}
                 tint="bg-emerald-50 text-emerald-700"
                 label="WhatsApp the manager"

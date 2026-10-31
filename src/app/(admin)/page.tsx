@@ -10,8 +10,8 @@ import { BlockOccupancyChart, ExpiryForecastChart } from "@/components/charts";
 import { toast } from "@/components/toast";
 import { Avatar, Badge, BtnLabel, Button, headerBtn, PageHeader, Panel, PanelLink, RentBadge, StatCard } from "@/components/ui";
 import { useDashboard } from "@/lib/dashboard";
-import { spaceLabel } from "@/lib/spaces";
-import { runAutomatedReminders, useHostel } from "@/lib/store";
+
+import { runAutomatedReminders, spaceName, useHostel } from "@/lib/store";
 import { openResident } from "@/lib/ui-store";
 import { addDays, cn, daysLeft, describeDaysLeft, formatDateTime, isOpenTicket, naira, nairaShort, todayISO } from "@/lib/utils";
 
@@ -101,7 +101,7 @@ export default function DashboardPage() {
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium text-heading-2">{r.fullName}</p>
                     <p className="text-xs text-heading-6">
-                      {spaceLabel(r.roomId, r.spaceId)} · {r.phone}
+                      {spaceName(r.roomId, r.spaceId)} · {r.phone}
                     </p>
                   </div>
                   <span className="hidden text-xs text-heading-6 sm:block">{describeDaysLeft(daysLeft(r))}</span>

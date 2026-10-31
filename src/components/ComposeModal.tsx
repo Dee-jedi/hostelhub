@@ -2,7 +2,7 @@
 
 import { MessageCircle, Send } from "lucide-react";
 import { useState } from "react";
-import { sendMessage, useHostel } from "@/lib/store";
+import { roomLabel, sendMessage, useHostel } from "@/lib/store";
 import { PLACEHOLDERS, TEMPLATES } from "@/lib/templates";
 import type { Channel, Message, Resident } from "@/lib/types";
 import { fillTemplate, whatsappLink } from "@/lib/utils";
@@ -57,7 +57,7 @@ export function ComposeModal({
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-slate-900">{r.fullName}</p>
                 <p className="text-xs text-slate-500">
-                  {r.roomId} · {r.phone}
+                  {roomLabel(r.roomId)} · {r.phone}
                 </p>
               </div>
               <a

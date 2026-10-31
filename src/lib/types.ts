@@ -30,6 +30,8 @@ export interface Settings {
 
 export interface Room {
   id: string; // e.g. "H15"
+  /** Its name as tenants know it ("Ruby 2"); older rooms' ids are their names */
+  label?: string;
   block: string;
   number: number;
   /** Its room type (size, per room or per bed, price); see HostelState.roomTypes */

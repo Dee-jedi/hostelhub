@@ -1,6 +1,6 @@
 "use client";
 
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth";
+import { createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndPassword, type User } from "firebase/auth";
 import { FirebaseError } from "firebase/app";
 import { doc, getDoc } from "firebase/firestore";
 import { getDownloadURL, ref as storageRef, uploadBytes } from "firebase/storage";
@@ -9,6 +9,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { BrandLayout } from "@/components/BrandLayout";
+import { GoogleButton, GoogleG } from "@/components/GoogleButton";
 import { type Passport, PhotoPicker } from "@/components/PhotoPicker";
 import { EMPTY_STUDENT, StudentForm, validateStudent } from "@/components/StudentForm";
 import { Button, Field, Input, PasswordInput, Select } from "@/components/ui";
@@ -59,6 +60,18 @@ export function JoinForm() {
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
+  /** Signed in on this hostel's address (with Google, usually) */
+  const [me, setMe] = useState<User | null>(null);
+  const viaGoogle = !!me?.providerData.some((p) => p.providerId === "google.com");
+  const loginEmail = me?.email ?? email.trim();
+  useEffect(
+    () =>
+      onAuthStateChanged(auth, (u) => {
+        setMe(u);
+        if (u?.displayName) setInfo((i) => (i.fullName ? i : { ...i, fullName: u.displayName! }));
+      }),
+    [],
+  );
 
   // The link and the room list: two reads, once
   useEffect(() => {
@@ -90,19 +103,20 @@ export function JoinForm() {
       (!roomId && "Pick your room.") ||
       (!movedIn && "Pick the month you moved in.") ||
       ((!paidUntil || paidUntil <= todayISO()) && "Pick the date your rent is paid until.") ||
-      (!/^\S+@\S+\.\S+$/.test(email.trim()) && "Enter your email: you'll log in with it.") ||
-      (password.length < 6 && "Choose a password of at least 6 characters.");
+      // Signed in with Google already: that's their login, no email or password to type
+      (!me && !/^\S+@\S+\.\S+$/.test(email.trim()) && "Enter your email: you'll log in with it.") ||
+      (!me && password.length < 6 && "Choose a password of at least 6 characters.");
     if (p) return setProblem(p);
     setBusy(true);
     try {
-      const token = await tenantToken(email.trim(), password);
+      const token = me ? await me.getIdToken() : await tenantToken(email.trim(), password);
       const photoRef = storageRef(storage, `passports/${auth.currentUser!.uid}/passport.jpg`);
       await uploadBytes(photoRef, photo!.blob, { contentType: "image/jpeg" });
       const photoUrl = await getDownloadURL(photoRef);
       const res = await fetch("/api/join", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ code, info: { ...info, email: email.trim(), photoUrl }, roomId, movedIn, paidUntil }),
+        body: JSON.stringify({ code, info: { ...info, email: loginEmail, photoUrl }, roomId, movedIn, paidUntil }),
       });
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) throw new Error(data.error ?? "Couldn't send. Please try again.");
@@ -123,7 +137,7 @@ export function JoinForm() {
             <CheckCircle2 className="mx-auto size-10 text-brand-600" />
             <h1 className="mt-4 text-xl font-semibold text-grey-950">Sent to your manager</h1>
             <p className="mt-2 text-sm leading-relaxed text-heading-6">
-              Once they confirm you live in {hostelName}, log in with <b>{email.trim()}</b> to see your room, receipts and rent reminders.
+              Once they confirm you live in {hostelName}, log in with <b>{me ? `Google (${loginEmail})` : loginEmail}</b> to see your room, receipts and rent reminders.
             </p>
             <Link href="/login" className="mt-5 inline-block text-sm font-semibold text-brand-700 hover:underline">
               Go to log in
@@ -145,6 +159,23 @@ export function JoinForm() {
                 in.
               </p>
             </div>
+
+            {/* The quickest start: Google fills in the name and is the login */}
+            {!me ? (
+              <section className={CARD}>
+                <p className="text-[15px] font-semibold text-grey-950">Start with Google</p>
+                <p className="mt-1 mb-4 text-sm text-heading-6">We&apos;ll fill in your name, and you won&apos;t need a password to log in.</p>
+                <GoogleButton />
+                <p className="mt-4 text-center text-xs text-heading-6">Or fill in the form below with your email.</p>
+              </section>
+            ) : (
+              <p className="flex flex-wrap items-center gap-2 rounded-xl bg-brand-50 px-4 py-3 text-sm text-brand-950">
+                {viaGoogle && <GoogleG className="size-4" />} Joining as <b>{me.email}</b>
+                <button type="button" onClick={() => void auth.signOut()} className="ml-auto text-xs font-medium text-brand-700 hover:underline">
+                  Not you?
+                </button>
+              </p>
+            )}
 
             <section className={CARD}>
               <div className="mb-7">
@@ -175,15 +206,17 @@ export function JoinForm() {
               </div>
             </section>
 
-            <section className={cn(CARD, "space-y-5")}>
-              <h2 className="text-base font-semibold text-grey-950">Your login</h2>
-              <Field label="Email" hint="You log in with this, and password resets come here." required>
-                <Input type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-              </Field>
-              <Field label="Password" hint="At least 6 characters" required>
-                <PasswordInput autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />
-              </Field>
-            </section>
+            {!me && (
+              <section className={cn(CARD, "space-y-5")}>
+                <h2 className="text-base font-semibold text-grey-950">Your login</h2>
+                <Field label="Email" hint="You log in with this, and password resets come here." required>
+                  <Input type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+                </Field>
+                <Field label="Password" hint="At least 6 characters" required>
+                  <PasswordInput autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+                </Field>
+              </section>
+            )}
 
             {problem && <p className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{problem}</p>}
             <Button type="submit" disabled={busy} className="h-12 w-full rounded-xl text-[15px]">

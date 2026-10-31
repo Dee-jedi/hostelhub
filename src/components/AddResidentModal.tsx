@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { addResident, resolveBooking, useHostel } from "@/lib/store";
+import { addResident, resolveBooking, roomLabel, useHostel } from "@/lib/store";
 import type { PaymentMethod, StudentInfo } from "@/lib/types";
 import { addMonths, availableRooms, formatDate, freeSpaces, naira, roomTypeOf, todayISO } from "@/lib/utils";
 import { EMPTY_STUDENT, StudentForm, validateStudent } from "./StudentForm";
@@ -97,7 +97,7 @@ export function AddResidentModal({
     const saved = bookingId ? await resolveBooking(bookingId, roomId, info) : await addResident(info, roomId, payment, start);
     setSaving(false);
     if (!saved) return;
-    toast(`${info.fullName} added to room ${roomId}`);
+    toast(`${info.fullName} added to room ${roomLabel(roomId)}`);
     onClose();
   };
 

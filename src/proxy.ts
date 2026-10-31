@@ -8,6 +8,9 @@ import { resolveHost } from "./lib/hostel-host";
  */
 export function proxy(request: NextRequest) {
   const host = resolveHost(request.headers.get("x-forwarded-host") ?? request.headers.get("host"));
+  const { pathname } = request.nextUrl;
+  // On the platform, /login finds which hostel you belong to (hostels have their own /login)
+  if (host.kind === "platform" && pathname === "/login") return NextResponse.rewrite(new URL("/signin", request.url));
   if (host.kind === "platform" && host.area === "home") return NextResponse.rewrite(new URL("/site", request.url));
   // admin.hostelhub.africa: HostelHub's own console (also at /admin on the platform domain)
   if (host.kind === "platform" && host.area === "admin") return NextResponse.rewrite(new URL("/admin", request.url));
@@ -15,5 +18,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: "/",
+  matcher: ["/", "/login"],
 };

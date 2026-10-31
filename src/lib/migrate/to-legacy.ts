@@ -51,6 +51,8 @@ export function settingsOf(v: Pick<HostelView, "hostel" | "blocks" | "roomTypes"
 export function roomOf(r: HostelRoom, blockName: (id: string) => string): Room {
   return {
     id: r.id,
+    // Only when it differs: older rooms' ids are their names
+    ...(r.label && r.label !== r.id ? { label: r.label } : {}),
     block: blockName(r.blockId),
     number: r.number,
     typeId: r.typeId,
@@ -108,7 +110,7 @@ export function toLegacy(v: HostelView): HostelState {
 export function withoutSpaceFields(s: HostelState): HostelState {
   return {
     ...omit(s, ["roomTypes", "rentalModel"]),
-    rooms: s.rooms.map((r) => omit(r, ["typeId"])),
+    rooms: s.rooms.map((r) => omit(r, ["typeId", "label"])),
     residents: s.residents.map((r) => omit(r, ["spaceId"])),
   } as HostelState;
 }

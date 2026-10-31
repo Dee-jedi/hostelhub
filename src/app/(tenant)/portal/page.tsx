@@ -5,7 +5,7 @@ import Link from "next/link";
 import { KindIcon, RequestStatusBadge } from "@/components/RequestStatus";
 import { Avatar } from "@/components/ui";
 import { bedOf } from "@/lib/spaces";
-import { personalise, tenantRent, useTenant } from "@/lib/tenant-store";
+import { blockName, personalise, roomName, tenantRent, useTenant } from "@/lib/tenant-store";
 import { cn, daysBetween, daysLeft, describeDaysLeft, formatDate, formatDateTime, greeting, isOpenTicket, naira, todayISO } from "@/lib/utils";
 
 const ACTIONS: { href: string; label: string; icon: LucideIcon; tint: string }[] = [
@@ -54,7 +54,7 @@ export default function PortalHome() {
   const used = daysBetween(r.leaseStart, todayISO()) / total;
   const open = t.requests.filter(isOpenTicket);
   const latest = t.notices[0];
-  const block = r.roomId?.replace(/\d+$/, "");
+  const block = blockName(t, r.roomId);
   const bed = bedOf(r.spaceId, r.roomId);
 
   return (
@@ -73,8 +73,8 @@ export default function PortalHome() {
         <div className="relative flex items-center gap-5">
           <div className="min-w-0 flex-1">
             <p className="text-xs tracking-wide text-brand-100/70 uppercase">Your room</p>
-            <p className="mt-1 text-4xl font-semibold tracking-tight">{r.roomId}</p>
-            <p className="mt-1 text-sm text-brand-100/80">{bed ? `Bed ${bed} · Block ${block}` : `Block ${block}`}</p>
+            <p className="mt-1 text-4xl font-semibold tracking-tight">{roomName(t, r.roomId)}</p>
+            <p className="mt-1 text-sm text-brand-100/80">{bed ? `Bed ${bed} · ${block}` : block}</p>
             <div className="mt-4 space-y-1.5 text-sm">
               <p className="flex items-center gap-2 text-brand-50">
                 <CalendarClock className="size-4 shrink-0 text-brand-200" /> Paid until {formatDate(r.leaseEnd)}

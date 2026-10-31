@@ -25,7 +25,14 @@ export function platformOrigin() {
   return `${protocol}//${PLATFORM_HOST}${port ? `:${port}` : ""}`;
 }
 
-export const onPlatform = () => resolveHost(window.location.host).kind === "platform";
+/**
+ * Whether Google sign-in can run on this address itself: the platform, or a single fixed
+ * address showing one hostel (staging's *.hosted.app). Hostel subdomains go via the platform.
+ */
+export function onPlatform() {
+  const host = resolveHost(window.location.host);
+  return host.kind === "platform" || (host.kind === "hostel" && host.via === "default");
+}
 
 /**
  * Signs in with Google. Resolves with the user on the platform address; on a hostel's address

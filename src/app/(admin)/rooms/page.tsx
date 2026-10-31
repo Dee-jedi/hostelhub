@@ -7,7 +7,7 @@ import { toast } from "@/components/toast";
 import { Avatar, Button, Field, Input, Modal, PageHeader, Panel, RentBadge, Select, Tabs } from "@/components/ui";
 import type { RoomType } from "@/lib/model";
 import { bedOf, spaceIdsOf } from "@/lib/spaces";
-import { setRoomMaintenance, setRoomsType, useHostel } from "@/lib/store";
+import { roomLabel, setRoomMaintenance, setRoomsType, useHostel } from "@/lib/store";
 import type { Resident, RentStatus, Room } from "@/lib/types";
 import { openResident, openRoom, useUI } from "@/lib/ui-store";
 import { academicLine, cn, describeDaysLeft, daysLeft, isPerBed, naira, occupantsByRoom, peopleInRoom, rentStatus, roomTypeOf } from "@/lib/utils";
@@ -119,7 +119,7 @@ function RoomTile({
               {selected && <Check className="size-3" strokeWidth={3} />}
             </span>
           )}
-          {room.id}
+          {roomLabel(room.id)}
         </span>
         <StatusPill state={state}>{label}</StatusPill>
       </div>
@@ -371,7 +371,7 @@ export default function RoomsPage() {
         <Modal
           open
           onClose={() => openRoom(null)}
-          title={`Room ${room.id}`}
+          title={`Room ${roomLabel(room.id)}`}
           description={`Block ${room.block} · ${roomType.name} · ${naira(roomType.price)} per ${roomType.pricingMode === "per_bed" ? "bed" : "room"}${
             room.underMaintenance ? " · Under maintenance" : roomType.pricingMode === "per_bed" ? ` · ${freeIn(room)} of ${roomType.capacity} beds free` : tenant ? ` · ${peopleInRoom(tenant)} of ${roomType.capacity} people` : " · Vacant"
           }`}
@@ -383,7 +383,7 @@ export default function RoomsPage() {
                 onClick={async () => {
                   const err = await setRoomMaintenance(room.id, !room.underMaintenance, note || "Under repair");
                   if (err) return toast(err, "info");
-                  toast(room.underMaintenance ? `${room.id} is available again` : `${room.id} marked under maintenance`);
+                  toast(room.underMaintenance ? `${roomLabel(room.id)} is available again` : `${roomLabel(room.id)} marked under maintenance`);
                   setNote("");
                 }}
               >

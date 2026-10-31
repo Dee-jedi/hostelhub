@@ -4,7 +4,7 @@ import { Download, SlidersHorizontal, UserPlus, Users } from "lucide-react";
 import { useMemo, useState } from "react";
 import { AddResidentModal } from "@/components/AddResidentModal";
 import { Avatar, BtnLabel, Button, headerBtn, Card, EmptyState, PageHeader, RentBadge, SearchInput, Select } from "@/components/ui";
-import { useHostel } from "@/lib/store";
+import { roomLabel, useHostel } from "@/lib/store";
 import { openResident } from "@/lib/ui-store";
 import { LEVELS } from "@/lib/seed";
 import { cn, daysLeft, describeDaysLeft, downloadCSV, formatDate, rentStatus } from "@/lib/utils";
@@ -174,7 +174,7 @@ export default function ResidentsPage() {
                         <div className="min-w-0">
                           <p className="truncate font-medium text-slate-900">{r.fullName}</p>
                           <p className="text-xs text-slate-500">
-                            {r.roomId && <span className="sm:hidden">Room {r.roomId} · </span>}
+                            {r.roomId && <span className="sm:hidden">Room {roomLabel(r.roomId)} · </span>}
                             {r.phone}
                           </p>
                         </div>

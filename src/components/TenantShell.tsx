@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { signOut, useSession } from "@/lib/auth";
 import { auth } from "@/lib/firebase";
-import { restartTenantSync, startTenantSync, unreadCount, useTenant } from "@/lib/tenant-store";
+import { restartTenantSync, roomName, startTenantSync, unreadCount, useTenant } from "@/lib/tenant-store";
 import type { Booking } from "@/lib/types";
 import { cn, isOpenTicket } from "@/lib/utils";
 import { BookingWaiting } from "./BookingWaiting";
@@ -168,6 +168,7 @@ function useBookingCheck(booking: Booking | null) {
 }
 
 function NoRoom({ booking, managerPhone }: { booking: Booking | null; managerPhone?: string }) {
+  const t = useTenant();
   const { check, again } = useBookingCheck(booking);
   const status = booking?.status === "needs_attention" ? "received" : check;
 
@@ -205,7 +206,7 @@ function NoRoom({ booking, managerPhone }: { booking: Booking | null; managerPho
         {status === "error"
           ? "We couldn't check your last payment just now. If you were debited, don't pay again: try again in a minute."
           : status === "not_paid"
-            ? `You started booking room ${booking!.roomId} but the payment wasn't completed. No money was taken.`
+            ? `You started booking room ${roomName(t, booking!.roomId)} but the payment wasn't completed. No money was taken.`
             : "Book a room and pay online. You'll be added automatically."}
       </p>
       {status === "error" ? (

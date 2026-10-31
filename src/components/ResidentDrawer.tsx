@@ -2,10 +2,10 @@
 
 import { ArrowRightLeft, CreditCard, LogOut, MessageCircle, Pencil, Phone, Receipt, Send } from "lucide-react";
 import { useEffect, useState } from "react";
-import { HISTORY_WINDOW, moveOut, updateResident, useHistoryLoaded, useHostel, watchResidentPayments } from "@/lib/store";
+import { HISTORY_WINDOW, moveOut, roomLabel, spaceName, updateResident, useHistoryLoaded, useHostel, watchResidentPayments } from "@/lib/store";
 import type { Payment, StudentInfo } from "@/lib/types";
 import { academicLine, daysLeft, describeDaysLeft, formatDate, naira, rentStatus, whatsappLink, fillTemplate, occupantsByRoom, roomTypeOf } from "@/lib/utils";
-import { bedOf, spaceLabel } from "@/lib/spaces";
+import { bedOf } from "@/lib/spaces";
 import { TEMPLATES } from "@/lib/templates";
 import { openResident } from "@/lib/ui-store";
 import { RoomSelect } from "./AddResidentModal";
@@ -96,7 +96,7 @@ export function ResidentDrawer({ residentId, onClose }: { residentId: string | n
                     {academicLine(resident)}
                   </p>
                   <div className="mt-2 flex flex-wrap gap-1.5">
-                    {resident.roomId && <Badge tone="brand">{spaceLabel(resident.roomId, resident.spaceId).replace(", bed", " · bed")}</Badge>}
+                    {resident.roomId && <Badge tone="brand">{spaceName(resident.roomId, resident.spaceId).replace(", bed", " · bed")}</Badge>}
                     <RentBadge resident={resident} />
                     <Badge>{resident.sex}</Badge>
                   </div>
@@ -310,7 +310,7 @@ export function ResidentDrawer({ residentId, onClose }: { residentId: string | n
         open={confirmMoveOut}
         onClose={() => setConfirmMoveOut(false)}
         title="Mark as moved out?"
-        description={`Room ${resident.roomId} will become vacant. ${resident.fullName}'s records and payment history are kept.`}
+        description={`Room ${roomLabel(resident.roomId)} will become vacant. ${resident.fullName}'s records and payment history are kept.`}
         footer={
           <>
             <Button variant="secondary" onClick={() => setConfirmMoveOut(false)}>

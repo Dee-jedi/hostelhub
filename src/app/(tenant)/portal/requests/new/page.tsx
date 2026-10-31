@@ -12,7 +12,7 @@ import { toast } from "@/components/toast";
 import { Button, Field, Input, Textarea } from "@/components/ui";
 import { listingPath } from "@/lib/current-hostel";
 import { db } from "@/lib/firebase";
-import { createRequest, useTenant } from "@/lib/tenant-store";
+import { createRequest, roomName, useTenant } from "@/lib/tenant-store";
 import type { PublicBookingDoc, RequestKind, TicketCategory } from "@/lib/types";
 import { cn, isBookable, isOpenTicket } from "@/lib/utils";
 
@@ -136,7 +136,7 @@ export default function NewRequestPage() {
     try {
       const id = await createRequest({
         kind,
-        title: kind === "room_change" ? `Move from ${r.roomId} to ${roomId}` : title,
+        title: kind === "room_change" ? `Move from ${roomName(t, r.roomId)} to ${roomName(t, roomId)}` : title,
         category: kind === "repair" ? category : "Other",
         description: details,
         photo: kind === "room_change" ? null : photo?.blob,
@@ -225,7 +225,7 @@ export default function NewRequestPage() {
           ) : pub ? (
             <div>
               <p className="mb-2 text-xs font-medium text-heading-4">
-                You&apos;re in room <span className="font-semibold text-grey-950">{r.roomId}</span>. Pick the room you want:
+                You&apos;re in room <span className="font-semibold text-grey-950">{roomName(t, r.roomId)}</span>. Pick the room you want:
               </p>
               <RoomPicker doc={pub} now={now} value={roomId} onChange={setRoomId} />
             </div>

@@ -4,7 +4,7 @@ import { ArrowLeft, ArrowRight, Check, MessageCircle } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { KIND, KindIcon, kindOf, requestStage, RequestStatusBadge } from "@/components/RequestStatus";
-import { useTenant } from "@/lib/tenant-store";
+import { roomName, useTenant } from "@/lib/tenant-store";
 import type { Ticket } from "@/lib/types";
 import { cn, formatDateTime, whatsappLink } from "@/lib/utils";
 
@@ -77,7 +77,7 @@ export default function RequestDetailPage() {
           <div className="min-w-0 flex-1">
             <p className="text-xs font-medium text-heading-6">
               {KIND[kindOf(q)].label}
-              {kindOf(q) === "repair" ? ` · ${q.category}` : ""} · Room {q.roomId}
+              {kindOf(q) === "repair" ? ` · ${q.category}` : ""} · Room {roomName(t, q.roomId)}
             </p>
             <h1 className="mt-0.5 text-lg leading-snug font-semibold text-grey-950">{q.title}</h1>
           </div>
@@ -92,7 +92,7 @@ export default function RequestDetailPage() {
         <section className="space-y-3 rounded-2xl border border-grey-100 bg-white p-4 sm:p-5">
           {q.requestedRoomId && (
             <div className="flex items-center gap-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
-              <span className="font-semibold">Room {q.roomId}</span>
+              <span className="font-semibold">Room {roomName(t, q.roomId)}</span>
               <ArrowRight className="size-4" />
               <span className="font-semibold">Room {q.requestedRoomId}</span>
             </div>
@@ -132,7 +132,7 @@ export default function RequestDetailPage() {
 
       {t.info?.managerPhone && (
         <a
-          href={whatsappLink(t.info.managerPhone, `Hello, this is ${r.fullName} (room ${r.roomId}) about my request: "${q.title}".`)}
+          href={whatsappLink(t.info.managerPhone, `Hello, this is ${r.fullName} (room ${roomName(t, r.roomId)}) about my request: "${q.title}".`)}
           target="_blank"
           rel="noreferrer"
           className="flex items-center justify-center gap-2 rounded-2xl border border-grey-100 bg-white py-3 text-sm font-medium text-emerald-700 hover:bg-emerald-50"

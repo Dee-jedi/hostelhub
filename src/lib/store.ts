@@ -8,6 +8,7 @@ import { auth, db } from "./firebase";
 import { toLegacy, type HostelView } from "./migrate/to-legacy";
 import type { Listing } from "./model";
 import { createEmptyState } from "./seed";
+import { bedOf } from "./spaces";
 import type { Booking, Channel, HostelState, Message, Payment, PaymentMethod, Resident, Settings, StudentInfo, Ticket, TicketCategory, TicketUpdate } from "./types";
 import { parseDate, tenantsByRoom, todayISO, toISODate, toStudentInfo } from "./utils";
 
@@ -42,6 +43,22 @@ const serverSnapshot = createEmptyState();
 
 export function useHostel(): HostelState {
   return useSyncExternalStore(subscribe, getState, () => serverSnapshot);
+}
+
+/**
+ * A room by the name tenants and staff use ("Ruby 2"); older rooms' ids are their names ("H15").
+ * Reads the loaded hostel, so call it while rendering a screen that uses useHostel().
+ */
+export function roomLabel(id: string | null | undefined) {
+  if (!id) return "";
+  return state.rooms.find((r) => r.id === id)?.label ?? id;
+}
+
+/** "Room Ruby 2, bed B" / "Room H15", or "No room". */
+export function spaceName(roomId: string | null | undefined, spaceId?: string | null) {
+  if (!roomId) return "No room";
+  const bed = bedOf(spaceId, roomId);
+  return `Room ${roomLabel(roomId)}${bed ? `, bed ${bed}` : ""}`;
 }
 
 export function useHostelStatus() {
@@ -133,14 +150,11 @@ function rebuild() {
     sentReminderKeys: raw.sentReminderKeys ?? [],
   });
   const sort = <T,>(xs: T[], key: string) => [...xs].sort(byNewest(key) as never) as T[];
-  const order = (id: string) => [id.replace(/\d+$/, ""), Number(id.match(/\d+$/)?.[0] ?? 0)] as const;
+  // Rooms in block order, then by number (blocks are named freely now: "Ruby", "Annex")
+  const blockIndex = (name: string) => view.settings.blocks.findIndex((x) => x.name === name);
   state = {
     ...view,
-    rooms: [...view.rooms].sort((a, b) => {
-      const [ab, an] = order(a.id);
-      const [bb, bn] = order(b.id);
-      return (view.settings.blocks.findIndex((x) => x.name === ab) - view.settings.blocks.findIndex((x) => x.name === bb)) || an - bn;
-    }),
+    rooms: [...view.rooms].sort((a, b) => blockIndex(a.block) - blockIndex(b.block) || a.number - b.number),
     residents: sort(view.residents, "createdAt"),
     payments: sort(view.payments, "date"),
     messages: sort(view.messages, "sentAt"),

@@ -14,6 +14,7 @@ import { auth } from "@/lib/firebase";
 import { BASICS_CHECKS, EMPTY_BASICS, normalizePhone, suggestSlugs, type HostelBasics } from "@/lib/onboarding";
 import { PLATFORM_HOST, whatsappHref } from "@/lib/platform";
 import { cn } from "@/lib/utils";
+import { GoogleButton, OrDivider } from "@/components/GoogleButton";
 import { GoLiveStep } from "./GoLiveStep";
 import { PaymentsStep } from "./PaymentsStep";
 import { RoomsWizard } from "./RoomsWizard";
@@ -577,9 +578,14 @@ export function StartWizard() {
                   hint={
                     emailCheck.exists
                       ? "This email already has a HostelHub login. Enter its password and this hostel joins it."
-                      : "Your own email and password. You'll use them to open your dashboard."
+                      : "The login for your dashboard. Google is quickest: nothing to remember."
                   }
                 >
+                  <div>
+                    {/* Saves the hostel as soon as they pick their Google account */}
+                    <GoogleButton label={busy ? "Saving your hostel…" : "Continue with Google"} onUser={(u) => void createHostel(u)} />
+                    <OrDivider label="or use an email and password" />
+                  </div>
                   <div>
                     <Label htmlFor="email">Email</Label>
                     <input

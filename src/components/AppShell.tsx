@@ -24,7 +24,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { signOut, useSession } from "@/lib/auth";
-import { startHostelSync, stopHostelSync, useHostel, useHostelStatus, useIsClient } from "@/lib/store";
+import { roomLabel, startHostelSync, stopHostelSync, useHostel, useHostelStatus, useIsClient } from "@/lib/store";
 import { openResident, openRoom, toggleSidebar, useUI } from "@/lib/ui-store";
 import { activeResidents, cn, initials, isOpenTicket, managerInitials, rentStatus, tenantsByRoom } from "@/lib/utils";
 import { SUB_PAGES, subPageOf } from "@/lib/nav";
@@ -357,7 +357,7 @@ function GlobalSearch({ autoFocus, onDone }: { autoFocus?: boolean; onDone?: () 
                   className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left hover:bg-grey-50"
                 >
                   <BedDouble className="size-4 text-heading-6" />
-                  <span className="flex-1 text-sm font-medium text-heading-2">Room {room.id}</span>
+                  <span className="flex-1 text-sm font-medium text-heading-2">Room {roomLabel(room.id)}</span>
                   <span className="text-xs text-heading-6">
                     {room.underMaintenance ? "Maintenance" : tenant ? tenant.fullName : "Vacant"}
                   </span>
@@ -381,7 +381,7 @@ function GlobalSearch({ autoFocus, onDone }: { autoFocus?: boolean; onDone?: () 
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium text-heading-2">{r.fullName}</span>
                     <span className="block truncate text-xs text-heading-6">
-                      {r.roomId ? `Room ${r.roomId}` : "Moved out"} · {r.phone}
+                      {r.roomId ? `Room ${roomLabel(r.roomId)}` : "Moved out"} · {r.phone}
                     </span>
                   </span>
                 </button>

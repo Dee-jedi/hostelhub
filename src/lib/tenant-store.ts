@@ -27,9 +27,11 @@ export interface TenantData {
   info: PublicBookingDoc["info"] | null;
   /** Each room's type (from the public listing), for the tenant's own rent */
   roomTypeIds: Record<string, string>;
+  /** Each room's name and block as tenants know them ("Emerald 2", "Emerald"), from the same listing */
+  roomNames: Record<string, { label: string; block: string }>;
 }
 
-const EMPTY: TenantData = { status: "idle", uid: null, resident: null, payments: [], notices: [], requests: [], booking: null, info: null, roomTypeIds: {} };
+const EMPTY: TenantData = { status: "idle", uid: null, resident: null, payments: [], notices: [], requests: [], booking: null, info: null, roomTypeIds: {}, roomNames: {} };
 
 let data: TenantData = EMPTY;
 let unsubscribers: (() => void)[] = [];
@@ -92,6 +94,9 @@ export function startTenantSync(uid: string) {
       arrived("info", {
         info: listing ? (listing.info as unknown as PublicBookingDoc["info"]) : null,
         roomTypeIds: listing ? Object.fromEntries(Object.entries(listing.rooms).map(([id, room]) => [id, room.typeId])) : {},
+        roomNames: listing
+          ? Object.fromEntries(Object.entries(listing.rooms).map(([id, room]) => [id, { label: room.label || id, block: listing.info.blockNames?.[room.block] ?? `Block ${room.block}` }]))
+          : {},
       });
     })
     .catch(failed);
@@ -264,6 +269,12 @@ export function tenantNotifications(t: TenantData): TenantNotification[] {
 }
 
 /** Fills reminder templates ({name}, {room}…) with the tenant's own details. */
+/** A room as tenants know it ("Emerald 2"); older rooms' ids are their names ("H15"). */
+export const roomName = (t: Pick<TenantData, "roomNames">, id: string | null | undefined) => (id ? (t.roomNames[id]?.label ?? id) : "");
+
+/** The block a room is in, by its name ("Emerald", "Block A"). */
+export const blockName = (t: Pick<TenantData, "roomNames">, id: string | null | undefined) => (id ? (t.roomNames[id]?.block ?? `Block ${id.replace(/\d+$/, "")}`) : "");
+
 export function personalise(body: string, r: Resident | null, info: TenantData["info"]) {
   if (!r) return body;
   const days = Math.max(0, Math.round((new Date(`${r.leaseEnd}T00:00:00`).getTime() - new Date().setHours(0, 0, 0, 0)) / 86_400_000));

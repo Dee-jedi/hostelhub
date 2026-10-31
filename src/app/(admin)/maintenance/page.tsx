@@ -6,7 +6,7 @@ import { OlderRecords } from "@/components/OlderRecords";
 import { KIND, KindIcon, kindOf } from "@/components/RequestStatus";
 import { toast } from "@/components/toast";
 import { Avatar, Badge, BtnLabel, Button, Card, Drawer, EmptyState, Field, FilterChips, headerBtn, Input, Modal, PageHeader, Select, Tabs, Textarea } from "@/components/ui";
-import { addTicket, approveRoomChange, markTicketSeen, roomUnavailableReason, updateTicket, useHostel } from "@/lib/store";
+import { addTicket, approveRoomChange, markTicketSeen, roomLabel, roomUnavailableReason, updateTicket, useHostel } from "@/lib/store";
 import { openResident } from "@/lib/ui-store";
 import type { RequestKind, Resident, Ticket, TicketCategory } from "@/lib/types";
 import { formatDateTime, isOpenTicket, whatsappLink } from "@/lib/utils";
@@ -76,7 +76,7 @@ function RequestDrawer({ ticket, resident, onClose }: { ticket: Ticket; resident
         {roomChange && ticket.requestedRoomId && (
           <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
             <div className="flex items-center gap-3 text-sm font-semibold text-amber-950">
-              Room {ticket.roomId} <ArrowRight className="size-4" /> Room {ticket.requestedRoomId}
+              Room {roomLabel(ticket.roomId)} <ArrowRight className="size-4" /> Room {roomLabel(ticket.requestedRoomId)}
             </div>
             {open && <p className="mt-1 text-xs text-amber-800">{unavailable ?? `Room ${ticket.requestedRoomId} is still free.`}</p>}
           </div>
@@ -88,7 +88,7 @@ function RequestDrawer({ ticket, resident, onClose }: { ticket: Ticket; resident
             <button onClick={() => openResident(resident.id)} className="min-w-0 flex-1 text-left">
               <span className="block truncate text-sm font-medium text-grey-950 hover:underline">{resident.fullName}</span>
               <span className="block text-xs text-heading-6">
-                Room {resident.roomId ?? ticket.roomId} · {resident.phone}
+                Room {roomLabel(resident.roomId ?? ticket.roomId)} · {resident.phone}
               </span>
             </button>
             <a href={`tel:${resident.phone}`} aria-label="Call" className="flex size-9 items-center justify-center rounded-lg text-heading-5 hover:bg-grey-50">
@@ -99,7 +99,7 @@ function RequestDrawer({ ticket, resident, onClose }: { ticket: Ticket; resident
             </a>
           </div>
         ) : (
-          <p className="text-sm text-heading-6">Room {ticket.roomId} · logged by staff</p>
+          <p className="text-sm text-heading-6">Room {roomLabel(ticket.roomId)} · logged by staff</p>
         )}
 
         <div>
@@ -246,7 +246,7 @@ export default function RequestsInboxPage() {
                         {t.photoUrl && <Camera className="size-3.5 shrink-0 text-heading-6" aria-label="Has photo" />}
                       </span>
                       <span className="block truncate text-xs text-heading-6">
-                        Room {t.roomId}
+                        Room {roomLabel(t.roomId)}
                         {r ? ` · ${r.fullName}` : " · staff"} · {formatDateTime(t.createdAt)}
                       </span>
                     </span>

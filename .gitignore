@@ -52,3 +52,6 @@ tests/e2e/shots/
 
 # Firebase CLI logs
 firebase-debug*.log
+
+# Claude Code worktrees (temporary copies for background work)
+.claude/worktrees/

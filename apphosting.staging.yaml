@@ -9,3 +9,11 @@ env:
   # A separate Firestore database in the same project, so staging never touches live data
   - variable: NEXT_PUBLIC_FIRESTORE_DATABASE
     value: staging
+  # Staging's own domain, if *.staging.hostelhub.africa is ever pointed at it; until then its
+  # *.hosted.app address shows the demo hostel, and Google sign-in uses Firebase's auth domain
+  - variable: NEXT_PUBLIC_PLATFORM_DOMAIN
+    value: staging.hostelhub.africa
+  - variable: NEXT_PUBLIC_DEFAULT_HOSTEL
+    value: demo
+  - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    value: hostelhub-b51cc.firebaseapp.com
