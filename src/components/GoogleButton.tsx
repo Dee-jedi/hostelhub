@@ -76,6 +76,15 @@ export function GoogleButton({
   );
 }
 
+/** In place of the login options while a Google sign-in is being finished. */
+export function SigningIn() {
+  return (
+    <div className="flex h-14 items-center justify-center gap-3 rounded-2xl bg-grey-10 text-[15px] font-medium text-heading-4" role="status">
+      <Loader2 className="size-5 animate-spin text-brand-600" /> Signing you in with Google…
+    </div>
+  );
+}
+
 /** The quiet divider between Google and the email option. */
 export function OrDivider({ label = "or use your email" }: { label?: string }) {
   return (

@@ -9,13 +9,14 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { BrandLayout } from "@/components/BrandLayout";
-import { GoogleButton, GoogleG, OrDivider } from "@/components/GoogleButton";
+import { GoogleButton, GoogleG, OrDivider, SigningIn } from "@/components/GoogleButton";
 import { type Passport, PhotoPicker } from "@/components/PhotoPicker";
 import { EMPTY_STUDENT, StudentForm, validateStudent } from "@/components/StudentForm";
 import { Button, Field, Input, PasswordInput, Select } from "@/components/ui";
 import { authMessage } from "@/lib/auth";
 import { listingPath } from "@/lib/current-hostel";
 import { isResuming, resumeUrl, saveDraft, takeDraft } from "@/lib/form-draft";
+import { useGoogleReturning } from "@/lib/google-auth";
 import { auth, db, storage } from "@/lib/firebase";
 import type { PublicBookingDoc, StudentInfo } from "@/lib/types";
 import { cn, todayISO } from "@/lib/utils";
@@ -66,6 +67,7 @@ export function JoinForm() {
   const [sent, setSent] = useState(false);
   /** Signed in on this hostel's address (with Google, usually) */
   const [me, setMe] = useState<User | null>(null);
+  const googleReturning = useGoogleReturning();
   const viaGoogle = !!me?.providerData.some((p) => p.providerId === "google.com");
   const loginEmail = me?.email ?? email.trim();
   // Back from Google sign-in: the form as they left it
@@ -214,7 +216,9 @@ export function JoinForm() {
               </div>
             </section>
 
-            {!me && (
+            {googleReturning ? (
+              <SigningIn />
+            ) : !me && (
               <section className={cn(CARD, "space-y-5")}>
                 <h2 className="text-base font-semibold text-grey-950">Your login</h2>
                 {/* Google first; what they've filled in is kept while they're away */}

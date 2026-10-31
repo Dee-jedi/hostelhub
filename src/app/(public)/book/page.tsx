@@ -8,7 +8,7 @@ import { ArrowLeft, ArrowRight, BedDouble, Check, CheckCircle2, Clock, KeyRound,
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { BookingWaiting } from "@/components/BookingWaiting";
-import { GoogleButton, GoogleG, OrDivider } from "@/components/GoogleButton";
+import { GoogleButton, GoogleG, OrDivider, SigningIn } from "@/components/GoogleButton";
 import { type Passport, PhotoPicker } from "@/components/PhotoPicker";
 import { BrandLayout } from "@/components/BrandLayout";
 import { RoomPicker } from "@/components/RoomPicker";
@@ -19,6 +19,7 @@ import { authMessage } from "@/lib/auth";
 import { firstPayment, leaseFor, mayStay, optionRent, stayLength } from "@/lib/checkout";
 import { listingPath } from "@/lib/current-hostel";
 import { isResuming, resumeUrl, saveDraft, takeDraft } from "@/lib/form-draft";
+import { useGoogleReturning } from "@/lib/google-auth";
 import { bedOf, spaceLabel } from "@/lib/spaces";
 import { auth, db, storage } from "@/lib/firebase";
 import type { PublicBookingDoc, StudentInfo } from "@/lib/types";
@@ -130,6 +131,7 @@ export default function BookPage() {
 
   /** Signed in on this hostel's address (with Google, or from an earlier booking) */
   const [me, setMe] = useState<User | null>(null);
+  const googleReturning = useGoogleReturning();
   const viaGoogle = !!me?.providerData.some((p) => p.providerId === "google.com");
   useEffect(
     () =>
@@ -487,7 +489,9 @@ export default function BookPage() {
                   title={me ? "Your tenant login" : "Create your tenant login"}
                   description="You'll use this to log in to your portal for receipts, repairs and renewals."
                 >
-                  {me ? (
+                  {googleReturning ? (
+                    <SigningIn />
+                  ) : me ? (
                     <div className="flex flex-wrap items-center gap-3 rounded-xl bg-grey-10 p-3 text-sm">
                       {viaGoogle && <GoogleG className="size-5" />}
                       <span className="min-w-0 flex-1 truncate">

@@ -44,12 +44,12 @@ export function GoogleHandoff() {
         if (back?.user) return await handBack(back.user, returnTo);
         // No silent reuse of whoever is signed in here: Google's account chooser always shows
         // (one tap), so "Not you?" on the hostel page really lets them pick someone else
-        // Came back from Google without an account: they closed it or pressed back
-        if (sessionStorage.getItem(STARTED) === returnTo) {
-          sessionStorage.removeItem(STARTED);
-          return setProblem("Google sign-in was cancelled.");
-        }
-        sessionStorage.setItem(STARTED, returnTo);
+        // Came back from Google without an account: they closed it or pressed back. Only a
+        // recent attempt counts; an old note (a lost tab, a restart) just starts afresh.
+        const last = JSON.parse(sessionStorage.getItem(STARTED) ?? "null") as { returnTo: string; at: number } | null;
+        sessionStorage.removeItem(STARTED);
+        if (last?.returnTo === returnTo && Date.now() - last.at < 3 * 60_000) return setProblem("Google sign-in was cancelled.");
+        sessionStorage.setItem(STARTED, JSON.stringify({ returnTo, at: Date.now() }));
         await signInWithRedirect(auth, googleProvider());
       } catch (err) {
         sessionStorage.removeItem(STARTED);

@@ -1,6 +1,7 @@
 "use client";
 
 import { GoogleAuthProvider, signInWithCustomToken, signInWithPopup, type User } from "firebase/auth";
+import { useSyncExternalStore } from "react";
 import { auth } from "./firebase";
 import { resolveHost } from "./hostel-host";
 import { PLATFORM_HOST } from "./platform";
@@ -56,10 +57,35 @@ export async function finishGoogleReturn(): Promise<User | null> {
   if (!code) return null;
   url.searchParams.delete("hh_code");
   window.history.replaceState(window.history.state, "", url.toString());
-  const res = await fetch("/api/auth/handoff", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "finish", code }) });
-  const data = (await res.json().catch(() => ({}))) as { token?: string; error?: string };
-  if (!res.ok || !data.token) throw new Error(data.error ?? "Couldn't finish signing in with Google. Please try again.");
-  return (await signInWithCustomToken(auth, data.token)).user;
+  setReturning(true);
+  try {
+    const res = await fetch("/api/auth/handoff", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "finish", code }) });
+    const data = (await res.json().catch(() => ({}))) as { token?: string; error?: string };
+    if (!res.ok || !data.token) throw new Error(data.error ?? "Couldn't finish signing in with Google. Please try again.");
+    return (await signInWithCustomToken(auth, data.token)).user;
+  } finally {
+    setReturning(false);
+  }
+}
+
+// Whether a Google sign-in is being finished on this page, so forms can show "Signing you in…"
+// instead of their login fields for the second or two it takes
+let returning = false;
+const returningListeners = new Set<() => void>();
+function setReturning(value: boolean) {
+  returning = value;
+  returningListeners.forEach((l) => l());
+}
+
+export function useGoogleReturning() {
+  return useSyncExternalStore(
+    (l) => {
+      returningListeners.add(l);
+      return () => returningListeners.delete(l);
+    },
+    () => returning,
+    () => false,
+  );
 }
 
 /** The person's first and last name from their Google profile, for pre-filling forms. */
