@@ -8,7 +8,7 @@ import { ArrowLeft, ArrowRight, BedDouble, Check, CheckCircle2, Clock, KeyRound,
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { BookingWaiting } from "@/components/BookingWaiting";
-import { GoogleButton, GoogleG } from "@/components/GoogleButton";
+import { GoogleButton, GoogleG, OrDivider } from "@/components/GoogleButton";
 import { type Passport, PhotoPicker } from "@/components/PhotoPicker";
 import { BrandLayout } from "@/components/BrandLayout";
 import { RoomPicker } from "@/components/RoomPicker";
@@ -18,12 +18,15 @@ import { Button, Field, Input, PasswordInput } from "@/components/ui";
 import { authMessage } from "@/lib/auth";
 import { firstPayment, leaseFor, mayStay, optionRent, stayLength } from "@/lib/checkout";
 import { listingPath } from "@/lib/current-hostel";
+import { isResuming, resumeUrl, saveDraft, takeDraft } from "@/lib/form-draft";
 import { bedOf, spaceLabel } from "@/lib/spaces";
 import { auth, db, storage } from "@/lib/firebase";
 import type { PublicBookingDoc, StudentInfo } from "@/lib/types";
 import { addMonths, cn, formatDate, isBookable, naira, todayISO } from "@/lib/utils";
 
 const STEPS = ["Your details", "Pick a room", "Pay"] as const;
+/** The half-filled booking, kept while the student signs in with Google */
+const draftKey = "hostelhub:book-draft";
 /** Paystack test keys: hostels still signing up can be tried here with test payments. */
 const TEST_SITE = !!process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY?.startsWith("pk_test_");
 
@@ -111,6 +114,20 @@ export default function BookPage() {
   const options = pub?.info.options ?? [];
   const option = options.find((o) => o.id === periodId) ?? options.find((o) => o.id === pub?.info.defaultOptionId) ?? options[0] ?? null;
   const [agent, setAgent] = useState("");
+  // Back from Google sign-in: the form as they left it, at the step where they were
+  useEffect(() => {
+    if (!isResuming()) return;
+    takeDraft<{ info: StudentInfo; roomId: string; periodId: string; agent: string }>(draftKey).then((draft) => {
+      if (!draft) return;
+      setInfo(draft.data.info);
+      setRoomId(draft.data.roomId);
+      setPeriodId(draft.data.periodId);
+      setAgent(draft.data.agent);
+      setPhoto(draft.photo);
+      setStep(2);
+    });
+  }, []);
+
   /** Signed in on this hostel's address (with Google, or from an earlier booking) */
   const [me, setMe] = useState<User | null>(null);
   const viaGoogle = !!me?.providerData.some((p) => p.providerId === "google.com");
@@ -329,15 +346,7 @@ export default function BookPage() {
 
             {step === 0 && (
               <div className="space-y-6">
-                {/* The quickest start: Google fills in the name and is the login, no password */}
-                {!me ? (
-                  <section className={cn(CARD, "p-5 sm:p-6")}>
-                    <p className="text-[15px] font-semibold text-grey-950">Start with Google</p>
-                    <p className="mt-1 mb-4 text-sm text-heading-6">We&apos;ll fill in your name, and you won&apos;t need a password to log in later.</p>
-                    <GoogleButton />
-                    <p className="mt-4 text-center text-xs text-heading-6">Or fill in the form below with your email.</p>
-                  </section>
-                ) : (
+                {me && (
                   <p className="flex flex-wrap items-center gap-2 rounded-xl bg-brand-50 px-4 py-3 text-sm text-brand-950">
                     {viaGoogle && <GoogleG className="size-4" />} Booking as <b>{me.email}</b>
                     <button type="button" onClick={() => void auth.signOut()} className="ml-auto text-xs font-medium text-brand-700 hover:underline">
@@ -489,6 +498,10 @@ export default function BookPage() {
                       </button>
                     </div>
                   ) : (
+                  <>
+                  {/* Google first: no password to make up or forget. The form is kept while they're away. */}
+                  <GoogleButton returnTo={resumeUrl()} beforeLeave={() => saveDraft(draftKey, { info, roomId, periodId, agent }, photo)} />
+                  <OrDivider label="or use your email" />
                   <div className="grid gap-4 sm:grid-cols-2">
                     <Field label="Email" required className="sm:col-span-2" hint="You log in with this, and a password reset link comes here. Use one you can open.">
                       <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" placeholder="you@example.com" />
@@ -506,6 +519,7 @@ export default function BookPage() {
                       )}
                     </Field>
                   </div>
+                  </>
                   )}
                   <label className="mt-5 flex items-start gap-3 text-sm text-slate-700">
                     <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} className="mt-0.5 size-4 accent-brand-600" />

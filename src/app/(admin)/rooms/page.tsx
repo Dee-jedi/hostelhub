@@ -112,8 +112,9 @@ function RoomTile({
         selecting && selected && "border-brand-500 ring-2 ring-brand-500/30",
       )}
     >
-      <div className="flex items-center justify-between gap-1.5">
-        <span className="flex items-center gap-1.5 text-sm font-medium text-heading-2">
+      {/* Long names ("Emerald 3") push the status under the name on narrow cards, not out of them */}
+      <div className="flex flex-wrap items-center justify-between gap-1.5">
+        <span className="flex min-w-0 items-center gap-1.5 text-sm font-medium break-words text-heading-2">
           {selecting && (
             <span className={cn("flex size-4 items-center justify-center rounded border", selected ? "border-brand-600 bg-brand-600 text-white" : "border-grey-200 bg-white")}>
               {selected && <Check className="size-3" strokeWidth={3} />}

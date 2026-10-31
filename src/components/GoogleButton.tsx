@@ -23,7 +23,20 @@ export function GoogleG({ className }: { className?: string }) {
  * "Continue with Google": the first choice wherever someone signs in. On a hostel's address it
  * leaves for Google and comes back signed in; `onUser` runs straight away on the platform address.
  */
-export function GoogleButton({ onUser, label = "Continue with Google", returnTo, className }: { onUser?: (user: User) => void; label?: string; returnTo?: string; className?: string }) {
+export function GoogleButton({
+  onUser,
+  label = "Continue with Google",
+  returnTo,
+  beforeLeave,
+  className,
+}: {
+  onUser?: (user: User) => void;
+  label?: string;
+  returnTo?: string;
+  /** Runs before the page may leave for Google (e.g. to keep a half-filled form) */
+  beforeLeave?: () => Promise<void> | void;
+  className?: string;
+}) {
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
 
@@ -31,6 +44,7 @@ export function GoogleButton({ onUser, label = "Continue with Google", returnTo,
     setBusy(true);
     setProblem(null);
     try {
+      await beforeLeave?.();
       // Not `onUser?.(await …)`: with no onUser that would skip the sign-in itself
       const user = await continueWithGoogle(returnTo);
       onUser?.(user);

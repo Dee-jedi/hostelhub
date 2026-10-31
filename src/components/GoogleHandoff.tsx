@@ -10,8 +10,7 @@ import { googleProvider } from "@/lib/google-auth";
 
 /*
  * The platform's /auth/google: a hostel page sends people here to sign in with Google, then they
- * go straight back with a one-time code (api/auth/handoff). Someone already signed in with Google
- * on this browser goes back at once, without seeing Google again.
+ * go straight back with a one-time code (api/auth/handoff).
  */
 
 const STARTED = "hostelhub:google-started";
@@ -43,9 +42,8 @@ export function GoogleHandoff() {
         // Back from Google?
         const back = await getRedirectResult(auth);
         if (back?.user) return await handBack(back.user, returnTo);
-        await auth.authStateReady();
-        const user = auth.currentUser;
-        if (user?.providerData.some((p) => p.providerId === "google.com")) return await handBack(user, returnTo);
+        // No silent reuse of whoever is signed in here: Google's account chooser always shows
+        // (one tap), so "Not you?" on the hostel page really lets them pick someone else
         // Came back from Google without an account: they closed it or pressed back
         if (sessionStorage.getItem(STARTED) === returnTo) {
           sessionStorage.removeItem(STARTED);

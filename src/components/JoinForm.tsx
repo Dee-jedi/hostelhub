@@ -9,12 +9,13 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { BrandLayout } from "@/components/BrandLayout";
-import { GoogleButton, GoogleG } from "@/components/GoogleButton";
+import { GoogleButton, GoogleG, OrDivider } from "@/components/GoogleButton";
 import { type Passport, PhotoPicker } from "@/components/PhotoPicker";
 import { EMPTY_STUDENT, StudentForm, validateStudent } from "@/components/StudentForm";
 import { Button, Field, Input, PasswordInput, Select } from "@/components/ui";
 import { authMessage } from "@/lib/auth";
 import { listingPath } from "@/lib/current-hostel";
+import { isResuming, resumeUrl, saveDraft, takeDraft } from "@/lib/form-draft";
 import { auth, db, storage } from "@/lib/firebase";
 import type { PublicBookingDoc, StudentInfo } from "@/lib/types";
 import { cn, todayISO } from "@/lib/utils";
@@ -25,7 +26,10 @@ import { cn, todayISO } from "@/lib/utils";
  * log in to the portal.
  */
 
-const CARD = "rounded-2xl border border-grey-100 bg-white p-5 shadow-[0_1px_3px_rgba(16,16,16,0.04)] sm:p-6";
+/** The half-filled form, kept while the tenant signs in with Google */
+const draftKey = "hostelhub:join-draft";
+
+const CARD ="rounded-2xl border border-grey-100 bg-white p-5 shadow-[0_1px_3px_rgba(16,16,16,0.04)] sm:p-6";
 
 /** Signs in as the tenant, creating the login on first use. */
 async function tenantToken(email: string, password: string) {
@@ -64,6 +68,18 @@ export function JoinForm() {
   const [me, setMe] = useState<User | null>(null);
   const viaGoogle = !!me?.providerData.some((p) => p.providerId === "google.com");
   const loginEmail = me?.email ?? email.trim();
+  // Back from Google sign-in: the form as they left it
+  useEffect(() => {
+    if (!isResuming()) return;
+    takeDraft<{ info: StudentInfo; roomId: string; movedIn: string; paidUntil: string }>(draftKey).then((draft) => {
+      if (!draft) return;
+      setInfo(draft.data.info);
+      setRoomId(draft.data.roomId);
+      setMovedIn(draft.data.movedIn);
+      setPaidUntil(draft.data.paidUntil);
+      setPhoto(draft.photo);
+    });
+  }, []);
   useEffect(
     () =>
       onAuthStateChanged(auth, (u) => {
@@ -160,15 +176,7 @@ export function JoinForm() {
               </p>
             </div>
 
-            {/* The quickest start: Google fills in the name and is the login */}
-            {!me ? (
-              <section className={CARD}>
-                <p className="text-[15px] font-semibold text-grey-950">Start with Google</p>
-                <p className="mt-1 mb-4 text-sm text-heading-6">We&apos;ll fill in your name, and you won&apos;t need a password to log in.</p>
-                <GoogleButton />
-                <p className="mt-4 text-center text-xs text-heading-6">Or fill in the form below with your email.</p>
-              </section>
-            ) : (
+            {me && (
               <p className="flex flex-wrap items-center gap-2 rounded-xl bg-brand-50 px-4 py-3 text-sm text-brand-950">
                 {viaGoogle && <GoogleG className="size-4" />} Joining as <b>{me.email}</b>
                 <button type="button" onClick={() => void auth.signOut()} className="ml-auto text-xs font-medium text-brand-700 hover:underline">
@@ -209,6 +217,9 @@ export function JoinForm() {
             {!me && (
               <section className={cn(CARD, "space-y-5")}>
                 <h2 className="text-base font-semibold text-grey-950">Your login</h2>
+                {/* Google first; what they've filled in is kept while they're away */}
+                <GoogleButton returnTo={resumeUrl()} beforeLeave={() => saveDraft(draftKey, { info, roomId, movedIn, paidUntil }, photo)} />
+                <OrDivider label="or use your email" />
                 <Field label="Email" hint="You log in with this, and password resets come here." required>
                   <Input type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
                 </Field>
