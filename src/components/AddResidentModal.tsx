@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { addResident, resolveBooking, roomLabel, useHostel } from "@/lib/store";
 import type { PaymentMethod, StudentInfo } from "@/lib/types";
-import { addMonths, availableRooms, formatDate, freeSpaces, naira, roomTypeOf, todayISO } from "@/lib/utils";
+import { addMonths, availableRooms, blockTitle, formatDate, freeSpaces, naira, roomTypeOf, todayISO } from "@/lib/utils";
 import { EMPTY_STUDENT, StudentForm, validateStudent } from "./StudentForm";
 import { toast } from "./toast";
 import { Button, Field, Input, Modal, Select } from "./ui";
@@ -35,7 +35,7 @@ export function RoomSelect({
     <Select value={value} onChange={(e) => onChange(e.target.value)}>
       <option value="">Select a vacant room</option>
       {blocks.map((b) => (
-        <optgroup key={b} label={`Block ${b}${b === preferredBlock ? " (preferred)" : ""}`}>
+        <optgroup key={b} label={`${blockTitle(b)}${b === preferredBlock ? " (preferred)" : ""}`}>
           {rooms
             .filter((r) => r.block === b)
             .map((r) => {

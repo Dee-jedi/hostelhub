@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { useHostel } from "./store";
 import { spaceIdsOf } from "./spaces";
-import { activeResidents, isSameMonth, parseDate, peopleInRoom, rentStatus, isPerBed, occupantsByRoom, rentFor, roomTypeOf, todayISO } from "./utils";
+import { activeResidents, blockTitle, isSameMonth, parseDate, peopleInRoom, rentStatus, isPerBed, occupantsByRoom, rentFor, roomTypeOf, todayISO } from "./utils";
 
 function monthKey(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -65,7 +65,7 @@ export function useDashboard() {
       const rooms = usableRooms.filter((r) => r.block === b.name);
       const total = rooms.reduce((n, r) => n + spacesIn(r), 0);
       const occupied = rooms.reduce((n, r) => n + takenIn(r), 0);
-      return { name: `Block ${b.name}`, total, occupied, vacant: total - occupied };
+      return { name: blockTitle(b.name), total, occupied, vacant: total - occupied };
     });
 
     const statusCounts = {

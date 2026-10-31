@@ -255,6 +255,11 @@ export function greeting(date = new Date()) {
   return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
 }
 
+/** A block's title: older hostels' letter blocks read "Block A"; named ones ("Block A", "Ruby") as they are. */
+export function blockTitle(name: string) {
+  return /^[A-Za-z0-9]{1,2}$/.test(name) ? `Block ${name}` : name;
+}
+
 export function initials(name: string) {
   return name
     .split(" ")

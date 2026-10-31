@@ -10,7 +10,7 @@ import { bedOf, spaceIdsOf } from "@/lib/spaces";
 import { roomLabel, setRoomMaintenance, setRoomsType, useHostel } from "@/lib/store";
 import type { Resident, RentStatus, Room } from "@/lib/types";
 import { openResident, openRoom, useUI } from "@/lib/ui-store";
-import { academicLine, cn, describeDaysLeft, daysLeft, isPerBed, naira, occupantsByRoom, peopleInRoom, rentStatus, roomTypeOf } from "@/lib/utils";
+import { academicLine, blockTitle, cn, describeDaysLeft, daysLeft, isPerBed, naira, occupantsByRoom, peopleInRoom, rentStatus, roomTypeOf } from "@/lib/utils";
 
 type Filter = "all" | "occupied" | "full" | "vacant" | "empty" | "expiring" | "expired" | "maintenance";
 
@@ -231,7 +231,10 @@ export default function RoomsPage() {
   };
 
   const sizes = types.length > 1 ? `${types.length} room sizes` : `up to ${types[0]?.capacity ?? s.settings.maxOccupants} people per room`;
-  const description = `${s.rooms.length} rooms across ${s.settings.blocks.length} blocks · ${perBed ? `${sizes}, rented by the bed` : `one tenant per room, ${sizes}`}`;
+  // Hostels set up through sign-up can let some sizes by the bed and others as whole rooms
+  const mixed = types.some((t) => t.pricingMode === "per_bed") && types.some((t) => t.pricingMode === "per_room");
+  const letting = mixed ? `${sizes}, by the bed and by the room` : perBed ? `${sizes}, rented by the bed` : `one tenant per room, ${sizes}`;
+  const description = `${s.rooms.length} rooms across ${s.settings.blocks.length} block${s.settings.blocks.length === 1 ? "" : "s"} · ${letting}`;
 
   return (
     <>
@@ -302,7 +305,7 @@ export default function RoomsPage() {
           <option value="all">All blocks</option>
           {s.settings.blocks.map((b) => (
             <option key={b.name} value={b.name}>
-              Block {b.name}
+              {blockTitle(b.name)}
             </option>
           ))}
         </Select>
@@ -332,7 +335,7 @@ export default function RoomsPage() {
           return (
             <Panel
               key={b.name}
-              title={`Block ${b.name}`}
+              title={blockTitle(b.name)}
               action={
                 selecting ? (
                   <button
@@ -343,7 +346,8 @@ export default function RoomsPage() {
                   </button>
                 ) : (
                   <span className="text-xs text-heading-6">
-                    {free} {perBed ? `bed${free === 1 ? "" : "s"} free` : "vacant"}
+                    {/* Counted the way this block's rooms are let: beds, or whole rooms */}
+                    {free} {all.some((r) => typeOf(r).pricingMode === "per_bed") ? `bed${free === 1 ? "" : "s"} free` : `room${free === 1 ? "" : "s"} free`}
                   </span>
                 )
               }
@@ -372,7 +376,7 @@ export default function RoomsPage() {
           open
           onClose={() => openRoom(null)}
           title={`Room ${roomLabel(room.id)}`}
-          description={`Block ${room.block} · ${roomType.name} · ${naira(roomType.price)} per ${roomType.pricingMode === "per_bed" ? "bed" : "room"}${
+          description={`${blockTitle(room.block)} · ${roomType.name} · ${naira(roomType.price)} per ${roomType.pricingMode === "per_bed" ? "bed" : "room"}${
             room.underMaintenance ? " · Under maintenance" : roomType.pricingMode === "per_bed" ? ` · ${freeIn(room)} of ${roomType.capacity} beds free` : tenant ? ` · ${peopleInRoom(tenant)} of ${roomType.capacity} people` : " · Vacant"
           }`}
           footer={
