@@ -178,15 +178,6 @@ export function JoinForm() {
               </p>
             </div>
 
-            {me && (
-              <p className="flex flex-wrap items-center gap-2 rounded-xl bg-brand-50 px-4 py-3 text-sm text-brand-950">
-                {viaGoogle && <GoogleG className="size-4" />} Joining as <b>{me.email}</b>
-                <button type="button" onClick={() => void auth.signOut()} className="ml-auto text-xs font-medium text-brand-700 hover:underline">
-                  Not you?
-                </button>
-              </p>
-            )}
-
             <section className={CARD}>
               <div className="mb-7">
                 <PhotoPicker value={photo} onChange={setPhoto} />
@@ -216,9 +207,23 @@ export function JoinForm() {
               </div>
             </section>
 
+            {/* The login comes last, where they finish: already signed in, signing in, or a choice */}
             {googleReturning ? (
               <SigningIn />
-            ) : !me && (
+            ) : me ? (
+              <section className={cn(CARD, "space-y-3")}>
+                <h2 className="text-base font-semibold text-grey-950">Your login</h2>
+                <div className="flex flex-wrap items-center gap-3 rounded-xl bg-grey-10 p-3 text-sm">
+                  {viaGoogle && <GoogleG className="size-5" />}
+                  <span className="min-w-0 flex-1 truncate">
+                    Signed in as <b>{me.email}</b>
+                  </span>
+                  <button type="button" onClick={() => void auth.signOut()} className="text-xs font-medium text-brand-700 hover:underline">
+                    Not you?
+                  </button>
+                </div>
+              </section>
+            ) : (
               <section className={cn(CARD, "space-y-5")}>
                 <h2 className="text-base font-semibold text-grey-950">Your login</h2>
                 {/* Google first; what they've filled in is kept while they're away */}

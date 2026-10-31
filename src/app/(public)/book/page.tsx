@@ -348,14 +348,6 @@ export default function BookPage() {
 
             {step === 0 && (
               <div className="space-y-6">
-                {me && (
-                  <p className="flex flex-wrap items-center gap-2 rounded-xl bg-brand-50 px-4 py-3 text-sm text-brand-950">
-                    {viaGoogle && <GoogleG className="size-4" />} Booking as <b>{me.email}</b>
-                    <button type="button" onClick={() => void auth.signOut()} className="ml-auto text-xs font-medium text-brand-700 hover:underline">
-                      Not you?
-                    </button>
-                  </p>
-                )}
                 <FormCard>
                   <div className="mb-7">
                     <PhotoPicker
