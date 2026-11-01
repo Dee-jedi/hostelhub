@@ -61,7 +61,7 @@ export function SiteNav() {
 
         <div className="flex items-center gap-1.5">
           <Link href="/login" className="hidden rounded-full px-4 py-2 text-[15px] font-medium text-heading-4 hover:text-brand-900 md:block">
-            Log in
+            Find your hostel
           </Link>
           <Link
             href="/start"
@@ -106,9 +106,9 @@ export function SiteNav() {
               Get started free <ArrowUpRight className="size-5 text-brand-300" />
             </Link>
             <p className="mt-5 text-center text-[15px] text-heading-5">
-              Already using HostelHub?{" "}
+              Looking for your hostel?{" "}
               <Link href="/login" onClick={close} className="font-semibold text-brand-800 underline-offset-4 hover:underline">
-                Log in
+                Find it here
               </Link>
             </p>
           </div>

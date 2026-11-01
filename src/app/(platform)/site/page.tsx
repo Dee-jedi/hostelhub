@@ -7,7 +7,7 @@ import { BookingScreen, DashboardMock, DASHBOARD_SIZE, ID_CARD_SIZE, IdCardMock,
 import { RoomMapDemo } from "@/components/site/RoomMapDemo";
 import { Wordmark } from "@/components/site/brand";
 import { SiteNav } from "@/components/site/SiteNav";
-import { CONTACT, PLATFORM_HOST, whatsappHref } from "@/lib/platform";
+import { CONTACT, DEMO_URL, PLATFORM_HOST, whatsappHref } from "@/lib/platform";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
@@ -140,11 +140,14 @@ export default function SitePage() {
             {/* Phones: stacked, both full width. Wider: side by side */}
             <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
               <PrimaryCta className="w-full sm:w-auto" />
+              {/* The live demo hostel, as a tenant sees it */}
               <a
-                href="#how-it-works"
+                href={DEMO_URL}
+                target="_blank"
+                rel="noreferrer"
                 className="inline-flex h-14 w-full items-center justify-center rounded-full px-7 text-base font-semibold text-brand-900 ring-1 ring-brand-200 transition-colors hover:bg-white sm:w-auto"
               >
-                See how it works
+                View demo
               </a>
             </div>
             <ul className="mt-8 flex flex-wrap gap-x-3 gap-y-2 text-sm text-heading-5 sm:gap-x-6 sm:text-[15px]">
