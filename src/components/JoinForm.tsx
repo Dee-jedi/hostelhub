@@ -155,7 +155,7 @@ export function JoinForm() {
             <CheckCircle2 className="mx-auto size-10 text-brand-600" />
             <h1 className="mt-4 text-xl font-semibold text-grey-950">Sent to your manager</h1>
             <p className="mt-2 text-sm leading-relaxed text-heading-6">
-              Once they confirm you live in {hostelName}, log in with <b>{me ? `Google (${loginEmail})` : loginEmail}</b> to see your room, receipts and rent reminders.
+              Once they confirm you live in {hostelName}, log in with <b>{viaGoogle ? `Google (${loginEmail})` : loginEmail}</b> to see your room, receipts and rent reminders.
             </p>
             <Link href="/login" className="mt-5 inline-block text-sm font-semibold text-brand-700 hover:underline">
               Go to log in
@@ -173,8 +173,7 @@ export function JoinForm() {
             <div>
               <h1 className="text-2xl font-semibold tracking-tight text-grey-950">Join {hostelName}</h1>
               <p className="mt-1 text-sm leading-relaxed text-heading-6">
-                Already living here? Add your details so your room, receipts and rent reminders are in one place. There&apos;s nothing to pay: your manager confirms you, then you can log
-                in.
+                Already living here? Add your details so your room, receipts and rent reminders are in one place. Your manager confirms you, then you can log in.
               </p>
             </div>
 

@@ -1,8 +1,8 @@
 "use client";
 
-import { Check, Link2, Loader2, MessageCircle, RefreshCw, X } from "lucide-react";
+import { Check, Link2, Loader2, MessageCircle, Pencil, RefreshCw, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import type { JoinOverview } from "@/app/api/join/manage/route";
+import type { JoinEdits, JoinOverview } from "@/app/api/join/manage/route";
 import { auth } from "@/lib/firebase";
 import { cn } from "@/lib/utils";
 
@@ -13,6 +13,8 @@ import { cn } from "@/lib/utils";
  */
 
 type Request = JoinOverview["requests"][number];
+
+const field = "mt-1 block h-10 w-full rounded-lg border border-grey-150 bg-white px-3 text-sm font-normal text-grey-950 outline-none focus:border-brand-500";
 
 async function manage<T>(body: object): Promise<T> {
   await auth.authStateReady();
@@ -71,11 +73,20 @@ export function JoinRequestsPanel({ hostelId, hostelName, hostelOrigin, onApprov
     }
   };
 
+  // The request being corrected before approval (a wrong date or room, a typo in the name)
+  const [editing, setEditing] = useState<string | null>(null);
+  const [edits, setEdits] = useState<JoinEdits>({});
+  const startEdit = (q: Request) => {
+    setEditing(q.uid);
+    setEdits({ fullName: q.info.fullName, phone: q.info.phone, roomId: q.roomId, movedIn: q.movedIn, paidUntil: q.paidUntil });
+  };
+
   const decide = async (q: Request, action: "approve" | "reject") => {
     setDeciding(q.uid);
     setProblem(null);
     try {
-      await manage({ hostelId, action, uid: q.uid });
+      await manage({ hostelId, action, uid: q.uid, ...(action === "approve" && editing === q.uid ? { edits } : {}) });
+      if (editing === q.uid) setEditing(null);
       setData((d) => d && { ...d, requests: d.requests.filter((x) => x.uid !== q.uid) });
       if (action === "approve") onApproved?.();
     } catch (err) {
@@ -165,7 +176,46 @@ export function JoinRequestsPanel({ hostelId, hostelName, hostelOrigin, onApprov
                   </p>
                   <p className="text-xs text-heading-6">{q.info.phone}</p>
                 </div>
-                <div className="flex gap-2">
+                {editing === q.uid && (
+                  <div className="grid w-full gap-3 rounded-xl bg-grey-10 p-3 sm:grid-cols-2">
+                    <label className="text-xs font-medium text-heading-4">
+                      Full name
+                      <input className={field} value={edits.fullName ?? ""} onChange={(e) => setEdits((x) => ({ ...x, fullName: e.target.value }))} />
+                    </label>
+                    <label className="text-xs font-medium text-heading-4">
+                      Phone
+                      <input className={field} type="tel" value={edits.phone ?? ""} onChange={(e) => setEdits((x) => ({ ...x, phone: e.target.value }))} />
+                    </label>
+                    <label className="text-xs font-medium text-heading-4">
+                      Room
+                      <select className={field} value={edits.roomId ?? ""} onChange={(e) => setEdits((x) => ({ ...x, roomId: e.target.value }))}>
+                        {data.rooms.map((r) => (
+                          <option key={r.id} value={r.id}>
+                            {r.label} · {r.block}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="text-xs font-medium text-heading-4">
+                      Moved in
+                      <input className={field} type="month" value={edits.movedIn ?? ""} onChange={(e) => setEdits((x) => ({ ...x, movedIn: e.target.value }))} />
+                    </label>
+                    <label className="text-xs font-medium text-heading-4 sm:col-span-2">
+                      Rent paid until
+                      <input className={field} type="date" value={edits.paidUntil ?? ""} onChange={(e) => setEdits((x) => ({ ...x, paidUntil: e.target.value }))} />
+                    </label>
+                    <p className="text-xs text-heading-6 sm:col-span-2">Approve saves these details. Their own form isn&apos;t changed until you do.</p>
+                  </div>
+                )}
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={deciding === q.uid}
+                    onClick={() => (editing === q.uid ? setEditing(null) : startEdit(q))}
+                    className="inline-flex h-10 items-center gap-1.5 rounded-full px-3 text-sm font-medium text-heading-5 ring-1 ring-grey-150 hover:bg-grey-50 disabled:opacity-50"
+                  >
+                    <Pencil className="size-4" /> {editing === q.uid ? "Cancel edit" : "Edit"}
+                  </button>
                   <button
                     type="button"
                     disabled={deciding === q.uid}

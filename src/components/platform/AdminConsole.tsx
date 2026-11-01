@@ -1,6 +1,6 @@
 "use client";
 
-import { onAuthStateChanged, signInWithEmailAndPassword, signOut, type User } from "firebase/auth";
+import { onAuthStateChanged, sendPasswordResetEmail, signInWithEmailAndPassword, signOut, type User } from "firebase/auth";
 import { BedDouble, Building2, CheckCircle2, ExternalLink, Landmark, Loader2, Rocket } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import type { OverviewHostel, PlatformTask } from "@/app/api/platform/overview/route";
@@ -39,6 +39,18 @@ function SignIn() {
   const [password, setPassword] = useState("");
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState(false);
+  const forgot = async () => {
+    setProblem(null);
+    setSent(false);
+    if (!email.trim()) return setProblem("Enter your email first, then tap Forgot password.");
+    try {
+      await sendPasswordResetEmail(auth, email.trim());
+      setSent(true);
+    } catch (err) {
+      setProblem(authMessage(err));
+    }
+  };
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setBusy(true);
@@ -61,9 +73,13 @@ function SignIn() {
         <PasswordInput autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
       </Field>
       {problem && <p className="text-sm text-rose-600">{problem}</p>}
+      {sent && <p className="text-sm text-brand-700">Reset link sent to {email.trim()}. Check the inbox (and spam).</p>}
       <Button type="submit" disabled={busy} className="w-full">
         {busy ? "Signing in…" : "Sign in"}
       </Button>
+      <button type="button" onClick={forgot} className="w-full text-center text-xs font-medium text-brand-700 hover:underline">
+        Forgot password?
+      </button>
     </form>
   );
 }
