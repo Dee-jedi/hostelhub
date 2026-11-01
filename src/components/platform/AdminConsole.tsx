@@ -169,21 +169,28 @@ export function AdminConsole() {
               ) : (
                 <ul className="mt-4 divide-y divide-grey-100 rounded-xl bg-white ring-1 ring-black/5">
                   {data.tasks.map((t) => (
-                    <li key={t.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
+                    // Stacked on phones (details, then the two actions side by side); one row on wider screens
+                    <li key={t.id} className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center">
                       <div className="min-w-0 flex-1">
-                        <p className="font-medium text-grey-950">
+                        <p className="flex flex-wrap items-center gap-2 font-medium text-grey-950">
                           {t.hostelName} {t.mode === "test" && <Badge tone="amber">Test</Badge>}
                         </p>
-                        <p className="text-sm text-heading-6">
-                          {t.subaccountCode} · went live {day(t.createdAt)}
-                        </p>
+                        <p className="text-sm break-all text-heading-6">{t.subaccountCode}</p>
+                        <p className="text-xs text-heading-6">Went live {day(t.createdAt)}</p>
                       </div>
-                      <a href={PAYSTACK_SUBACCOUNTS} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sm font-medium text-brand-700 hover:underline">
-                        Open Paystack <ExternalLink className="size-3.5" />
-                      </a>
-                      <Button size="sm" onClick={() => markVerified(t)} disabled={resolving === t.id}>
-                        {resolving === t.id ? "Saving…" : "Mark verified"}
-                      </Button>
+                      <div className="grid grid-cols-2 gap-2 sm:flex sm:shrink-0">
+                        <a
+                          href={PAYSTACK_SUBACCOUNTS}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex h-9 items-center justify-center gap-1 rounded-lg px-3 text-sm font-medium text-brand-700 ring-1 ring-brand-200 hover:bg-brand-50"
+                        >
+                          Open Paystack <ExternalLink className="size-3.5" />
+                        </a>
+                        <Button className="h-9" onClick={() => markVerified(t)} disabled={resolving === t.id}>
+                          {resolving === t.id ? "Saving…" : "Mark verified"}
+                        </Button>
+                      </div>
                     </li>
                   ))}
                 </ul>
@@ -192,7 +199,42 @@ export function AdminConsole() {
 
             <section>
               <h2 className="text-lg font-semibold text-grey-950">Hostels</h2>
-              <div className="mt-4 overflow-x-auto rounded-xl bg-white ring-1 ring-black/5">
+              {/* Phones: a card per hostel. Wider screens: the table below. */}
+              <ul className="mt-4 space-y-3 sm:hidden">
+                {data.hostels.map((h) => (
+                  <li key={h.id} className="rounded-xl bg-white p-4 ring-1 ring-black/5">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <a href={`${hostelUrl(h.id)}/book`} target="_blank" rel="noreferrer" className="block truncate font-semibold text-grey-950 hover:underline">
+                          {h.name}
+                        </a>
+                        <p className="truncate text-xs text-heading-6">
+                          {h.id}
+                          {h.city ? ` · ${h.city}` : ""}
+                        </p>
+                      </div>
+                      <Badge tone={h.status === "live" ? "brand" : h.status === "draft" ? "amber" : "slate"}>{h.status === "draft" ? "Signing up" : h.status === "live" ? "Live" : "Suspended"}</Badge>
+                    </div>
+                    {h.ownerEmail && <p className="mt-2 truncate text-sm text-heading-5">{h.ownerEmail}</p>}
+                    {h.status === "live" && !h.payout && <p className="mt-1 text-xs text-amber-700">No payout account</p>}
+                    <dl className="mt-3 grid grid-cols-3 gap-2 border-t border-grey-100 pt-3 text-center">
+                      <div>
+                        <dt className="text-[11px] text-heading-6">Tenants</dt>
+                        <dd className="font-semibold text-grey-950 tabular-nums">{h.tenants}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-[11px] text-heading-6">Online bookings</dt>
+                        <dd className="font-semibold text-grey-950 tabular-nums">{h.onlineBookings}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-[11px] text-heading-6">Signed up</dt>
+                        <dd className="text-sm font-medium text-grey-950">{day(h.createdAt)}</dd>
+                      </div>
+                    </dl>
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-4 hidden overflow-x-auto rounded-xl bg-white ring-1 ring-black/5 sm:block">
                 <table className="w-full min-w-[720px] text-left text-sm">
                   <thead className="border-b border-grey-100 text-xs text-heading-6">
                     <tr>
