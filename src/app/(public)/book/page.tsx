@@ -19,7 +19,7 @@ import { authMessage } from "@/lib/auth";
 import { firstPayment, leaseFor, mayStay, optionRent, stayLength } from "@/lib/checkout";
 import { listingPath } from "@/lib/current-hostel";
 import { isResuming, resumeUrl, saveDraft, takeDraft } from "@/lib/form-draft";
-import { useGoogleReturning } from "@/lib/google-auth";
+import { platformOrigin, useGoogleReturning } from "@/lib/google-auth";
 import { bedOf, spaceLabel } from "@/lib/spaces";
 import { auth, db, storage } from "@/lib/firebase";
 import type { PublicBookingDoc, StudentInfo } from "@/lib/types";
@@ -519,7 +519,17 @@ export default function BookPage() {
                   )}
                   <label className="mt-5 flex items-start gap-3 text-sm text-slate-700">
                     <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} className="mt-0.5 size-4 accent-brand-600" />
-                    I confirm my details are correct and I agree to abide by the hostel rules and regulations.
+                    <span>
+                      I confirm my details are correct, I agree to abide by the hostel rules and regulations, and I accept HostelHub&apos;s{" "}
+                      <a href={`${platformOrigin()}/terms`} target="_blank" rel="noreferrer" className="font-medium text-brand-700 underline-offset-2 hover:underline">
+                        Terms
+                      </a>{" "}
+                      and{" "}
+                      <a href={`${platformOrigin()}/privacy`} target="_blank" rel="noreferrer" className="font-medium text-brand-700 underline-offset-2 hover:underline">
+                        Privacy Policy
+                      </a>
+                      .
+                    </span>
                   </label>
                 </FormCard>
 

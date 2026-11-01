@@ -4,7 +4,7 @@ import { onAuthStateChanged, sendPasswordResetEmail, signInWithEmailAndPassword,
 import { doc, getDoc } from "firebase/firestore";
 import { ArrowRight, Building2, Loader2 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { GoogleButton, OrDivider } from "@/components/GoogleButton";
 import { openSignedIn } from "@/lib/google-auth";
 import { Wordmark } from "@/components/site/brand";
@@ -36,6 +36,8 @@ const goTo = (place: Place) => openSignedIn(`${hostelOrigin(place.id)}${place.ro
 
 export function PlatformSignIn() {
   const [user, setUser] = useState<User | null | undefined>(undefined);
+  /** Signed in on this page just now (not already signed in when it opened) */
+  const justSignedIn = useRef(false);
   const [places, setPlaces] = useState<Place[] | null>(null);
   const [admin, setAdmin] = useState(false);
   const [email, setEmail] = useState("");
@@ -68,8 +70,9 @@ export function PlatformSignIn() {
         if (!live) return;
         setAdmin(!!me.platformAdmin);
         setPlaces(named);
-        // Just one place to be: go straight there
-        if (named.length === 1 && !me.platformAdmin) await goTo(named[0]);
+        // Just signed in here, with one place to be: go straight there. Arriving already signed
+        // in, they choose: that hostel, or another account.
+        if (named.length === 1 && !me.platformAdmin && justSignedIn.current) await goTo(named[0]);
       } catch (err) {
         if (live) setProblem(err instanceof Error ? err.message : "Something went wrong.");
       }
@@ -84,6 +87,7 @@ export function PlatformSignIn() {
     setBusy(true);
     setProblem(null);
     try {
+      justSignedIn.current = true;
       await signInWithEmailAndPassword(auth, email.trim(), password);
     } catch (err) {
       setProblem(authMessage(err));
@@ -129,7 +133,7 @@ export function PlatformSignIn() {
         <div className={card}>
           <h1 className="text-2xl font-semibold tracking-tight text-grey-950">Log in</h1>
           <p className="mt-1.5 text-sm text-heading-6">To your hostel dashboard or tenant portal.</p>
-          <GoogleButton className="mt-6" />
+          <GoogleButton className="mt-6" beforeLeave={() => void (justSignedIn.current = true)} />
           <OrDivider />
           <form onSubmit={submit} className="space-y-4">
             <Input type="email" autoComplete="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} className="h-12 rounded-xl text-[15px]" />

@@ -398,9 +398,17 @@ export default function SitePage() {
             </Link>
           </div>
 
-          <div className="mt-16 flex items-center justify-between border-t border-white/10 py-8 sm:mt-20">
+          <div className="mt-16 flex flex-wrap items-center justify-between gap-4 border-t border-white/10 py-8 sm:mt-20">
             <Wordmark dark />
-            <p className="text-sm text-brand-100/45">© HostelHub</p>
+            <nav className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-brand-100/60">
+              <Link href="/terms" className="hover:text-white">
+                Terms
+              </Link>
+              <Link href="/privacy" className="hover:text-white">
+                Privacy
+              </Link>
+              <span className="text-brand-100/45">© HostelHub</span>
+            </nav>
           </div>
         </div>
         {/* The giant faded wordmark */}

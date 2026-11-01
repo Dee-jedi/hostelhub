@@ -16,7 +16,7 @@ import { Button, Field, Input, PasswordInput, Select } from "@/components/ui";
 import { authMessage } from "@/lib/auth";
 import { listingPath } from "@/lib/current-hostel";
 import { isResuming, resumeUrl, saveDraft, takeDraft } from "@/lib/form-draft";
-import { useGoogleReturning } from "@/lib/google-auth";
+import { platformOrigin, useGoogleReturning } from "@/lib/google-auth";
 import { auth, db, storage } from "@/lib/firebase";
 import type { PublicBookingDoc, StudentInfo } from "@/lib/types";
 import { cn, todayISO } from "@/lib/utils";
@@ -241,6 +241,17 @@ export function JoinForm() {
             <Button type="submit" disabled={busy} className="h-12 w-full rounded-xl text-[15px]">
               <UserPlus className="size-4" /> {busy ? "Sending…" : "Send to my manager"}
             </Button>
+            <p className="text-center text-xs text-heading-6">
+              By sending, you accept HostelHub&apos;s{" "}
+              <a href={`${platformOrigin()}/terms`} target="_blank" rel="noreferrer" className="font-medium text-brand-700 hover:underline">
+                Terms
+              </a>{" "}
+              and{" "}
+              <a href={`${platformOrigin()}/privacy`} target="_blank" rel="noreferrer" className="font-medium text-brand-700 hover:underline">
+                Privacy Policy
+              </a>
+              .
+            </p>
           </form>
         )}
       </div>

@@ -585,6 +585,17 @@ export function StartWizard() {
                   <div>
                     {/* Saves the hostel as soon as they pick their Google account */}
                     <GoogleButton label={busy ? "Saving your hostel…" : "Continue with Google"} onUser={(u) => void createHostel(u)} />
+                    <p className="mt-3 text-center text-xs text-heading-6">
+                      By continuing you accept our{" "}
+                      <a href="/terms" target="_blank" className="font-medium text-brand-800 hover:underline">
+                        Terms
+                      </a>{" "}
+                      and{" "}
+                      <a href="/privacy" target="_blank" className="font-medium text-brand-800 hover:underline">
+                        Privacy Policy
+                      </a>
+                      .
+                    </p>
                     <OrDivider label="or use an email and password" />
                   </div>
                   <div>

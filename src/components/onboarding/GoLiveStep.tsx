@@ -296,7 +296,17 @@ export function GoLiveStep({ hostelId, hostelName, bookingUrl, onBack, onDone }:
             </ul>
             <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-2xl bg-grey-50 p-4">
               <input type="checkbox" checked={accepted} onChange={(e) => (setProblem(null), setAccepted(e.target.checked))} className="mt-1 size-5 shrink-0 accent-brand-700" />
-              <span className="text-[15px] text-grey-950">I understand and accept these fees.</span>
+              <span className="text-[15px] text-grey-950">
+                I understand and accept these fees, the{" "}
+                <a href="/terms" target="_blank" className="font-medium text-brand-800 underline-offset-2 hover:underline">
+                  Terms of Service
+                </a>{" "}
+                and the{" "}
+                <a href="/privacy" target="_blank" className="font-medium text-brand-800 underline-offset-2 hover:underline">
+                  Privacy Policy
+                </a>
+                .
+              </span>
             </label>
           </section>
         </form>
