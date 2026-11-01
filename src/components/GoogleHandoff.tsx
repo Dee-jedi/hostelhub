@@ -1,12 +1,13 @@
 "use client";
 
 import { getRedirectResult, signInWithRedirect, type User } from "firebase/auth";
-import { Loader2 } from "lucide-react";
+
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Wordmark } from "@/components/site/brand";
 import { auth } from "@/lib/firebase";
 import { googleProvider } from "@/lib/google-auth";
+import { BrandLoader } from "@/components/BrandLoader";
 
 /*
  * The platform's /auth/google: a hostel page sends people here to sign in with Google, then they
@@ -81,9 +82,7 @@ export function GoogleHandoff() {
           )}
         </div>
       ) : (
-        <p className="flex items-center gap-2 text-heading-5">
-          <Loader2 className="size-4 animate-spin" /> Signing you in with Google…
-        </p>
+        <BrandLoader label="Signing you in with Google…" fullScreen={false} />
       )}
     </div>
   );

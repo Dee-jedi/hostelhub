@@ -30,6 +30,7 @@ import { activeResidents, cn, initials, isOpenTicket, managerInitials, rentStatu
 import { SUB_PAGES, subPageOf } from "@/lib/nav";
 import { NotificationList, useNotifications } from "./notifications";
 import { ResidentDrawer } from "./ResidentDrawer";
+import { BrandLoader } from "./BrandLoader";
 
 // ─── Nav config ──────────────────────────────────────────────────────────────
 
@@ -571,10 +572,7 @@ function LoadingScreen({ error }: { error?: boolean }) {
           </button>
         </div>
       ) : (
-        <div className="flex items-center gap-3 text-sm text-heading-6">
-          <span className="size-4 animate-spin rounded-full border-2 border-brand-600 border-t-transparent" />
-          Loading hostel data…
-        </div>
+        <BrandLoader label="Opening your dashboard…" fullScreen={false} />
       )}
     </div>
   );

@@ -1,7 +1,7 @@
 "use client";
 
 import { onAuthStateChanged, sendPasswordResetEmail, signInWithEmailAndPassword, signOut, type User } from "firebase/auth";
-import { BedDouble, Building2, CheckCircle2, ExternalLink, Landmark, Loader2, Rocket } from "lucide-react";
+import { BedDouble, Building2, CheckCircle2, ExternalLink, Landmark, Rocket } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import type { OverviewHostel, PlatformTask } from "@/app/api/platform/overview/route";
 import { Wordmark } from "@/components/site/brand";
@@ -9,6 +9,7 @@ import { Badge, Button, Field, Input, PasswordInput, StatCard } from "@/componen
 import { authMessage } from "@/lib/auth";
 import { auth } from "@/lib/firebase";
 import { PLATFORM_HOST } from "@/lib/platform";
+import { BrandLoader } from "@/components/BrandLoader";
 
 /*
  * HostelHub's own console (admin.hostelhub.africa): how many hostels have signed up and gone
@@ -137,17 +138,13 @@ export function AdminConsole() {
 
       <main className="mx-auto max-w-6xl px-5 py-8">
         {user === undefined ? (
-          <p className="flex items-center gap-2 text-heading-6">
-            <Loader2 className="size-4 animate-spin" /> Loading…
-          </p>
+          <BrandLoader fullScreen={false} />
         ) : !user ? (
           <SignIn />
         ) : problem && !data ? (
           <p className="rounded-xl bg-rose-50 px-4 py-3 text-rose-700">{problem === "You don't have access to this." ? `${user.email} isn't a HostelHub admin.` : problem}</p>
         ) : !data ? (
-          <p className="flex items-center gap-2 text-heading-6">
-            <Loader2 className="size-4 animate-spin" /> Loading hostels…
-          </p>
+          <BrandLoader label="Loading hostels…" fullScreen={false} />
         ) : (
           <div className="space-y-8">
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

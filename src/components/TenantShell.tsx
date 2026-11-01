@@ -11,6 +11,7 @@ import type { Booking } from "@/lib/types";
 import { cn, isOpenTicket } from "@/lib/utils";
 import { BookingWaiting } from "./BookingWaiting";
 import { Avatar } from "./ui";
+import { BrandLoader } from "./BrandLoader";
 
 const TABS: { href: string; label: string; icon: LucideIcon }[] = [
   { href: "/portal", label: "Home", icon: House },
@@ -257,9 +258,7 @@ export function TenantShell({ children }: { children: ReactNode }) {
         </Centered>
       ) : t.status !== "ready" ? (
         <Centered>
-          <span className="flex items-center gap-3">
-            <span className="size-4 animate-spin rounded-full border-2 border-brand-600 border-t-transparent" /> Loading your portal…
-          </span>
+          <BrandLoader label="Opening your portal…" fullScreen={false} />
         </Centered>
       ) : !housed ? (
         <NoRoom booking={t.booking} managerPhone={t.info?.managerPhone} />

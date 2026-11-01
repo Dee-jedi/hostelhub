@@ -20,6 +20,7 @@ import { GoLiveStep } from "./GoLiveStep";
 import { PaymentsStep } from "./PaymentsStep";
 import { RoomsWizard } from "./RoomsWizard";
 import { big, Label, NavButtons, PreviewSheet, Problem, Question } from "./shell";
+import { BrandLoader } from "@/components/BrandLoader";
 
 /*
  * Owner sign-up, part one: who and where the hostel is, then a login. One question per screen,
@@ -344,7 +345,7 @@ export function StartWizard() {
   const showPreview = QUESTIONS.includes(step);
 
   // Until this browser's saved answers are read, show the frame only (no flash of the welcome screen)
-  if (!restored) return <div className="min-h-dvh bg-[#f6f8f7]" />;
+  if (!restored) return <BrandLoader />;
 
   return (
     <div className="min-h-dvh bg-[#f6f8f7]">

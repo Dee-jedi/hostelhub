@@ -2,7 +2,7 @@
 
 import { onAuthStateChanged, sendPasswordResetEmail, signInWithEmailAndPassword, signOut, type User } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
-import { ArrowRight, Building2, Loader2 } from "lucide-react";
+import { ArrowRight, Building2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { GoogleButton, OrDivider } from "@/components/GoogleButton";
@@ -14,6 +14,7 @@ import { authMessage } from "@/lib/auth";
 import { auth, db } from "@/lib/firebase";
 import { PLATFORM_HOST } from "@/lib/platform";
 import { cn } from "@/lib/utils";
+import { BrandLoader } from "@/components/BrandLoader";
 
 /*
  * "Log in" on hostelhub.africa. Everyone signs in here, then goes where they belong: the one
@@ -148,9 +149,7 @@ export function PlatformSignIn() {
           </div>
           <div className={cn("order-1 lg:sticky lg:top-8 lg:order-2", user === null && !showLogin && "hidden lg:block")}>
       {user === undefined || (user && places === null && !problem) ? (
-        <p className="mt-10 flex items-center gap-2 text-heading-5">
-          <Loader2 className="size-4 animate-spin" /> {user ? "Finding your hostel…" : "Loading…"}
-        </p>
+        <BrandLoader label={user ? "Finding your hostel…" : undefined} fullScreen={false} />
       ) : !user ? (
         <div className={card}>
           <h1 className="text-2xl font-semibold tracking-tight text-grey-950">Log in</h1>

@@ -204,3 +204,37 @@ input::-ms-reveal,
 input::-ms-clear {
   display: none;
 }
+
+/* The hh mark drawing itself while something loads (BrandLoader) */
+@keyframes hh-draw {
+  0% {
+    stroke-dashoffset: var(--hh-len);
+  }
+  45%,
+  70% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: calc(var(--hh-len) * -1);
+  }
+}
+
+@keyframes hh-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 18px 40px -18px rgba(11, 35, 34, 0.55);
+  }
+  50% {
+    transform: scale(1.04);
+    box-shadow: 0 24px 50px -16px rgba(35, 107, 103, 0.55);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hh-animated,
+  .hh-animated * {
+    animation: none !important;
+    stroke-dashoffset: 0 !important;
+  }
+}
