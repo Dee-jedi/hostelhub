@@ -88,5 +88,23 @@ export function useGoogleReturning() {
   );
 }
 
+/**
+ * Opens a page on a hostel's own address, still signed in (one-time code, api/auth/handoff).
+ * Falls back to plain navigation when nobody is signed in here.
+ */
+export async function openSignedIn(returnTo: string) {
+  await auth.authStateReady();
+  const user = auth.currentUser;
+  if (!user) return void window.location.assign(returnTo);
+  const res = await fetch("/api/auth/handoff", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${await user.getIdToken()}` },
+    body: JSON.stringify({ action: "start", returnTo }),
+  });
+  const data = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
+  if (!res.ok || !data.url) throw new Error(data.error ?? "Couldn't open your hostel. Please try again.");
+  window.location.assign(data.url);
+}
+
 /** The person's first and last name from their Google profile, for pre-filling forms. */
 export const googleName = (user: User | null) => user?.displayName?.trim() ?? "";

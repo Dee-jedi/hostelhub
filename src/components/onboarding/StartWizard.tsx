@@ -15,6 +15,7 @@ import { BASICS_CHECKS, EMPTY_BASICS, normalizePhone, suggestSlugs, type HostelB
 import { PLATFORM_HOST, whatsappHref } from "@/lib/platform";
 import { cn } from "@/lib/utils";
 import { GoogleButton, OrDivider } from "@/components/GoogleButton";
+import { openSignedIn } from "@/lib/google-auth";
 import { GoLiveStep } from "./GoLiveStep";
 import { PaymentsStep } from "./PaymentsStep";
 import { RoomsWizard } from "./RoomsWizard";
@@ -791,9 +792,17 @@ function LiveScreen({ hostelId, hostelName }: { hostelId: string; hostelName: st
       <p className="mt-6 text-[15px] leading-relaxed text-heading-5">
         Your first payout can take a working day longer while Paystack confirms your account. After that, rent arrives the next working day.
       </p>
-      <a href={`${hostelUrl(hostelId)}/login`} className={nextButton}>
+      {/* Into the dashboard on the hostel's own address, still signed in */}
+      <button
+        type="button"
+        onClick={() =>
+          // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- the hostel's own address (another origin)
+          void openSignedIn(`${hostelUrl(hostelId)}/`).catch(() => window.location.assign(`${hostelUrl(hostelId)}/login`))
+        }
+        className={nextButton}
+      >
         Open my dashboard <ArrowRight className="size-5 text-brand-300" />
-      </a>
+      </button>
       <div className="mt-6">
         <button type="button" onClick={startAnother} className={link}>
           Set up another hostel

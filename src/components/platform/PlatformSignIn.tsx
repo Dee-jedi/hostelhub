@@ -6,6 +6,7 @@ import { ArrowRight, Building2, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 import { GoogleButton, OrDivider } from "@/components/GoogleButton";
+import { openSignedIn } from "@/lib/google-auth";
 import { Wordmark } from "@/components/site/brand";
 import { Input, PasswordInput } from "@/components/ui";
 import { authMessage } from "@/lib/auth";
@@ -31,17 +32,7 @@ function hostelOrigin(id: string) {
 }
 
 /** Into a hostel's own address, still signed in. */
-async function goTo(user: User, place: Place) {
-  const returnTo = `${hostelOrigin(place.id)}${place.role === "manager" ? "/" : "/portal"}`;
-  const res = await fetch("/api/auth/handoff", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${await user.getIdToken()}` },
-    body: JSON.stringify({ action: "start", returnTo }),
-  });
-  const data = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
-  if (!res.ok || !data.url) throw new Error(data.error ?? "Couldn't open your hostel. Please try again.");
-  window.location.assign(data.url);
-}
+const goTo = (place: Place) => openSignedIn(`${hostelOrigin(place.id)}${place.role === "manager" ? "/" : "/portal"}`);
 
 export function PlatformSignIn() {
   const [user, setUser] = useState<User | null | undefined>(undefined);
@@ -71,7 +62,7 @@ export function PlatformSignIn() {
         setAdmin(!!me.platformAdmin);
         setPlaces(named);
         // Just one place to be: go straight there
-        if (named.length === 1 && !me.platformAdmin) await goTo(user, named[0]);
+        if (named.length === 1 && !me.platformAdmin) await goTo(named[0]);
       } catch (err) {
         if (live) setProblem(err instanceof Error ? err.message : "Something went wrong.");
       }
@@ -108,7 +99,7 @@ export function PlatformSignIn() {
   const open = async (place: Place) => {
     setBusy(true);
     try {
-      await goTo(user!, place);
+      await goTo(place);
     } catch (err) {
       setProblem(err instanceof Error ? err.message : "Couldn't open your hostel.");
       setBusy(false);
