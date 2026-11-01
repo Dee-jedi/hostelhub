@@ -457,7 +457,7 @@ export default function BookPage() {
                         ))}
                         {payment.fee > 0 && (
                           <div className="flex justify-between gap-3">
-                            <dt className="text-heading-6">Service fee</dt>
+                            <dt className="text-heading-6">Booking fee</dt>
                             <dd className="text-heading-2 tabular-nums">{naira(payment.fee)}</dd>
                           </div>
                         )}

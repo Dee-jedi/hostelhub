@@ -1,10 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { addResident, resolveBooking, roomLabel, useHostel } from "@/lib/store";
+import { manualFee } from "@/lib/fees";
+import { addResident, payManualFee, resolveBooking, roomLabel, useHostel } from "@/lib/store";
 import type { PaymentMethod, StudentInfo } from "@/lib/types";
 import { addMonths, availableRooms, blockTitle, formatDate, freeSpaces, naira, roomTypeOf, todayISO } from "@/lib/utils";
 import { EMPTY_STUDENT, StudentForm, validateStudent } from "./StudentForm";
+import { ManualFeeNote } from "./ManualFeeNote";
 import { toast } from "./toast";
 import { Button, Field, Input, Modal, Select } from "./ui";
 
@@ -88,13 +90,21 @@ export function AddResidentModal({
     if (t.pricingMode === "per_bed") setInfo((x) => ({ ...x, occupants: [] }));
   };
 
+  // Rent collected outside HostelHub carries HostelHub's fee, paid by the hostel (not for a
+  // tenant who already paid online). On the payment recorded, else on the room's rent.
+  const collected = paid ? Number(amount.replace(/[^\d]/g, "")) || 0 : chosenType.price;
+  const fee = s.settings.collectFee && !bookingId && roomId ? manualFee(collected) : 0;
+
   const submit = async () => {
     const err = validateStudent(info);
     if (err) return toast(err, "info");
     if (!roomId) return toast("Select a room", "info");
     setSaving(true);
     const payment = paid ? { amount: Number(amount.replace(/[^\d]/g, "")) || 0, method, reference } : undefined;
-    const saved = bookingId ? await resolveBooking(bookingId, roomId, info) : await addResident(info, roomId, payment, start);
+    // The fee first, in Paystack's popup; stopping there saves nothing
+    const feeReference = fee ? await payManualFee("addTenant", collected) : undefined;
+    if (fee && !feeReference) return setSaving(false);
+    const saved = bookingId ? await resolveBooking(bookingId, roomId, info) : await addResident(info, roomId, payment, start, feeReference ?? undefined);
     setSaving(false);
     if (!saved) return;
     toast(`${info.fullName} added to room ${roomLabel(roomId)}`);
@@ -114,7 +124,7 @@ export function AddResidentModal({
             Cancel
           </Button>
           <Button onClick={submit} disabled={saving}>
-            {saving ? "Saving…" : bookingId ? "Allocate room" : "Save tenant"}
+            {saving ? "Saving…" : bookingId ? "Allocate room" : fee ? `Pay ${naira(fee)} fee and save` : "Save tenant"}
           </Button>
         </>
       }
@@ -160,6 +170,7 @@ export function AddResidentModal({
             </Field>
           </div>
         )}
+        {fee > 0 && <ManualFeeNote fee={fee} collected={collected} />}
       </fieldset>
     </Modal>
   );

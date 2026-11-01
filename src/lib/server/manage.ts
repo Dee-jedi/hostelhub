@@ -11,6 +11,7 @@ import { adminDb } from "./admin";
 import { setTenantOf } from "./claims";
 import { command, CommandError } from "./command";
 import { claimSpace, currentTenancyOf, getOrThrow, hostelRefs, listingUpdate, minus, newId, plus, readOccupancy, readReceiptCounter, readTerms } from "./hostel-data";
+import { requireManualFee, startManualFee } from "./manual-fees";
 
 /*
  * Manager actions in the multi-hostel model, served at POST /api/manage/{action}. Each mirrors
@@ -48,7 +49,7 @@ function validPayment(p: PaymentInput | undefined) {
 
 /** Adds a tenant (optionally with their first payment), or places a paid online booking. */
 export const addTenant = command<
-  { info: StudentInfo; roomId: string | null; payment?: PaymentInput; leaseStart?: string; bookingId?: string },
+  { info: StudentInfo; roomId: string | null; payment?: PaymentInput; leaseStart?: string; bookingId?: string; feeReference?: string },
   { residentId: string; receiptNo: string | null }
 >({ access: "manager" }, async (ctx, body) => {
   const h = ctx.hostelId!;
@@ -56,7 +57,20 @@ export const addTenant = command<
   if (!body.info?.fullName?.trim()) throw new CommandError("Enter the tenant's name.");
   validPayment(body.payment);
 
+  // Rent collected outside HostelHub: the hostel's fee first (not for a booking paid online)
+  let feeCheck: Awaited<ReturnType<typeof requireManualFee>> = null;
+  if (!body.bookingId) {
+    const hostelNow = (await r.hostel.get()).data() as Hostel;
+    let basis = body.payment?.amount ?? 0;
+    if (!basis && body.roomId) {
+      const room = (await r.doc("rooms", body.roomId).get()).data() as HostelRoom | undefined;
+      basis = room ? (((await r.doc("roomTypes", room.typeId).get()).data() as RoomType | undefined)?.price ?? 0) : 0;
+    }
+    feeCheck = await requireManualFee(h, hostelNow, basis, body.feeReference, "addTenant");
+  }
+
   const result = await adminDb.runTransaction(async (tx) => {
+    const useFee = feeCheck ? await feeCheck(tx) : null;
     const booking = body.bookingId ? await getOrThrow<{ uid: string; amount: number; status: string; id: string; spaceId?: string }>(tx, r.doc("bookings", body.bookingId), "Booking not found.") : null;
     if (booking && booking.status !== "needs_attention") throw new CommandError("This booking has already been placed.", 409);
     const claim = body.roomId ? await claimSpace(tx, h, body.roomId, { holdOwnerUid: booking?.uid, preferSpaceId: booking?.spaceId }) : null;
@@ -77,6 +91,7 @@ export const addTenant = command<
       id: tenancyId, residentId, uid, roomId: room?.id ?? null, spaceId: claim?.spaceId ?? null, periodId: hostel.defaultPeriodId,
       status: "active", checkInDate: leaseStart, leaseStart, leaseEnd, occupants: body.info.occupants ?? [], createdAt: now,
     };
+    useFee?.();
     tx.set(r.doc("residents", residentId), resident);
     tx.set(r.doc("tenancies", tenancyId), tenancy);
     if (payment && receipt) {
@@ -151,14 +166,17 @@ export const moveOut = command<{ residentId: string }, { ok: true }>({ access: "
 });
 
 /** Records a rent payment; by default it also extends the lease by one rent period. */
-export const recordPayment = command<{ residentId: string; payment: PaymentInput; extendLease?: boolean }, { payment: Payment }>(
+export const recordPayment = command<{ residentId: string; payment: PaymentInput; extendLease?: boolean; feeReference?: string }, { payment: Payment }>(
   { access: "manager" },
   async (ctx, body) => {
     const h = ctx.hostelId!;
     const r = hostelRefs(h);
     validPayment(body.payment);
     const extend = body.extendLease !== false;
+    // Rent collected outside HostelHub: the hostel's fee first
+    const feeCheck = await requireManualFee(h, (await r.hostel.get()).data() as Hostel, body.payment.amount, body.feeReference, "recordPayment");
     const payment = await adminDb.runTransaction(async (tx) => {
+      const useFee = feeCheck ? await feeCheck(tx) : null;
       const resident = await getOrThrow<HostelResident>(tx, r.doc("residents", body.residentId), "Tenant not found.");
       const tenancy = await currentTenancyOf(tx, h, body.residentId);
       if (!tenancy) throw new CommandError("This tenant has no stay on record.", 409);
@@ -175,6 +193,7 @@ export const recordPayment = command<{ residentId: string; payment: PaymentInput
         amount: body.payment.amount, method: body.payment.method, reference: body.payment.reference ?? "", date: body.payment.date ?? today,
         periodStart, periodEnd, note: body.payment.note, uid: resident.uid, tenancyId: tenancy.id,
       };
+      useFee?.();
       tx.set(r.doc("payments", pay.id), pay);
       receipt.claim();
       if (extend) {
@@ -342,6 +361,22 @@ export const updateSettings = command<{ settings: Settings; confirmRemoveRooms?:
       tx.get(r.listing),
     ]);
     const hostel = hostelSnap.data() as Hostel;
+    // Hostels set up through sign-up keep their own blocks, rooms and rent options: Settings
+    // only changes their details here (rebuilding "N rooms per block" would add rooms, replace
+    // the blocks and overwrite the stays)
+    if (hostel.onboarding) {
+      tx.update(r.hostel, {
+        name: s.hostelName.trim(), address: s.address, manager: { name: s.managerName, phone: s.managerPhone },
+        bank: { bankName: s.bankName, accountName: s.accountName, accountNumber: s.accountNumber },
+        whatsappGroupLink: s.whatsappGroupLink, reminderDays: s.reminderDays,
+      });
+      tx.update(r.listing, {
+        "info.hostelName": s.hostelName.trim(), "info.address": s.address, "info.managerName": s.managerName, "info.managerPhone": s.managerPhone,
+        "info.whatsappGroupLink": s.whatsappGroupLink,
+      });
+      ctx.auditIn(tx, "settings.updated", { details: true });
+      return;
+    }
     const defaultType = (types.docs.find((d) => d.id === (hostel.defaultTypeId ?? DEFAULT_TYPE_ID)) ?? types.docs[0])?.data() as RoomType | undefined;
     if (!defaultType) throw new CommandError("Add a room type first.", 409);
     const occupied = new Set(active.docs.map((d) => (d.data() as Tenancy).roomId).filter(Boolean));
@@ -535,7 +570,7 @@ export const setRentalModel = command<{ model: PricingMode }, { ok: true }>({ ac
 
 /** Every manager action by name, for the /api/manage/[action] route. */
 export const MANAGE = {
-  addTenant, updateTenant, moveOut, recordPayment, sendMessage, runReminders, logRepair, approveRoomChange, setMaintenance, updateSettings,
+  addTenant, updateTenant, moveOut, recordPayment, startManualFee, sendMessage, runReminders, logRepair, approveRoomChange, setMaintenance, updateSettings,
   saveRoomType, deleteRoomType, setRoomsType, setRentalModel,
 } as const;
 export type ManageAction = keyof typeof MANAGE;

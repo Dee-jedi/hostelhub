@@ -396,7 +396,7 @@ export function StartWizard() {
         <div className="mx-auto w-full max-w-xl lg:mx-0">
           {step === "welcome" && (
             <div className="motion-safe:animate-[rise_0.4s_ease-out]">
-              <p className="text-sm font-semibold tracking-wide text-brand-700 uppercase">Free for hostels</p>
+              <p className="text-sm font-semibold tracking-wide text-brand-700 uppercase">No setup or monthly fees</p>
               <h1 className="mt-3 text-[clamp(2.25rem,5vw,3.4rem)] leading-[1.02] font-bold tracking-[-0.04em] text-brand-950">Let&apos;s get your hostel online.</h1>
               <p className="mt-5 text-lg leading-relaxed text-heading-5">
                 A few simple questions, one at a time. Your answers save as you go, so you can stop and come back. Nothing goes live until you say so.

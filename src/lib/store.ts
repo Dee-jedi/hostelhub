@@ -356,9 +356,33 @@ export interface PaymentInput {
 }
 
 /** Resolves to the new tenant's id once saved, or null if it couldn't be (a toast says so). */
-export async function addResident(info: StudentInfo, roomId: string | null, payment?: PaymentInput, leaseStart = todayISO()) {
+/**
+ * Pays HostelHub's fee for rent collected outside HostelHub (fees.ts manualFee), in Paystack's
+ * popup. Resolves with the payment's reference to send with the action, or null if they stopped.
+ */
+export async function payManualFee(purpose: "addTenant" | "recordPayment", rentCollected: number): Promise<string | null> {
   try {
-    return (await manage<{ residentId: string }>("addTenant", { info, roomId, payment, leaseStart })).residentId;
+    const { reference, accessCode } = await manage<{ reference: string; accessCode: string }>("startManualFee", { purpose, amount: rentCollected, origin: window.location.origin });
+    const { default: PaystackPop } = await import("@paystack/inline-js");
+    return await new Promise<string | null>((resolve) => {
+      new PaystackPop().resumeTransaction(accessCode, {
+        onSuccess: () => resolve(reference),
+        onCancel: () => resolve(null),
+        onError: (e: { message?: string }) => {
+          toast(e.message || "Couldn't open the payment window", "info");
+          resolve(null);
+        },
+      });
+    });
+  } catch (err) {
+    failedWith(err);
+    return null;
+  }
+}
+
+export async function addResident(info: StudentInfo, roomId: string | null, payment?: PaymentInput, leaseStart = todayISO(), feeReference?: string) {
+  try {
+    return (await manage<{ residentId: string }>("addTenant", { info, roomId, payment, leaseStart, feeReference })).residentId;
   } catch (err) {
     failedWith(err);
     return null;
@@ -378,9 +402,9 @@ export const moveOut = (id: string) => attempt("moveOut", { residentId: id });
  * Records a rent payment and extends the lease by one rent period. Resolves once it's saved
  * with its receipt number, or null if it couldn't be (a toast says so).
  */
-export async function recordPayment(residentId: string, input: PaymentInput, extendLease = true): Promise<Payment | null> {
+export async function recordPayment(residentId: string, input: PaymentInput, extendLease = true, feeReference?: string): Promise<Payment | null> {
   try {
-    return (await manage<{ payment: Payment }>("recordPayment", { residentId, payment: input, extendLease })).payment;
+    return (await manage<{ payment: Payment }>("recordPayment", { residentId, payment: input, extendLease, feeReference })).payment;
   } catch (err) {
     failedWith(err);
     return null;

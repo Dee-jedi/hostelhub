@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, FileSpreadsheet, Link2, Loader2, MessageCircle, Pencil, RefreshCw, X } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, FileSpreadsheet, Link2, Loader2, MessageCircle, Pencil, RefreshCw, UserPlus, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import type { JoinEdits, JoinOverview } from "@/app/api/join/manage/route";
 import { ImportTenants } from "@/components/ImportTenants";
@@ -32,7 +32,41 @@ async function manage<T>(body: object): Promise<T> {
 const monthYear = (ym: string) => new Date(`${ym}-01T00:00:00`).toLocaleDateString("en-GB", { month: "short", year: "numeric" });
 const shortDate = (iso: string) => new Date(iso.length === 10 ? `${iso}T00:00:00` : iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 
-export function JoinRequestsPanel({ hostelId, hostelName, hostelOrigin, onApproved, className }: { hostelId: string; hostelName: string; hostelOrigin: string; onApproved?: () => void; className?: string }) {
+export function JoinRequestsPanel({
+  hostelId,
+  hostelName,
+  hostelOrigin,
+  onApproved,
+  collapsible = false,
+  className,
+}: {
+  hostelId: string;
+  hostelName: string;
+  hostelOrigin: string;
+  onApproved?: () => void;
+  /** Folds to one line until opened (the dashboard); remembered per hostel in this browser */
+  collapsible?: boolean;
+  className?: string;
+}) {
+  const foldKey = `hostelhub:join-panel:${hostelId}`;
+  /** null: not chosen yet (open only when someone's waiting) */
+  const [expanded, setExpanded] = useState<boolean | null>(() => {
+    if (!collapsible || typeof window === "undefined") return null;
+    try {
+      const saved = localStorage.getItem(foldKey);
+      return saved === null ? null : saved === "open";
+    } catch {
+      return null;
+    }
+  });
+  const toggle = (open: boolean) => {
+    setExpanded(open);
+    try {
+      localStorage.setItem(foldKey, open ? "open" : "closed");
+    } catch {
+      // storage blocked: it just won't be remembered
+    }
+  };
   const [data, setData] = useState<JoinOverview | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -107,8 +141,40 @@ export function JoinRequestsPanel({ hostelId, hostelName, hostelOrigin, onApprov
   }
   if (!data.open) return null;
 
+  // On the dashboard it folds to one line, so the hostel's figures come first; it opens by
+  // itself when someone is waiting for approval
+  const waiting = data.requests.length;
+  if (collapsible && !(expanded ?? waiting > 0)) {
+    return (
+      <button
+        type="button"
+        onClick={() => toggle(true)}
+        className={cn("flex w-full items-center gap-3 text-left", className)}
+        aria-expanded={false}
+      >
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700">
+          <UserPlus className="size-5" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[15px] font-semibold text-grey-950">Add your existing tenants</span>
+          <span className="block truncate text-sm text-heading-6">
+            Join link or Excel import · free{data.openUntil ? ` until ${shortDate(data.openUntil)}` : ""}
+          </span>
+        </span>
+        {waiting > 0 && <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">{waiting} waiting</span>}
+        <ChevronDown className="size-5 shrink-0 text-heading-6" />
+      </button>
+    );
+  }
+
   return (
     <div className={cn("space-y-4", className)}>
+      {collapsible && (
+        <button type="button" onClick={() => toggle(false)} className="flex w-full items-center justify-between text-left" aria-expanded>
+          <span className="text-[15px] font-semibold text-grey-950">Add your existing tenants</span>
+          <ChevronUp className="size-5 text-heading-6" />
+        </button>
+      )}
       <div className="rounded-2xl bg-brand-50 p-4 ring-1 ring-brand-100">
         <p className="flex items-center gap-2 text-[15px] font-semibold text-brand-950">
           <Link2 className="size-4" /> Let tenants add themselves

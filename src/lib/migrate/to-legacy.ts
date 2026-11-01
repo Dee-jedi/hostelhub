@@ -5,6 +5,7 @@
  * The inverse of fromLegacy(): toLegacy(fromLegacy(x)) gives back x.
  */
 import type { Block, Hostel, HostelBooking, HostelMessage, HostelPayment, HostelRequest, HostelResident, HostelRoom, RentPeriod, RoomType, Tenancy } from "../model";
+import { joinIsOpen } from "../join";
 import { STATE_VERSION } from "../seed";
 import type { Booking, HostelState, Message, Payment, Resident, Room, Settings, Ticket } from "../types";
 import { DEFAULT_TYPE_ID, omit } from "./from-legacy";
@@ -45,6 +46,10 @@ export function settingsOf(v: Pick<HostelView, "hostel" | "blocks" | "roomTypes"
     accountName: h.bank.accountName,
     accountNumber: h.bank.accountNumber,
     whatsappGroupLink: h.whatsappGroupLink,
+    // Sign-up hostels: blocks of any size and name, so they're shown as they are, not as N × rooms
+    ...(h.onboarding ? { structure: blocks.map((b) => ({ name: b.name, rooms: v.rooms.filter((r) => r.blockId === b.id).length, who: b.who ?? "any" })) } : {}),
+    // Past its free window (setup and the join link's days), rent collected by hand carries a fee
+    ...(h.terms && !joinIsOpen(h) ? { collectFee: true } : {}),
   };
 }
 

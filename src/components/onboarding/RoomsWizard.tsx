@@ -616,7 +616,7 @@ export function RoomsWizard({
             <div className="flex gap-3 rounded-2xl bg-brand-50 p-4 text-[15px] leading-relaxed text-brand-900">
               <Info className="mt-0.5 size-5 shrink-0 text-brand-600" />
               <p>
-                <b>How HostelHub stays free for you:</b> when students pay online, they pay a small service fee on top (2%, at least ₦2,500). You always receive your full price.
+                <b>No setup or monthly fees:</b> when students pay online, they pay a small booking fee on top (2%, at least ₦2,500 and at most ₦10,000). You always receive your full price.
               </p>
             </div>
             {setup.classes.map((c) => (

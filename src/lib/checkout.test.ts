@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { firstPayment, leaseFor, mayStay, optionRent, renewalPayment } from "./checkout";
-import { paystackCharge, platformNet, SERVICE_FEE } from "./fees";
+import { manualFee, paystackCharge, platformNet, SERVICE_FEE, serviceFee } from "./fees";
 
 const exec = { price: 450_000, prices: { "p_session": 450_000, "p_year": 520_000 } };
 const charges = [
@@ -44,9 +44,19 @@ test("the split: the hostel gets exactly its amount, HostelHub the fee less Pays
   assert.equal(paystackCharge(575_900), 2_000, "capped");
   // The fee always covers Paystack's charge, so the main account can bear it and the hostel's share is whole
   assert.ok(SERVICE_FEE.minimum > paystackCharge(Number.MAX_SAFE_INTEGER));
-  const p = firstPayment(exec, "p_year", charges.slice(0, 2), true); // ₦575,900 total, ₦10,900 fee
+  const p = firstPayment(exec, "p_year", charges.slice(0, 2), true); // ₦565,000 to the hostel; 2% would be ₦10,900, capped
+  assert.equal(p.fee, 10_000, "the fee stops at ₦10,000 on large rents");
   assert.equal(p.total - p.fee, p.toHostel, "what reaches the hostel's account");
-  assert.equal(platformNet(p.total, p.fee), 8_900);
+  assert.equal(platformNet(p.total, p.fee), 8_000);
+});
+
+test("the fee: 2%, at least ₦2,500, at most ₦10,000; rent collected by hand costs the hostel the same", () => {
+  assert.equal(serviceFee(50_000), 2_500, "the minimum on cheap rooms");
+  assert.equal(serviceFee(300_000), 6_000);
+  assert.equal(serviceFee(500_000), 10_000);
+  assert.equal(serviceFee(2_000_000), 10_000, "never above the cap");
+  assert.equal(serviceFee(0), 0);
+  assert.equal(manualFee(300_000), serviceFee(300_000), "collecting outside HostelHub never saves anything");
 });
 
 test("who may stay in a block", () => {

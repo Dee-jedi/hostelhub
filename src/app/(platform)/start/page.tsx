@@ -3,7 +3,7 @@ import { StartWizard } from "@/components/onboarding/StartWizard";
 
 export const metadata: Metadata = {
   title: "Set up your hostel · HostelHub",
-  description: "Get your hostel online in an afternoon. Free for hostels.",
+  description: "Get your hostel online in an afternoon. No setup or monthly fees.",
 };
 
 /** Owner sign-up. Every "Get started" on the marketing site comes here. */

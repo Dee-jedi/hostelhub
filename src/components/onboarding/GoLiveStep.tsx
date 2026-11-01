@@ -4,7 +4,7 @@ import { ExternalLink, Loader2, Rocket, UserPlus, X } from "lucide-react";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { JoinRequestsPanel } from "@/components/JoinRequestsPanel";
 import { Select } from "@/components/ui";
-import { HAND_ADD_FEE, SERVICE_FEE } from "@/lib/fees";
+import { SERVICE_FEE } from "@/lib/fees";
 import { auth } from "@/lib/firebase";
 import { isNigerianPhone } from "@/lib/onboarding";
 import type { Sex } from "@/lib/types";
@@ -286,13 +286,17 @@ export function GoLiveStep({ hostelId, hostelName, bookingUrl, onBack, onDone }:
             <h2 className="text-lg font-semibold text-grey-950">The fees</h2>
             <ul className="mt-3 space-y-2 text-[15px] leading-relaxed text-heading-4">
               <li>
-                <b>Free for {hostelName}.</b> Rent paid online reaches your account in full.
+                <b>No setup or monthly fees for {hostelName}.</b> Rent paid online reaches your account in full.
               </li>
               <li>
-                Tenants who pay online pay HostelHub a service fee on top: {Math.round(SERVICE_FEE.rate * 100)}% of what they pay you (refundable deposits left out), at least{" "}
-                {naira(SERVICE_FEE.minimum)}.
+                Tenants who pay online pay HostelHub a booking fee on top: {Math.round(SERVICE_FEE.rate * 100)}% of what they pay you (refundable deposits left out), at least{" "}
+                {naira(SERVICE_FEE.minimum)} and at most {naira(SERVICE_FEE.maximum)}.
               </li>
-              <li>Once you&apos;re live, adding a tenant by hand on your dashboard costs {naira(HAND_ADD_FEE)} each. The tenants you add above are free.</li>
+              <li>
+                When you collect rent outside HostelHub, by adding a tenant by hand or recording a payment by hand, you pay HostelHub the same fee on that rent, before it&apos;s saved. Online
+                payments never cost you anything.
+              </li>
+              <li>The tenants already living with you are free to add: here, through your join link or from Excel, while you set up and for 30 days after you go live.</li>
             </ul>
             <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-2xl bg-grey-50 p-4">
               <input type="checkbox" checked={accepted} onChange={(e) => (setProblem(null), setAccepted(e.target.checked))} className="mt-1 size-5 shrink-0 accent-brand-700" />

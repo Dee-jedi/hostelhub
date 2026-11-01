@@ -8,22 +8,25 @@ export const SERVICE_FEE = {
   rate: 0.02,
   /** …but never less than this (₦), so a cheap room never costs HostelHub money */
   minimum: 2_500,
+  /** …and never more than this (₦), so large rents aren't taxed heavily */
+  maximum: 10_000,
 };
 
-/**
- * What a hostel pays to add a tenant by hand once it's live (tenants living there before it went
- * live are added free during sign-up). Without it, rent collected offline would skip the fee.
- */
-export const HAND_ADD_FEE = 1_500;
-
 /** The terms a hostel accepts to go live; bump when they change, so we know who agreed to what. */
-export const TERMS_VERSION = "2026-10";
+export const TERMS_VERSION = "2026-11";
 
 /** The fee on an amount the fee applies to (₦, whole naira). Nothing to pay means no fee. */
 export function serviceFee(amount: number) {
   if (amount <= 0) return 0;
-  return Math.max(SERVICE_FEE.minimum, Math.round(amount * SERVICE_FEE.rate));
+  return Math.min(SERVICE_FEE.maximum, Math.max(SERVICE_FEE.minimum, Math.round(amount * SERVICE_FEE.rate)));
 }
+
+/**
+ * What the hostel pays when it collects rent outside HostelHub: adding a tenant by hand or
+ * recording a payment by hand, once its free window is over. The same as the tenant's fee online,
+ * so collecting outside HostelHub never saves anything (refundable deposits are left out).
+ */
+export const manualFee = (rentCollected: number) => serviceFee(rentCollected);
 
 /**
  * Paystack's charge on a local Nigerian payment: 1.5% + ₦100 (the ₦100 waived under ₦2,500),

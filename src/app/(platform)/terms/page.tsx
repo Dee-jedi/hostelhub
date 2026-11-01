@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { LEGAL, LegalPage } from "@/components/site/LegalPage";
-import { HAND_ADD_FEE, SERVICE_FEE } from "@/lib/fees";
+import { SERVICE_FEE } from "@/lib/fees";
 import { JOIN_DAYS_AFTER_LIVE } from "@/lib/join";
 import { CONTACT } from "@/lib/platform";
 import { naira } from "@/lib/utils";
@@ -57,15 +57,12 @@ export default function TermsPage() {
       </section>
 
       <section>
-        <h2>4. Payments and the service fee</h2>
+        <h2>4. Payments and the booking fee</h2>
         <ul>
           <li>Payments are processed by Paystack, a licensed payment company. Your rent and the hostel&apos;s charges are paid to the hostel&apos;s own bank account.</li>
+          <li>When you pay online, a booking fee is added to the total. You&apos;ll see the amount before you pay.</li>
           <li>
-            When you pay online, HostelHub adds a service fee of {feePercent}% of what you pay the hostel (refundable deposits are left out), with a minimum of{" "}
-            {naira(SERVICE_FEE.minimum)}. The fee is shown before you pay.
-          </li>
-          <li>
-            The service fee pays for the booking and payment service and isn&apos;t refunded once your booking is confirmed, even if the hostel later refunds your rent. If you were charged
+            The booking fee pays for the booking and payment service and isn&apos;t refunded once your booking is confirmed, even if the hostel later refunds your rent. If you were charged
             in error, such as twice for the same booking, or for a booking that couldn&apos;t be completed, contact us and we&apos;ll put it right.
           </li>
           <li>Questions about rent, deposits or refunds of rent should go to your hostel first.</li>
@@ -91,11 +88,18 @@ export default function TermsPage() {
         </ul>
         <h3>Fees</h3>
         <ul>
-          <li>HostelHub is free for hostels to set up and use. Tenants who pay online pay the service fee in section 4.</li>
+          <li>There are no setup or monthly fees. Rent your tenants pay online reaches you in full.</li>
           <li>
-            Tenants living with you before you go live can be added free during sign-up, and through your join link for {JOIN_DAYS_AFTER_LIVE} days after you go live.
+            Tenants who pay online pay HostelHub a booking fee on top: {feePercent}% of what they pay you (refundable deposits are left out), at least {naira(SERVICE_FEE.minimum)} and at
+            most {naira(SERVICE_FEE.maximum)}.
           </li>
-          <li>After that, adding a tenant by hand on your dashboard costs {naira(HAND_ADD_FEE)} per tenant.</li>
+          <li>
+            When you collect rent outside HostelHub, by adding a tenant by hand or recording a payment by hand on your dashboard, you pay HostelHub the same fee on that rent before it&apos;s
+            saved. Payments made online never cost you anything.
+          </li>
+          <li>
+            Tenants living with you before you go live can be added free during sign-up, and through your join link or a spreadsheet import for {JOIN_DAYS_AFTER_LIVE} days after you go live.
+          </li>
           <li>We may change our fees. We&apos;ll tell you at least 30 days before a change affects you.</li>
         </ul>
       </section>

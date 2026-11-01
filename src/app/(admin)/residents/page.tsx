@@ -7,7 +7,7 @@ import { Avatar, BtnLabel, Button, headerBtn, Card, EmptyState, PageHeader, Rent
 import { roomLabel, useHostel } from "@/lib/store";
 import { openResident } from "@/lib/ui-store";
 import { LEVELS } from "@/lib/seed";
-import { cn, daysLeft, describeDaysLeft, downloadCSV, formatDate, rentStatus } from "@/lib/utils";
+import { blockTitle, cn, daysLeft, describeDaysLeft, downloadCSV, formatDate, occupantsByRoom, rentStatus, roomTypeOf } from "@/lib/utils";
 
 const PAGE_SIZE = 25;
 
@@ -23,20 +23,32 @@ export default function ResidentsPage() {
   const [showFilters, setShowFilters] = useState(false);
   const [adding, setAdding] = useState(false);
 
+  // Rooms by id: their block (named freely now: "Ruby", not just "A") and whether they're let by the bed
+  const rooms = useMemo(() => new Map(s.rooms.map((room) => [room.id, room])), [s.rooms]);
+  const perBed = (roomId: string) => {
+    const room = rooms.get(roomId);
+    return !!room && roomTypeOf(s, room).pricingMode === "per_bed";
+  };
+  // Who a tenant lives with: the other tenants in a room let by the bed (each booked their own),
+  // or the people recorded on their own booking in a room let whole
+  const byRoom = useMemo(() => occupantsByRoom(s), [s]);
+  const sharingWith = (r: (typeof s.residents)[number]) =>
+    r.roomId && perBed(r.roomId) ? (byRoom.get(r.roomId) ?? []).filter((x) => x.id !== r.id).map((x) => x.fullName) : r.occupants.map((o) => o.fullName);
+
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
     return s.residents
       .filter((r) => {
         if (status && r.status !== status) return false;
         if (rent && (r.status !== "active" || rentStatus(r) !== rent)) return false;
-        if (block && !r.roomId?.startsWith(block)) return false;
+        if (block && (!r.roomId || rooms.get(r.roomId)?.block !== block)) return false;
         if (level && r.level !== level) return false;
         if (sex && r.sex !== sex) return false;
         if (!term) return true;
-        return [r.fullName, r.phone, r.roomId ?? "", r.department, r.matricNo, r.email].some((v) => v.toLowerCase().includes(term));
+        return [r.fullName, r.phone, r.roomId ?? "", r.roomId ? roomLabel(r.roomId) : "", r.department, r.matricNo, r.email].some((v) => v.toLowerCase().includes(term));
       })
       .sort((a, b) => (a.roomId ?? "zz").localeCompare(b.roomId ?? "zz", undefined, { numeric: true }) || a.fullName.localeCompare(b.fullName));
-  }, [s.residents, q, status, rent, block, level, sex]);
+  }, [s.residents, rooms, q, status, rent, block, level, sex]);
 
   const activeFilters = [status !== "active", rent, block, level, sex].filter(Boolean).length;
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
@@ -129,7 +141,7 @@ export default function ResidentsPage() {
               <option value="">All blocks</option>
               {s.settings.blocks.map((b) => (
                 <option key={b.name} value={b.name}>
-                  Block {b.name}
+                  {blockTitle(b.name)}
                 </option>
               ))}
             </Select>
@@ -180,21 +192,19 @@ export default function ResidentsPage() {
                         </div>
                       </div>
                     </td>
-                    <td className="hidden px-4 py-3 font-medium text-slate-700 sm:table-cell">{r.roomId ?? "—"}</td>
+                    <td className="hidden px-4 py-3 font-medium text-slate-700 sm:table-cell">{r.roomId ? roomLabel(r.roomId) : "—"}</td>
                     <td className="hidden px-4 py-3 xl:table-cell">
-                      {r.occupants.length ? (
-                        <span className="text-slate-700">{r.occupants.map((o) => o.fullName).join(", ")}</span>
-                      ) : (
-                        <span className="text-xs text-slate-400">Alone</span>
-                      )}
+                      <Sharing names={sharingWith(r)} perBed={!!r.roomId && perBed(r.roomId)} />
                     </td>
                     <td className="hidden px-4 py-3 md:table-cell">
                       {r.isStudent === false ? (
                         <p className="text-slate-500">Not a student</p>
+                      ) : !r.department && !r.level ? (
+                        <p className="text-xs text-slate-400">Not provided</p>
                       ) : (
                         <>
-                          <p className="text-slate-700">{r.department}</p>
-                          <p className="text-xs text-slate-500">{r.level} Level</p>
+                          <p className="text-slate-700">{r.department || <span className="text-slate-400">Course not provided</span>}</p>
+                          <p className="text-xs text-slate-500">{r.level ? `${r.level} Level` : "Level not provided"}</p>
                         </>
                       )}
                     </td>
@@ -234,4 +244,10 @@ export default function ResidentsPage() {
       {adding && <AddResidentModal onClose={() => setAdding(false)} />}
     </>
   );
+}
+
+/** Who a tenant shares with, or why nobody: a bed of their own in a shared room isn't "alone". */
+function Sharing({ names, perBed }: { names: string[]; perBed: boolean }) {
+  if (names.length) return <span className="text-slate-700">{names.join(", ")}</span>;
+  return <span className="text-xs text-slate-400">{perBed ? "No roommates yet" : "Lives alone"}</span>;
 }

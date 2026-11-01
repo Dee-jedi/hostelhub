@@ -2,9 +2,11 @@
 
 import { Printer } from "lucide-react";
 import { useState } from "react";
-import { recordPayment, useHostel } from "@/lib/store";
+import { manualFee } from "@/lib/fees";
+import { payManualFee, recordPayment, roomLabel, useHostel } from "@/lib/store";
 import type { Payment, PaymentMethod } from "@/lib/types";
 import { addMonths, formatDate, naira, rentFor, todayISO } from "@/lib/utils";
+import { ManualFeeNote } from "./ManualFeeNote";
 import { toast } from "./toast";
 import { Button, Field, Input, Modal, Select } from "./ui";
 
@@ -89,11 +91,18 @@ export function PaymentModal({ residentId, onClose }: { residentId: string | nul
   const newStart = resident.leaseEnd >= today ? resident.leaseEnd : today;
   const newEnd = addMonths(newStart, s.settings.leaseMonths);
 
+  // Rent collected outside HostelHub carries HostelHub's fee, paid by the hostel
+  const collected = Number(amount.replace(/[^\d]/g, "")) || 0;
+  const fee = s.settings.collectFee && collected ? manualFee(collected) : 0;
+
   const submit = async () => {
-    const value = Number(amount.replace(/[^\d]/g, ""));
+    const value = collected;
     if (!value) return toast("Enter an amount", "info");
     setSaving(true);
-    const p = await recordPayment(resident.id, { amount: value, method, reference, date }, extend);
+    // The fee first, in Paystack's popup; stopping there records nothing
+    const feeReference = fee ? await payManualFee("recordPayment", value) : undefined;
+    if (fee && !feeReference) return setSaving(false);
+    const p = await recordPayment(resident.id, { amount: value, method, reference, date }, extend, feeReference ?? undefined);
     setSaving(false);
     if (!p) return;
     toast(`Payment of ${naira(value)} recorded`);
@@ -105,14 +114,14 @@ export function PaymentModal({ residentId, onClose }: { residentId: string | nul
       open
       onClose={onClose}
       title="Record payment"
-      description={`${resident.fullName} · Room ${resident.roomId ?? "unassigned"}`}
+      description={`${resident.fullName} · ${resident.roomId ? `Room ${roomLabel(resident.roomId)}` : "No room"}`}
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
           <Button onClick={submit} disabled={saving}>
-            {saving ? "Saving…" : "Record payment"}
+            {saving ? "Saving…" : fee ? `Pay ${naira(fee)} fee and record` : "Record payment"}
           </Button>
         </>
       }
@@ -144,6 +153,7 @@ export function PaymentModal({ residentId, onClose }: { residentId: string | nul
           </span>
         </span>
       </label>
+      {fee > 0 && <ManualFeeNote fee={fee} collected={collected} />}
     </Modal>
   );
 }

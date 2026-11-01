@@ -59,6 +59,33 @@ export function RoomTypesPanel() {
     toast(err ?? (model === "per_bed" ? "Now renting by the bed" : "Now renting whole rooms"), err ? "info" : "success");
   };
 
+  // Hostels set up through sign-up price each size per stay option and can mix beds and whole
+  // rooms; this editor (one price, one model for everything) would undo that, so it's shown as is
+  if (s.settings.structure) {
+    return (
+      <Panel className="lg:col-span-2" title="Room types" description="The room sizes and prices you set up. To change them, message HostelHub support.">
+        <ul className="grid gap-3 p-5 sm:grid-cols-2 lg:grid-cols-3">
+          {types.map((t) => {
+            const prices = Object.values(t.prices ?? {}).filter((p) => p > 0);
+            const low = prices.length ? Math.min(...prices) : t.price;
+            const high = prices.length ? Math.max(...prices) : t.price;
+            return (
+              <li key={t.id} className="rounded-xl border border-grey-100 p-3">
+                <p className="font-medium text-grey-950">{t.name}</p>
+                <p className="text-sm text-heading-6">
+                  {low === high ? naira(low) : `${naira(low)} – ${naira(high)}`} per {t.pricingMode === "per_bed" ? "bed" : "room"}
+                </p>
+                <p className="text-xs text-heading-6">
+                  {roomsOf.get(t.id) ?? 0} room{(roomsOf.get(t.id) ?? 0) === 1 ? "" : "s"}
+                </p>
+              </li>
+            );
+          })}
+        </ul>
+      </Panel>
+    );
+  }
+
   return (
     <Panel
       className="lg:col-span-2"

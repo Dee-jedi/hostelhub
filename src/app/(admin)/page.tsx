@@ -61,6 +61,7 @@ export default function DashboardPage() {
       {/* Tenants adding themselves through the join link: only shows while the link is open */}
       {currentHostelId() && (
         <JoinRequestsPanel
+          collapsible
           className="mb-6 rounded-2xl bg-white p-4 ring-1 ring-grey-100 sm:p-5"
           hostelId={currentHostelId()!}
           hostelName={s.settings.hostelName}

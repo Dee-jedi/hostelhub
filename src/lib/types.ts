@@ -26,6 +26,13 @@ export interface Settings {
   accountName: string;
   accountNumber: string;
   whatsappGroupLink: string;
+  /**
+   * Hostels set up through sign-up: their blocks as they really are (each with its own number
+   * of rooms and who may stay). Their rooms are managed there, not with roomsPerBlock above.
+   */
+  structure?: { name: string; rooms: number; who: "male" | "female" | "any" }[];
+  /** The hostel pays HostelHub's fee when it collects rent outside HostelHub (fees.ts manualFee) */
+  collectFee?: boolean;
 }
 
 export interface Room {

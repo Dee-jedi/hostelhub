@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
   title: "HostelHub: run your hostel from your phone",
-  description: "Tenants book a room and pay online. You see every room, tenant and payment in one place. Free for hostels, lodges and apartments.",
+  description: "Tenants book a room and pay online. You see every room, tenant and payment in one place. No setup or monthly fees, for hostels, lodges and apartments.",
 };
 
 const container = "mx-auto w-full max-w-6xl px-5 sm:px-8";
@@ -83,15 +83,15 @@ const FEATURES = [
 
 const FAQS = [
   ["How long does it take to set up?", "Most hostels are ready in an afternoon. You answer simple questions about your hostel, rooms and prices, one screen at a time. You can stop and pick up later, and nothing goes live until you say so."],
-  ["I already have tenants. Do I start again?", "No. While you set up, you add the tenants you already have, with the room they're in and when their rent runs out. They're on your dashboard from day one."],
+  ["I already have tenants. Do I start again?", "No. While you set up, you add the tenants you already have for free (one by one, from Excel, or with a link they fill in themselves), with the room they're in and when their rent runs out. They're on your dashboard from day one."],
   ["Where does the rent money go?", "Straight to your hostel's bank account, through Paystack, a licensed payment company used by thousands of Nigerian businesses. HostelHub never holds your rent."],
-  ["Can tenants still pay by cash or bank transfer?", "Yes. You record it on the dashboard and HostelHub gives them a receipt like any other. Online payment is just faster, because the room and the receipt happen on their own."],
+  ["Can tenants still pay by cash or bank transfer?", "Yes. You record it on the dashboard and HostelHub gives them a receipt like any other. A small HostelHub fee applies to rent you collect yourself, shown before you save. When tenants pay online there's nothing for you to pay, and the room and receipt happen on their own."],
   ["Do my tenants need to download an app?", "No. It works in the browser on any smartphone. They can add it to their home screen if they like, and it opens like an app."],
   ["What if two people want the same room?", "The room map is live. When someone starts paying, the room is held for them for 15 minutes, so two people can never pay for the same room."],
   ["Does it work for hostels that rent by the bed?", "Yes. You choose per room or per bed when you set up, with rooms for 2, 3 or 4 people, and you can mix room sizes in one hostel."],
   ["Do I need a website?", `No. Your hostel gets its own address, like yourhostel.${PLATFORM_HOST}, and a QR poster to print. That's your booking page.`],
   ["Is our data safe?", "It's stored on Google's cloud. Your staff only see your hostel, and each tenant only sees their own records and receipts."],
-  ["What does it cost?", "Nothing for hostels. No setup fee and no monthly subscription."],
+  ["What does it cost?", "No setup fee and no monthly subscription. When tenants pay online, through their booking or portal, there's nothing for you to pay. Rent you collect yourself and record by hand carries a small fee, shown before you save."],
 ];
 
 function Faq() {
@@ -148,7 +148,7 @@ export default function SitePage() {
               </a>
             </div>
             <ul className="mt-8 flex flex-wrap gap-x-3 gap-y-2 text-sm text-heading-5 sm:gap-x-6 sm:text-[15px]">
-              {["Free for hostels", "Rent paid to your bank"].map((t) => (
+              {["No setup or monthly fees", "Rent paid to your bank"].map((t) => (
                 <li key={t} className="flex items-center gap-1.5 whitespace-nowrap sm:gap-2">
                   <ShieldCheck className="size-4 text-brand-600" /> {t}
                 </li>
@@ -308,16 +308,16 @@ export default function SitePage() {
           <div className="mx-auto max-w-3xl text-center">
             <Eyebrow n="06">Pricing</Eyebrow>
             <h2 className="mt-6 text-[clamp(2.5rem,6vw,4.75rem)] leading-[0.98] font-bold tracking-[-0.045em] text-brand-950">
-              Free for hostels.
+              No setup or monthly fees.
               <br />
               <span className="text-brand-600">Really.</span>
             </h2>
-            <p className="mx-auto mt-6 max-w-xl text-lg leading-relaxed text-heading-5">No setup fee. No monthly subscription. No card needed to start.</p>
+            <p className="mx-auto mt-6 max-w-xl text-lg leading-relaxed text-heading-5">Free to set up and run, with no card needed to start. When tenants pay online, there&apos;s nothing for you to pay.</p>
           </div>
           <div className="mx-auto mt-12 max-w-3xl rounded-[2rem] bg-white p-7 shadow-[0_30px_70px_-30px_rgba(11,35,34,0.3)] ring-1 ring-black/5 sm:p-10">
             <div className="flex flex-wrap items-end justify-between gap-4 border-b border-grey-100 pb-7">
               <div>
-                <p className="text-sm font-medium text-brand-700">Everything included</p>
+                <p className="text-sm font-medium text-brand-700">To set up and use, every month</p>
                 <p className="mt-1 text-5xl font-bold tracking-tight text-brand-950">₦0</p>
               </div>
               <PrimaryCta />
@@ -343,6 +343,9 @@ export default function SitePage() {
                 </li>
               ))}
             </ul>
+            <p className="mt-7 border-t border-grey-100 pt-5 text-sm leading-relaxed text-heading-6">
+              When tenants pay online, there&apos;s nothing for you to pay. Rent you collect yourself and record by hand carries a small HostelHub fee, shown before you save.
+            </p>
           </div>
         </div>
       </section>

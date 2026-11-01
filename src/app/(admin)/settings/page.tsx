@@ -8,6 +8,7 @@ import { BtnLabel, Button, headerBtn, Panel, Field, Input, Modal, PageHeader } f
 import { IS_LIVE_DATABASE } from "@/lib/env";
 import { getState, resetDemoData, startFresh, updateSettings, useHostel } from "@/lib/store";
 import type { Settings } from "@/lib/types";
+import { blockTitle } from "@/lib/utils";
 
 
 export default function SettingsPage() {
@@ -48,6 +49,8 @@ export default function SettingsPage() {
   };
 
   const totalRooms = form.blocks.length * form.roomsPerBlock;
+  /** Set up through sign-up: blocks, rooms and rent options are its own (see Settings.structure) */
+  const structured = !!form.structure;
 
   return (
     <>
@@ -85,17 +88,25 @@ export default function SettingsPage() {
 
         <Panel title="Rent & payment">
           <div className="grid gap-4 p-5 sm:grid-cols-2">
-            <Field label="Rent period (months)" hint="Rent for each room size is under Room types">
-              <Input type="number" min={1} value={form.leaseMonths} onChange={(e) => set("leaseMonths", Math.max(1, Number(e.target.value)))} />
-            </Field>
+            {/* Sign-up hostels have their own rent options (per session, per year…), set in sign-up */}
+            {!structured && (
+              <Field label="Rent period (months)" hint="Rent for each room size is under Room types">
+                <Input type="number" min={1} value={form.leaseMonths} onChange={(e) => set("leaseMonths", Math.max(1, Number(e.target.value)))} />
+              </Field>
+            )}
+            {structured && (
+              <p className="text-sm text-heading-6 sm:col-span-2">
+                Rent paid online goes to your payout account (below), checked with your bank at sign-up. To change it, message HostelHub support.
+              </p>
+            )}
             <Field label="Bank">
-              <Input value={form.bankName} onChange={(e) => set("bankName", e.target.value)} />
+              <Input value={form.bankName} onChange={(e) => set("bankName", e.target.value)} disabled={structured} />
             </Field>
             <Field label="Account number">
-              <Input value={form.accountNumber} onChange={(e) => set("accountNumber", e.target.value)} />
+              <Input value={form.accountNumber} onChange={(e) => set("accountNumber", e.target.value)} disabled={structured} />
             </Field>
             <Field label="Account name" className="sm:col-span-2">
-              <Input value={form.accountName} onChange={(e) => set("accountName", e.target.value)} />
+              <Input value={form.accountName} onChange={(e) => set("accountName", e.target.value)} disabled={structured} />
             </Field>
             <Field label="Send reminders (days before expiry)" className="sm:col-span-2" hint="Comma separated, e.g. 30, 14, 7, 1">
               <Input value={reminders} onChange={(e) => setReminders(e.target.value)} />
@@ -105,6 +116,29 @@ export default function SettingsPage() {
 
         <RoomTypesPanel />
 
+        {form.structure ? (
+          // Sign-up hostels: the blocks as they really are, each with its own number of rooms
+          <Panel
+            className="lg:col-span-2"
+            title="Blocks & rooms"
+            description={`${form.structure.length} block${form.structure.length === 1 ? "" : "s"} · ${form.structure.reduce((n, b) => n + b.rooms, 0)} rooms`}
+          >
+            <div className="p-5">
+              <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {form.structure.map((b) => (
+                  <li key={b.name} className="rounded-xl border border-grey-100 p-3">
+                    <p className="font-medium text-grey-950">{blockTitle(b.name)}</p>
+                    <p className="text-sm text-heading-6">
+                      {b.rooms} room{b.rooms === 1 ? "" : "s"}
+                      {b.who === "any" ? " · anyone" : b.who === "female" ? " · female only" : " · male only"}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-3 text-xs text-slate-500">Room sizes and prices are on the Rooms page. To add a block or change its rooms, message HostelHub support.</p>
+            </div>
+          </Panel>
+        ) : (
         <Panel className="lg:col-span-2" title="Blocks & rooms" description={`${form.blocks.length} blocks × ${form.roomsPerBlock} rooms = ${totalRooms} rooms`}>
           <div className="p-5">
             <div className="mb-5 grid gap-4 sm:grid-cols-3">
@@ -140,6 +174,7 @@ export default function SettingsPage() {
             <p className="mt-3 text-xs text-slate-500">New rooms get your first room type; change sizes on the Rooms page. A block with tenants can&apos;t be removed.</p>
           </div>
         </Panel>
+        )}
 
         <Panel
           className="lg:col-span-2"
