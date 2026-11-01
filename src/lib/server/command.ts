@@ -28,7 +28,7 @@ export class CommandError extends Error {
  * public:    anyone, signed in or not (e.g. the booking page)
  * signed-in: any login
  * tenant:    a tenant of this hostel (managers may also call it, e.g. to act for a tenant)
- * manager:   a manager of this hostel
+ * manager:   a manager of this hostel (or the platform admin, for support)
  * platform:  the platform admin; the hostel, if any, comes from the request body
  */
 export type Access = "public" | "signed-in" | "tenant" | "manager" | "platform";
@@ -84,7 +84,8 @@ export function command<Body, Result>(
         options.access === "public" ||
         options.access === "signed-in" ||
         (options.access === "platform" && isPlatformAdmin(access)) ||
-        (options.access === "manager" && !!hostelId && isManagerOf(access, hostelId)) ||
+        // The platform admin may act for any hostel's manager (support), as the database rules allow
+        (options.access === "manager" && !!hostelId && (isManagerOf(access, hostelId) || isPlatformAdmin(access))) ||
         (options.access === "tenant" && !!hostelId && (isTenantOf(access, hostelId) || isManagerOf(access, hostelId)));
       if (!allowed) throw new CommandError("You don't have access to this.", 403);
       if ((options.access === "manager" || options.access === "tenant") && !hostelId) throw new CommandError("Unknown hostel.", 404);
