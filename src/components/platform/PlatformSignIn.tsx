@@ -55,9 +55,16 @@ export function PlatformSignIn() {
         const me = (await res.json()) as { manages?: string[]; tenantOf?: string[]; platformAdmin?: boolean; error?: string };
         if (!res.ok) throw new Error(me.error ?? "Couldn't look up your hostels.");
         const ids = [...(me.manages ?? []).map((id) => ({ id, role: "manager" as const })), ...(me.tenantOf ?? []).filter((id) => !me.manages?.includes(id)).map((id) => ({ id, role: "tenant" as const }))];
-        const named = await Promise.all(
-          ids.map(async (p) => ({ ...p, name: ((await getDoc(doc(db, `listings/${p.id}`)).catch(() => null))?.data()?.info?.hostelName as string | undefined) ?? p.id })),
-        );
+        // Logins are shared by live and staging, so a login can hold a role in a hostel that only
+        // exists on the other one: only hostels with a listing here are shown
+        const named = (
+          await Promise.all(
+            ids.map(async (p) => {
+              const name = (await getDoc(doc(db, `listings/${p.id}`)).catch(() => null))?.data()?.info?.hostelName as string | undefined;
+              return name ? { ...p, name } : null;
+            }),
+          )
+        ).filter((p): p is Place => !!p);
         if (!live) return;
         setAdmin(!!me.platformAdmin);
         setPlaces(named);
