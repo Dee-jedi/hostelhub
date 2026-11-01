@@ -21,7 +21,7 @@ export default function TermsPage() {
       intro={
         <p>
           These terms apply when you use HostelHub, whether you&apos;re a tenant booking or living in a room, or a hostel, lodge or apartment using HostelHub to run your property. HostelHub
-          is operated by {LEGAL.operator}, a company registered in Nigeria (&ldquo;HostelHub&rdquo;, &ldquo;we&rdquo;, &ldquo;us&rdquo;). By creating an account, booking, paying or
+          is operated by {LEGAL.operator} (RC {LEGAL.rc}), a company registered in Nigeria (&ldquo;HostelHub&rdquo;, &ldquo;we&rdquo;, &ldquo;us&rdquo;). By creating an account, booking, paying or
           setting up a hostel, you agree to these terms and to our <Link href="/privacy">Privacy Policy</Link>.
         </p>
       }

@@ -6,12 +6,14 @@ import { ArrowRight, Building2, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { GoogleButton, OrDivider } from "@/components/GoogleButton";
+import { HostelDirectory } from "./HostelDirectory";
 import { openSignedIn } from "@/lib/google-auth";
 import { Wordmark } from "@/components/site/brand";
 import { Input, PasswordInput } from "@/components/ui";
 import { authMessage } from "@/lib/auth";
 import { auth, db } from "@/lib/firebase";
 import { PLATFORM_HOST } from "@/lib/platform";
+import { cn } from "@/lib/utils";
 
 /*
  * "Log in" on hostelhub.africa. Everyone signs in here, then goes where they belong: the one
@@ -38,6 +40,8 @@ export function PlatformSignIn() {
   const [user, setUser] = useState<User | null | undefined>(undefined);
   /** Signed in on this page just now (not already signed in when it opened) */
   const justSignedIn = useRef(false);
+  /** Phones: the sign-in form, folded away until they tap "Log in" */
+  const [showLogin, setShowLogin] = useState(false);
   const [places, setPlaces] = useState<Place[] | null>(null);
   const [admin, setAdmin] = useState(false);
   const [email, setEmail] = useState("");
@@ -117,14 +121,32 @@ export function PlatformSignIn() {
     }
   };
 
-  const card = "w-full max-w-sm rounded-3xl bg-white p-6 ring-1 ring-black/5 sm:p-7";
+  const card = "w-full rounded-3xl bg-white p-6 ring-1 ring-black/5 sm:p-7";
 
   return (
-    <div className="flex min-h-dvh flex-col items-center bg-[#f6f8f7] px-4 py-10">
-      <Link href="/" aria-label="HostelHub home" className="mb-8">
-        <Wordmark />
-      </Link>
+    <div className="min-h-dvh bg-[#f6f8f7] px-4 py-8 sm:py-10">
+      <div className="mx-auto max-w-5xl">
+        <Link href="/" aria-label="HostelHub home" className="mb-8 inline-block">
+          <Wordmark />
+        </Link>
 
+        {/* Phones: the sign-in folds away behind one line, so the hostel list comes first */}
+        {user === null && !showLogin && (
+          <button
+            type="button"
+            onClick={() => setShowLogin(true)}
+            className="mb-6 flex w-full items-center justify-between rounded-2xl bg-white px-4 py-3.5 text-left text-[15px] ring-1 ring-black/5 lg:hidden"
+          >
+            <span className="text-heading-5">Already have an account?</span>
+            <span className="font-semibold text-brand-800">Log in</span>
+          </button>
+        )}
+
+        <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_380px] lg:gap-12">
+          <div className="order-2 lg:order-1">
+            <HostelDirectory />
+          </div>
+          <div className={cn("order-1 lg:sticky lg:top-8 lg:order-2", user === null && !showLogin && "hidden lg:block")}>
       {user === undefined || (user && places === null && !problem) ? (
         <p className="mt-10 flex items-center gap-2 text-heading-5">
           <Loader2 className="size-4 animate-spin" /> {user ? "Finding your hostel…" : "Loading…"}
@@ -194,7 +216,7 @@ export function PlatformSignIn() {
           {places?.length === 0 && !admin && (
             <div className="mt-6 text-[15px] leading-relaxed text-heading-5">
               <p className="font-semibold text-grey-950">You&apos;re not part of a hostel yet.</p>
-              <p className="mt-2">Looking for a room? Ask your hostel for their HostelHub booking link.</p>
+              <p className="mt-2">Looking for a room? Find your hostel on this page and book from there.</p>
               <Link href="/start" className="mt-4 flex h-11 items-center justify-center rounded-xl bg-brand-950 text-sm font-semibold text-white hover:bg-brand-800">
                 Set up your hostel
               </Link>
@@ -207,6 +229,9 @@ export function PlatformSignIn() {
           </button>
         </div>
       )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

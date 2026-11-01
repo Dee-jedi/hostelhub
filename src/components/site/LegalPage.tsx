@@ -11,6 +11,8 @@ import { Wordmark } from "./brand";
 export const LEGAL = {
   /** The company that runs HostelHub and is party to these terms */
   operator: "DISPHERE LTD",
+  /** Its Corporate Affairs Commission registration number */
+  rc: "8967634",
   updated: "1 November 2026",
 };
 

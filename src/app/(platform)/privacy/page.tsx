@@ -17,7 +17,7 @@ export default function PrivacyPage() {
         <p>
           HostelHub helps hostels, lodges and apartments take bookings, collect rent and keep their tenant records, and helps tenants book a room and keep track of their rent. This policy
           explains what personal data we collect, why, who we share it with and the rights you have under the Nigeria Data Protection Act 2023 (NDPA). HostelHub is operated by{" "}
-          {LEGAL.operator}, a company registered in Nigeria (&ldquo;HostelHub&rdquo;, &ldquo;we&rdquo;, &ldquo;us&rdquo;).
+          {LEGAL.operator} (RC {LEGAL.rc}), a company registered in Nigeria (&ldquo;HostelHub&rdquo;, &ldquo;we&rdquo;, &ldquo;us&rdquo;).
         </p>
       }
     >
