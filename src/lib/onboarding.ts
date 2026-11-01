@@ -55,6 +55,8 @@ export function normalizePhone(raw: string) {
   const digits = raw.replace(/[^\d+]/g, "");
   if (/^\+234\d{10}$/.test(digits)) return `0${digits.slice(4)}`;
   if (/^234\d{10}$/.test(digits)) return `0${digits.slice(3)}`;
+  // A spreadsheet that dropped the leading zero: 8031234567
+  if (/^[789][01]\d{8}$/.test(digits)) return `0${digits}`;
   return digits;
 }
 export const isNigerianPhone = (raw: string) => /^0[789][01]\d{8}$/.test(normalizePhone(raw));

@@ -1,8 +1,9 @@
 "use client";
 
-import { Check, Link2, Loader2, MessageCircle, Pencil, RefreshCw, X } from "lucide-react";
+import { Check, FileSpreadsheet, Link2, Loader2, MessageCircle, Pencil, RefreshCw, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import type { JoinEdits, JoinOverview } from "@/app/api/join/manage/route";
+import { ImportTenants } from "@/components/ImportTenants";
 import { auth } from "@/lib/firebase";
 import { cn } from "@/lib/utils";
 
@@ -37,6 +38,7 @@ export function JoinRequestsPanel({ hostelId, hostelName, hostelOrigin, onApprov
   const [copied, setCopied] = useState(false);
   const [deciding, setDeciding] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [importing, setImporting] = useState(false);
 
   const load = useCallback(
     (action: "overview" | "newLink" = "overview") =>
@@ -139,6 +141,22 @@ export function JoinRequestsPanel({ hostelId, hostelName, hostelOrigin, onApprov
           </button>
         </div>
       </div>
+
+      {/* Their tenant list already in a spreadsheet: add everyone at once */}
+      <button
+        type="button"
+        onClick={() => setImporting(true)}
+        className="flex w-full items-center gap-3 rounded-2xl bg-white p-4 text-left ring-1 ring-grey-150 hover:ring-brand-300"
+      >
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700">
+          <FileSpreadsheet className="size-5" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[15px] font-semibold text-grey-950">Import from Excel or CSV</span>
+          <span className="block text-sm text-heading-6">Have your tenants in a spreadsheet? Add them all at once.</span>
+        </span>
+      </button>
+      <ImportTenants hostelId={hostelId} open={importing} onClose={() => setImporting(false)} onAdded={(n) => n && onApproved?.()} />
 
       <div>
         <div className="flex items-center justify-between gap-3">

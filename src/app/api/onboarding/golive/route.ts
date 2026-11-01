@@ -2,21 +2,18 @@ import { FieldValue } from "firebase-admin/firestore";
 import { accessFrom, isManagerOf } from "@/lib/access";
 import { TERMS_VERSION } from "@/lib/fees";
 import type { Hostel, HostelResident, Listing, Tenancy } from "@/lib/model";
-import { isNigerianPhone, normalizePhone } from "@/lib/onboarding";
 import { adminDb, verifyRequest } from "@/lib/server/admin";
 import { command, CommandError } from "@/lib/server/command";
-import { claimSpace, hostelRefs, listingUpdate, minus, newId, plus, readOccupancy, readTerms } from "@/lib/server/hostel-data";
+import { placeExistingTenant } from "@/lib/server/existing-tenants";
+import { hostelRefs, listingUpdate, minus, readOccupancy } from "@/lib/server/hostel-data";
 import { isTestMode } from "@/lib/server/paystack";
 import type { Sex } from "@/lib/types";
-import { addMonths, todayISO } from "@/lib/utils";
 
 /*
  * Sign-up, part four: going live. Before that, the owner adds the tenants already living there
  * (free: they weren't found through HostelHub), checks their booking page, and accepts the fee
  * terms. Going live opens the booking page and flags the payout account for verification.
  */
-
-const empty = { email: "", matricNo: "", department: "", faculty: "", level: "", stateOfOrigin: "", homeAddress: "", nextOfKinName: "", nextOfKinPhone: "", nextOfKinRelationship: "", occupants: [] };
 
 /** GET ?hostelId=…: rooms with free spaces and the tenants added so far (two reads and a small query). */
 export async function GET(req: Request) {
@@ -75,33 +72,9 @@ export const POST = command<Body, { ok: true; tenancyId?: string; spaceId?: stri
 
   if (body.action === "addTenant") {
     // Tenants living there before the hostel joined: free to add, no payment recorded
-    const fullName = String(body.fullName ?? "").trim().replace(/\s+/g, " ");
-    const phone = normalizePhone(String(body.phone ?? ""));
-    const today = todayISO();
-    if (fullName.split(" ").length < 2) throw new CommandError("Enter the tenant's first and last name.");
-    if (!isNigerianPhone(phone)) throw new CommandError("Enter their phone number, like 08031234567.");
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(body.paidUntil)) || body.paidUntil <= today) throw new CommandError("Pick the date their rent is paid until (a date after today).");
-    if (body.paidUntil > addMonths(today, 36)) throw new CommandError("Rent paid more than 3 years ahead? Check the date.");
-    const tenancyId = newId("t_");
-    const placed = await adminDb.runTransaction(async (tx) => {
-      const claim = await claimSpace(tx, h, String(body.roomId ?? ""));
-      const { hostel } = await readTerms(tx, h, claim.room);
-      if (hostel.status !== "draft") throw new CommandError("This hostel is already live. Add tenants from your dashboard.", 409);
-      const residentId = newId("res_");
-      const now = new Date().toISOString();
-      const resident: HostelResident = { ...empty, isStudent: true, fullName, phone, sex: body.sex === "Female" ? "Female" : "Male", id: residentId, uid: null, createdAt: now };
-      const tenancy: Tenancy = {
-        id: tenancyId, residentId, uid: null, roomId: claim.room.id, spaceId: claim.spaceId, periodId: hostel.defaultPeriodId,
-        status: "active", checkInDate: today, leaseStart: today, leaseEnd: body.paidUntil, occupants: [], createdAt: now,
-      };
-      tx.set(r.doc("residents", residentId), resident);
-      tx.set(r.doc("tenancies", tenancyId), tenancy);
-      tx.update(r.listing, listingUpdate(claim.room, claim.type, plus(claim.occupied, claim.spaceId)));
-      ctx.auditIn(tx, "tenant.imported", { residentId, roomId: claim.room.id, spaceId: claim.spaceId, paidUntil: body.paidUntil });
-      return { spaceId: claim.spaceId };
-    });
+    const placed = await placeExistingTenant(ctx, h, body);
     // The screen shows the tenant straight away; this tells it which bed they got
-    return { ok: true, tenancyId, spaceId: placed.spaceId };
+    return { ok: true, tenancyId: placed.tenancyId, spaceId: placed.spaceId };
   }
 
   if (body.action === "removeTenant") {
