@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { JoinEdits, JoinOverview } from "@/app/api/join/manage/route";
 import { ImportTenants } from "@/components/ImportTenants";
 import { auth } from "@/lib/firebase";
-import { cn } from "@/lib/utils";
+import { cn, initials } from "@/lib/utils";
 
 /*
  * The join link, for managers: share it in the tenants' WhatsApp group, then approve each
@@ -49,7 +49,7 @@ export function JoinRequestsPanel({
   className?: string;
 }) {
   const foldKey = `hostelhub:join-panel:${hostelId}`;
-  /** null: not chosen yet (open only when someone's waiting) */
+  /** null: not chosen yet (folded) */
   const [expanded, setExpanded] = useState<boolean | null>(() => {
     if (!collapsible || typeof window === "undefined") return null;
     try {
@@ -141,10 +141,10 @@ export function JoinRequestsPanel({
   }
   if (!data.open) return null;
 
-  // On the dashboard it folds to one line, so the hostel's figures come first; it opens by
-  // itself when someone is waiting for approval
+  // On the dashboard it starts folded to one line, so the hostel's figures come first; the line
+  // shows how many are waiting for approval
   const waiting = data.requests.length;
-  if (collapsible && !(expanded ?? waiting > 0)) {
+  if (collapsible && !expanded) {
     return (
       <button
         type="button"
@@ -251,7 +251,9 @@ export function JoinRequestsPanel({
                   // eslint-disable-next-line @next/next/no-img-element -- tenant's passport photo
                   <img src={q.info.photoUrl} alt="" className="size-11 shrink-0 rounded-xl object-cover" />
                 ) : (
-                  <span className="size-11 shrink-0 rounded-xl bg-grey-50" />
+                  <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-sm font-semibold text-brand-800" aria-hidden>
+                    {initials(q.info.fullName)}
+                  </span>
                 )}
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[15px] font-semibold text-grey-950">{q.info.fullName}</p>
