@@ -421,14 +421,15 @@ export const sendMessage = (msg: { kind: Message["kind"]; channel: Channel; reci
 /**
  * Sends reminders to residents who have crossed a reminder threshold (e.g. 30, 14, 7, 1 days
  * before expiry) or whose rent has expired. Each threshold is only sent once per lease.
- * Resolves to how many were sent. In production this runs on a daily schedule.
+ * Resolves to how many were sent, or null if it couldn't run (a toast says why). In production
+ * this runs on a daily schedule.
  */
-export async function runAutomatedReminders(channel: Channel = "SMS") {
+export async function runAutomatedReminders(channel: Channel = "SMS"): Promise<number | null> {
   try {
     return (await manage<{ sent: number }>("runReminders", { channel })).sent;
   } catch (err) {
     failedWith(err);
-    return 0;
+    return null;
   }
 }
 

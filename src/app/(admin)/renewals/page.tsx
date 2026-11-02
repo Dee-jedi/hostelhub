@@ -69,6 +69,7 @@ export default function RenewalsPage() {
             className={headerBtn}
             onClick={async () => {
               const n = await runAutomatedReminders();
+              if (n === null) return; // refused (e.g. the demo); its toast already said why
               toast(n ? `Sent ${n} automated reminder${n === 1 ? "" : "s"}` : "Everyone due has already been reminded", n ? "success" : "info");
             }}
           >
