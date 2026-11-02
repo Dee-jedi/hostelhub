@@ -1,6 +1,6 @@
 "use client";
 
-import { createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndPassword, type User } from "firebase/auth";
+import { createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndPassword, signOut, type User } from "firebase/auth";
 import { FirebaseError } from "firebase/app";
 import { doc, onSnapshot } from "firebase/firestore";
 import { getDownloadURL, ref as storageRef, uploadBytes } from "firebase/storage";
@@ -18,6 +18,7 @@ import { Button, Field, Input, PasswordInput } from "@/components/ui";
 import { authMessage } from "@/lib/auth";
 import { firstPayment, leaseFor, mayStay, optionRent, stayLength } from "@/lib/checkout";
 import { listingPath } from "@/lib/current-hostel";
+import { DEMO_VIEWER_UID } from "@/lib/demo";
 import { isResuming, resumeUrl, saveDraft, takeDraft } from "@/lib/form-draft";
 import { platformOrigin, useGoogleReturning } from "@/lib/google-auth";
 import { bedOf, spaceLabel } from "@/lib/spaces";
@@ -136,6 +137,8 @@ export default function BookPage() {
   useEffect(
     () =>
       onAuthStateChanged(auth, (u) => {
+        // Back from looking at the demo dashboard: book as themselves, not as the demo login
+        if (u?.uid === DEMO_VIEWER_UID) return void signOut(auth);
         setMe(u);
         // Google gives us their name: one less thing to type
         if (u?.displayName) setInfo((i) => (i.fullName ? i : { ...i, fullName: u.displayName! }));

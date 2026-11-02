@@ -4,6 +4,7 @@ import { arrayUnion, collection, deleteField, doc, onSnapshot, query, updateDoc,
 import { useSyncExternalStore } from "react";
 import { toast } from "@/components/toast";
 import { hostelPath, listingPath } from "./current-hostel";
+import { DEMO_READ_ONLY, DEMO_VIEWER_UID } from "./demo";
 import { auth, db } from "./firebase";
 import { toLegacy, type HostelView } from "./migrate/to-legacy";
 import type { Listing } from "./model";
@@ -319,8 +320,12 @@ export class ActionError extends Error {
   }
 }
 
+/** The shared read-only demo login (demo.ts): every change stops here with a friendly note. */
+export const inDemo = () => auth.currentUser?.uid === DEMO_VIEWER_UID;
+
 /** Calls a manager action on the server; throws its message (safe to show) on failure. */
 async function manage<T>(action: string, body: unknown): Promise<T> {
+  if (inDemo()) throw new ActionError(DEMO_READ_ONLY);
   const token = await auth.currentUser?.getIdToken();
   const res = await fetch(`/api/manage/${action}`, {
     method: "POST",
@@ -454,7 +459,7 @@ const requestDoc = (id: string) => doc(db, hostelPath(`requests/${id}`));
 /** First time staff open a request: the tenant sees it change from Submitted to Seen. */
 export function markTicketSeen(id: string) {
   const t = state.tickets.find((x) => x.id === id);
-  if (!t || t.seenAt || !t.residentId) return;
+  if (!t || t.seenAt || !t.residentId || inDemo()) return;
   inBackground(updateDoc(requestDoc(id), { seenAt: new Date().toISOString() }));
 }
 
@@ -462,6 +467,7 @@ export function markTicketSeen(id: string) {
 export async function updateTicket(id: string, change: { status?: Ticket["status"]; text?: string }): Promise<string | null> {
   const t = state.tickets.find((x) => x.id === id);
   if (!t) return "This request no longer exists";
+  if (inDemo()) return DEMO_READ_ONLY;
   const now = new Date().toISOString();
   const status = change.status && change.status !== t.status ? change.status : undefined;
   const text = change.text?.trim();
@@ -545,6 +551,7 @@ export const setRoomsType = (roomIds: string[], typeId: string) => attempt("setR
 export const setRentalModel = (model: "per_room" | "per_bed") => attempt("setRentalModel", { model });
 
 async function reset(mode: "demo" | "empty") {
+  if (inDemo()) throw new Error(DEMO_READ_ONLY);
   const token = await auth.currentUser?.getIdToken();
   const res = await fetch("/api/admin/reset", {
     method: "POST",

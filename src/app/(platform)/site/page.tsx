@@ -141,7 +141,7 @@ export default function SitePage() {
             {/* Phones: stacked, both full width. Wider: side by side */}
             <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
               <PrimaryCta className="w-full sm:w-auto" />
-              {/* The live demo hostel, as a tenant sees it */}
+              {/* The demo hostel's dashboard, as its manager sees it (read-only) */}
               <a
                 href={DEMO_URL}
                 target="_blank"

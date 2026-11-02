@@ -1,7 +1,8 @@
 import type { DecodedIdToken } from "firebase-admin/auth";
 import { FieldValue, type DocumentReference, type Transaction } from "firebase-admin/firestore";
 import type { AccessClaims } from "../access";
-import { accessFrom, isManagerOf, isPlatformAdmin, isTenantOf, roleIn } from "../access";
+import { accessFrom, isManagerOf, isPlatformAdmin, isTenantOf, isViewerOf, roleIn } from "../access";
+import { DEMO_READ_ONLY, DEMO_VIEWER_UID } from "../demo";
 import { requestHost, resolveHost, type ResolvedHost } from "../hostel-host";
 import { adminDb, verifyRequest } from "./admin";
 
@@ -28,7 +29,7 @@ export class CommandError extends Error {
  * public:    anyone, signed in or not (e.g. the booking page)
  * signed-in: any login
  * tenant:    a tenant of this hostel (managers may also call it, e.g. to act for a tenant)
- * manager:   a manager of this hostel (or the platform admin, for support)
+ * manager:   a manager of this hostel (or the platform admin, for support; a viewer only with `viewers`)
  * platform:  the platform admin; the hostel, if any, comes from the request body
  */
 export type Access = "public" | "signed-in" | "tenant" | "manager" | "platform";
@@ -39,6 +40,8 @@ export interface CommandContext {
   host: ResolvedHost;
   user: DecodedIdToken | null;
   access: AccessClaims;
+  /** A read-only login (the demo): may look, never change anything */
+  viewer: boolean;
   db: typeof adminDb;
   /** Records an action in the hostel's audit log (outside any transaction). */
   audit(action: string, details?: Record<string, unknown>): Promise<void>;
@@ -61,7 +64,13 @@ function auditRef(hostelId: string | null): DocumentReference {
 }
 
 export function command<Body, Result>(
-  options: { access: Access; /** platform commands: read the hostel from body.hostelId */ hostelFromBody?: boolean },
+  options: {
+    access: Access;
+    /** platform commands: read the hostel from body.hostelId */
+    hostelFromBody?: boolean;
+    /** manager commands a read-only viewer may also call (the handler checks ctx.viewer before writing) */
+    viewers?: boolean;
+  },
   handler: (ctx: CommandContext, body: Body) => Promise<Result>,
 ) {
   return async function route(req: Request): Promise<Response> {
@@ -70,13 +79,18 @@ export function command<Body, Result>(
       const body = (req.method === "GET" || req.method === "HEAD" ? {} : await req.json().catch(() => null)) as Body | null;
       if (body === null) throw new CommandError("The request body isn't valid JSON.");
 
-      const user = await verifyRequest(req);
-      const access = accessFrom(user as Record<string, unknown> | null);
+      let user = await verifyRequest(req, { demo: true });
+      let access = accessFrom(user as Record<string, unknown> | null);
       let hostelId = host.kind === "hostel" ? host.slug : null;
       if (options.hostelFromBody) {
         const fromBody = (body as { hostelId?: unknown }).hostelId;
         hostelId = typeof fromBody === "string" ? fromBody : null;
       }
+      // The demo login (demo.ts) may only read: commands that allow viewers, on its own hostel.
+      // Public ones (the booking page) treat it as signed out; everything else is refused.
+      const viewer = !!user && !!hostelId && isViewerOf(access, hostelId);
+      if (user?.uid === DEMO_VIEWER_UID && (!viewer || options.access === "public")) [user, access] = [null, {}];
+      else if (viewer && !(options.access === "manager" && options.viewers)) throw new CommandError(DEMO_READ_ONLY, 403);
 
       const needsLogin = options.access !== "public";
       if (needsLogin && !user) throw new CommandError("Please sign in again.", 401);
@@ -85,7 +99,7 @@ export function command<Body, Result>(
         options.access === "signed-in" ||
         (options.access === "platform" && isPlatformAdmin(access)) ||
         // The platform admin may act for any hostel's manager (support), as the database rules allow
-        (options.access === "manager" && !!hostelId && (isManagerOf(access, hostelId) || isPlatformAdmin(access))) ||
+        (options.access === "manager" && !!hostelId && (isManagerOf(access, hostelId) || isPlatformAdmin(access) || viewer)) ||
         (options.access === "tenant" && !!hostelId && (isTenantOf(access, hostelId) || isManagerOf(access, hostelId)));
       if (!allowed) throw new CommandError("You don't have access to this.", 403);
       if ((options.access === "manager" || options.access === "tenant") && !hostelId) throw new CommandError("Unknown hostel.", 404);
@@ -95,6 +109,7 @@ export function command<Body, Result>(
         host,
         user,
         access,
+        viewer,
         db: adminDb,
         audit: async (action, details) => void (await auditRef(hostelId).set(auditEntry(ctx, action, details))),
         auditIn: (tx, action, details) => void tx.set(auditRef(hostelId), auditEntry(ctx, action, details)),

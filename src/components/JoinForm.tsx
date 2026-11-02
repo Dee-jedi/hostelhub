@@ -1,6 +1,6 @@
 "use client";
 
-import { createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndPassword, type User } from "firebase/auth";
+import { createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndPassword, signOut, type User } from "firebase/auth";
 import { FirebaseError } from "firebase/app";
 import { doc, getDoc } from "firebase/firestore";
 import { getDownloadURL, ref as storageRef, uploadBytes } from "firebase/storage";
@@ -15,6 +15,7 @@ import { EMPTY_STUDENT, StudentForm, validateStudent } from "@/components/Studen
 import { Button, Field, Input, PasswordInput, Select } from "@/components/ui";
 import { authMessage } from "@/lib/auth";
 import { listingPath } from "@/lib/current-hostel";
+import { DEMO_VIEWER_UID } from "@/lib/demo";
 import { isResuming, resumeUrl, saveDraft, takeDraft } from "@/lib/form-draft";
 import { platformOrigin, useGoogleReturning } from "@/lib/google-auth";
 import { auth, db, storage } from "@/lib/firebase";
@@ -85,6 +86,8 @@ export function JoinForm() {
   useEffect(
     () =>
       onAuthStateChanged(auth, (u) => {
+        // Back from looking at the demo dashboard: join as themselves, not as the demo login
+        if (u?.uid === DEMO_VIEWER_UID) return void signOut(auth);
         setMe(u);
         if (u?.displayName) setInfo((i) => (i.fullName ? i : { ...i, fullName: u.displayName! }));
       }),

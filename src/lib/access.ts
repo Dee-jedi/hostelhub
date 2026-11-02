@@ -4,14 +4,14 @@
  *
  *   p: "admin"                    platform admin (HostelHub staff)
  *   o: { orgId: "owner" }         owner of an organisation (set by the platform admin)
- *   h: { hostelId: "manager" }    staff role per hostel ("manager" only at launch)
+ *   h: { hostelId: "manager" }    staff role per hostel: "manager", or "viewer" (read-only; the demo, see demo.ts)
  *   t: { hostelId: true }         tenant of that hostel
  *   role: "admin"                 legacy single-hostel staff flag, still used by the live app
  *
  * Claims must stay under 1,000 bytes; one person's memberships fit easily.
  */
 
-export type HostelRole = "manager";
+export type HostelRole = "manager" | "viewer";
 
 export interface AccessClaims {
   p?: "admin";
@@ -37,4 +37,5 @@ export function accessFrom(token: Record<string, unknown> | null | undefined): A
 export const isPlatformAdmin = (a: AccessClaims) => a.p === "admin";
 export const roleIn = (a: AccessClaims, hostelId: string): HostelRole | null => a.h?.[hostelId] ?? null;
 export const isManagerOf = (a: AccessClaims, hostelId: string) => roleIn(a, hostelId) === "manager";
+export const isViewerOf = (a: AccessClaims, hostelId: string) => roleIn(a, hostelId) === "viewer";
 export const isTenantOf = (a: AccessClaims, hostelId: string) => a.t?.[hostelId] === true;

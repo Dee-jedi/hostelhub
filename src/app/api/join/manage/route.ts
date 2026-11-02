@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { DEMO_READ_ONLY } from "@/lib/demo";
 import { joinIsOpen, joinOpenUntil } from "@/lib/join";
 import type { Hostel, HostelResident, JoinRequest, Listing, Tenancy } from "@/lib/model";
 import { adminDb } from "@/lib/server/admin";
@@ -55,9 +56,11 @@ function corrected(req: JoinRequest, edits: JoinEdits = {}) {
 
 const newCode = () => randomBytes(5).toString("base64url").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 6).padEnd(6, "x");
 
-export const POST = command<Body, JoinOverview | { ok: true }>({ access: "manager", hostelFromBody: true }, async (ctx, body) => {
+export const POST = command<Body, JoinOverview | { ok: true }>({ access: "manager", hostelFromBody: true, viewers: true }, async (ctx, body) => {
   const h = ctx.hostelId!;
   const r = hostelRefs(h);
+  // The demo's viewers see the panel; only the overview, and it never makes a link for them
+  if (ctx.viewer && body.action !== "overview") throw new CommandError(DEMO_READ_ONLY, 403);
 
   if (body.action === "overview" || body.action === "newLink") {
     const [hostelSnap, pending, listingSnap] = await Promise.all([r.hostel.get(), r.col("joinRequests").where("status", "==", "pending").limit(200).get(), r.listing.get()]);
@@ -65,7 +68,7 @@ export const POST = command<Body, JoinOverview | { ok: true }>({ access: "manage
     if (!hostel) throw new CommandError("Hostel not found.", 404);
     let code = hostel.joinCode ?? null;
     // The first look makes the link; a new one turns the old one off (it was shared too widely)
-    if ((!code || body.action === "newLink") && joinIsOpen(hostel)) {
+    if ((!code || body.action === "newLink") && joinIsOpen(hostel) && !ctx.viewer) {
       code = newCode();
       await r.hostel.update({ joinCode: code });
       if (body.action === "newLink") await ctx.audit("join.link_changed");

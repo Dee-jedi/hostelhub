@@ -4,7 +4,7 @@ import { FirebaseError } from "firebase/app";
 import { onIdTokenChanged, signOut as fbSignOut, type User } from "firebase/auth";
 import { useSyncExternalStore } from "react";
 import { clearIndexedDbPersistence, terminate } from "firebase/firestore";
-import { accessFrom, isManagerOf, isPlatformAdmin } from "./access";
+import { accessFrom, isManagerOf, isPlatformAdmin, isViewerOf } from "./access";
 import { currentHostelId } from "./current-hostel";
 import { auth, db } from "./firebase";
 import { stopHostelSync } from "./store";
@@ -24,10 +24,11 @@ function start() {
   if (started) return;
   started = true;
   onIdTokenChanged(auth, async (user) => {
-    // Staff means: manager of the hostel this address belongs to, or the platform admin
+    // Staff means: manager of the hostel this address belongs to, or the platform admin; the demo's
+    // read-only viewer sees the dashboard too (its writes are refused, see demo.ts)
     const access = user ? accessFrom((await user.getIdTokenResult()).claims) : null;
     const hostelId = currentHostelId();
-    const staff = !!access && (isPlatformAdmin(access) || (!!hostelId && isManagerOf(access, hostelId)));
+    const staff = !!access && (isPlatformAdmin(access) || (!!hostelId && (isManagerOf(access, hostelId) || isViewerOf(access, hostelId))));
     const role = user ? (staff ? "admin" : "tenant") : null;
     session = { user, role };
     listeners.forEach((l) => l());

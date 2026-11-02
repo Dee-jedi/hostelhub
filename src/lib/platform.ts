@@ -18,5 +18,5 @@ export const CONTACT = {
 export const whatsappHref = (text = "Hi HostelHub, I'd like to know more about using it for my hostel.") =>
   `https://wa.me/${CONTACT.whatsappIntl}?text=${encodeURIComponent(text)}`;
 
-/** The demo hostel's booking page (Sunrise Hostel), for "View demo" on the marketing site. */
-export const DEMO_URL = PLATFORM_HOST === "localhost" ? "http://demo.localhost:3000/book" : `https://demo.${PLATFORM_HOST}/book`;
+/** The demo hostel's dashboard (Sunrise Hostel, read-only, no login; see demo.ts), for "View demo" on the marketing site. */
+export const DEMO_URL = PLATFORM_HOST === "localhost" ? "http://demo.localhost:3000/demo" : `https://demo.${PLATFORM_HOST}/demo`;

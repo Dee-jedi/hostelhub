@@ -24,6 +24,8 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { signOut, useSession } from "@/lib/auth";
+import { DEMO_VIEWER_UID } from "@/lib/demo";
+import { platformOrigin } from "@/lib/google-auth";
 import { roomLabel, startHostelSync, stopHostelSync, useHostel, useHostelStatus, useIsClient } from "@/lib/store";
 import { openResident, openRoom, toggleSidebar, useUI } from "@/lib/ui-store";
 import { activeResidents, cn, initials, isOpenTicket, managerInitials, rentStatus, tenantsByRoom } from "@/lib/utils";
@@ -578,6 +580,18 @@ function LoadingScreen({ error }: { error?: boolean }) {
   );
 }
 
+/** Above the demo dashboard (demo.ts): what this is, and the way to the real thing. */
+function DemoBanner() {
+  return (
+    <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 bg-brand-950 px-4 py-2 text-center text-sm text-white">
+      <span>You&apos;re looking around a demo hostel. Changes are switched off.</span>
+      <a href={`${platformOrigin()}/start`} className="font-semibold text-brand-200 underline-offset-4 hover:underline">
+        Set up your own hostel →
+      </a>
+    </div>
+  );
+}
+
 export function AppShell({ children }: { children: ReactNode }) {
   const isClient = useIsClient();
   const { residentId } = useUI();
@@ -599,6 +613,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="flex h-screen overflow-hidden bg-grey-10">
       <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col">
+        {user?.uid === DEMO_VIEWER_UID && <DemoBanner />}
         <TopBar />
         <main className="flex-1 overflow-y-auto p-4 pb-24 lg:p-5">{children}</main>
         <BottomNav />

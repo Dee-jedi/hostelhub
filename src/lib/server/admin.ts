@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { cert, getApp, getApps, initializeApp, type ServiceAccount } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
+import { DEMO_VIEWER_UID } from "../demo";
 import { FIRESTORE_DATABASE } from "../env";
 
 /*
@@ -62,12 +63,14 @@ try {
 export const adminAuth = getAuth(app);
 
 /** Returns the caller's uid and claims from an `Authorization: Bearer <idToken>` header, or null. */
-export async function verifyRequest(req: Request) {
+export async function verifyRequest(req: Request, { demo = false }: { /** keep the shared demo login (command.ts decides) */ demo?: boolean } = {}) {
   const header = req.headers.get("authorization") ?? "";
   const token = header.startsWith("Bearer ") ? header.slice(7) : "";
   if (!token) return null;
   try {
-    return await adminAuth.verifyIdToken(token);
+    const user = await adminAuth.verifyIdToken(token);
+    // The demo login only looks at the demo dashboard; anywhere else it counts as signed out
+    return user.uid === DEMO_VIEWER_UID && !demo ? null : user;
   } catch {
     return null;
   }
