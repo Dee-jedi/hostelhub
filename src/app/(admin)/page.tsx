@@ -73,7 +73,7 @@ export default function DashboardPage() {
         <StatCard
           label={d.unit === "bed" ? "Bed occupancy" : "Room occupancy"}
           value={`${occPct}%`}
-          sub={`${d.occupiedRooms} of ${d.usableRooms} ${d.unit}s let · ${d.people} people`}
+          sub={`${d.occupiedRooms} of ${d.usableRooms} ${d.unit}s let · ${d.people} ${d.people === 1 ? "person" : "people"}`}
           icon={<BedDouble />}
         />
         <StatCard
@@ -115,7 +115,7 @@ export default function DashboardPage() {
         </Panel>
 
         <div className="flex flex-col gap-4">
-          <Panel title="Rent status" description={`${d.residents.length} ${d.unit}s let`}>
+          <Panel title="Rent status" description={`${d.residents.length} ${d.unit}${d.residents.length === 1 ? "" : "s"} let`}>
             <div className="p-4">
               <div className="flex h-2.5 gap-0.5 overflow-hidden rounded-full">
                 <div className="bg-emerald-500" style={{ width: `${(d.statusCounts.active / totalStatus) * 100}%` }} />
