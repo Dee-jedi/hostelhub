@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { HowItWorks } from "@/components/site/HowItWorks";
+import { OnboardingVideo } from "@/components/site/OnboardingVideo";
 import { BookingScreen, DashboardMock, DASHBOARD_SIZE, ID_CARD_SIZE, IdCardMock, Phone, PHONE_SIZE, PortalScreen, Scaled } from "@/components/site/Mockups";
 import { RoomMapDemo } from "@/components/site/RoomMapDemo";
 import { Wordmark } from "@/components/site/brand";
@@ -220,6 +221,16 @@ export default function SitePage() {
           </h2>
           <div className="mt-14">
             <HowItWorks />
+          </div>
+          <div className="mt-20 grid items-center gap-10 lg:grid-cols-[1fr_2fr] lg:gap-14">
+            <div>
+              <h3 className="text-[clamp(1.75rem,3.5vw,2.5rem)] leading-[1.05] font-bold tracking-[-0.03em] text-brand-950">Watch a hostel go live.</h3>
+              <p className="mt-4 max-w-md text-lg leading-relaxed text-heading-5">
+                The whole sign-up, start to finish: the hostel, its rooms and prices, the bank account, then live and straight into the dashboard. Sped up a little.
+              </p>
+              <PrimaryCta className="mt-7" />
+            </div>
+            <OnboardingVideo />
           </div>
         </div>
       </section>
